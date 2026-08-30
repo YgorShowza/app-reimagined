@@ -58,6 +58,24 @@ const labelClass = "text-xs font-semibold uppercase tracking-wider";
 
 type Step = "matricula" | "password" | "signup";
 
+type Navigate = ReturnType<typeof useNavigate>;
+
+async function navigateHome(navigate: Navigate) {
+  const { data: userData } = await supabase.auth.getUser();
+  const uid = userData.user?.id;
+  if (uid) {
+    const { data: roles } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", uid);
+    if ((roles ?? []).some((r) => r.role === "admin")) {
+      navigate({ to: "/admin", replace: true });
+      return;
+    }
+  }
+  navigate({ to: "/painel", replace: true });
+}
+
 function AuthScreen() {
   const navigate = useNavigate();
   const [matricula, setMatricula] = useState("");
