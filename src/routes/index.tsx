@@ -73,7 +73,7 @@ async function navigateHome(navigate: Navigate) {
       return;
     }
   }
-  navigate({ to: "/painel", replace: true });
+    void navigateHome(navigate);
 }
 
 function AuthScreen() {
@@ -89,7 +89,7 @@ function AuthScreen() {
   useEffect(() => {
     let active = true;
     supabase.auth.getSession().then(({ data }) => {
-      if (active && data.session) navigate({ to: "/painel", replace: true });
+      if (active && data.session) void navigateHome(navigate);
     });
     return () => {
       active = false;
@@ -129,7 +129,7 @@ function AuthScreen() {
       return;
     }
     toast.success("Bem-vindo ao SEGEMPAT");
-    navigate({ to: "/painel", replace: true });
+    void navigateHome(navigate);
   };
 
   const handleSignup = async () => {
@@ -165,7 +165,7 @@ function AuthScreen() {
       return;
     }
     toast.success("Acesso criado com sucesso");
-    navigate({ to: "/painel", replace: true });
+    void navigateHome(navigate);
   };
 
   return (
