@@ -73,7 +73,7 @@ async function navigateHome(navigate: Navigate) {
       return;
     }
   }
-    void navigateHome(navigate);
+  navigate({ to: "/painel", replace: true });
 }
 
 function AuthScreen() {
