@@ -1,0 +1,30 @@
+import { z } from "zod";
+
+/** Domínio interno: a matrícula é a credencial, não existe e-mail real. */
+const AUTH_EMAIL_DOMAIN = "segempat.local";
+
+export const matriculaSchema = z
+  .string()
+  .trim()
+  .min(1, "Informe sua matrícula")
+  .max(32, "Matrícula muito longa")
+  .regex(/^[A-Za-z0-9._-]+$/, "Use apenas letras, números, ponto, hífen ou underline");
+
+export const passwordSchema = z
+  .string()
+  .min(6, "A senha deve ter pelo menos 6 caracteres")
+  .max(72, "A senha deve ter no máximo 72 caracteres");
+
+export const nomeSchema = z
+  .string()
+  .trim()
+  .min(2, "Informe seu nome completo")
+  .max(120, "Nome muito longo");
+
+export function normalizeMatricula(matricula: string): string {
+  return matricula.trim().toLowerCase();
+}
+
+export function matriculaToEmail(matricula: string): string {
+  return `${normalizeMatricula(matricula)}@${AUTH_EMAIL_DOMAIN}`;
+}

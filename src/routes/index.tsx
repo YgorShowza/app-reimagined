@@ -1,8 +1,16 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Lock, User, Eye, EyeOff, ChevronRight } from "lucide-react";
+import { Lock, User, Eye, EyeOff, ChevronRight, IdCard, Loader2 } from "lucide-react";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  matriculaSchema,
+  matriculaToEmail,
+  nomeSchema,
+  normalizeMatricula,
+  passwordSchema,
+} from "@/lib/matricula";
 
 const LOGO_URL =
   "https://media.base44.com/images/public/6a1117d573bbf85981b1abee/8271ac857_IMG_9226.png";
@@ -48,11 +56,27 @@ const primaryButtonStyle: React.CSSProperties = {
 
 const labelClass = "text-xs font-semibold uppercase tracking-wider";
 
+type Step = "matricula" | "password" | "signup";
+
 function AuthScreen() {
+  const navigate = useNavigate();
   const [matricula, setMatricula] = useState("");
+  const [nome, setNome] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [step, setStep] = useState<"matricula" | "password">("matricula");
+  const [step, setStep] = useState<Step>("matricula");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (active && data.session) navigate({ to: "/painel", replace: true });
+    });
+    return () => {
+      active = false;
+    };
+  }, [navigate]);
 
   const focusAccent = (e: React.FocusEvent<HTMLInputElement>) => {
     e.currentTarget.style.borderColor = "var(--accent)";
@@ -62,19 +86,68 @@ function AuthScreen() {
   };
 
   const handleCheckMatricula = () => {
-    if (!matricula.trim()) {
-      toast.error("Informe sua matrícula");
+    const parsed = matriculaSchema.safeParse(matricula);
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message ?? "Matrícula inválida");
       return;
     }
     setStep("password");
   };
 
-  const handleLogin = () => {
-    if (!password) {
-      toast.error("Informe sua senha");
+  const handleLogin = async () => {
+    const pwd = passwordSchema.safeParse(password);
+    if (!pwd.success) {
+      toast.error(pwd.error.issues[0]?.message ?? "Senha inválida");
       return;
     }
-    toast.info("Autenticação ainda não conectada nesta versão.");
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({
+      email: matriculaToEmail(matricula),
+      password,
+    });
+    setLoading(false);
+    if (error) {
+      toast.error("Matrícula ou senha incorretos");
+      return;
+    }
+    toast.success("Bem-vindo ao SEGEMPAT");
+    navigate({ to: "/painel", replace: true });
+  };
+
+  const handleSignup = async () => {
+    const parsedNome = nomeSchema.safeParse(nome);
+    if (!parsedNome.success) {
+      toast.error(parsedNome.error.issues[0]?.message ?? "Nome inválido");
+      return;
+    }
+    const pwd = passwordSchema.safeParse(password);
+    if (!pwd.success) {
+      toast.error(pwd.error.issues[0]?.message ?? "Senha inválida");
+      return;
+    }
+    if (password !== confirmPassword) {
+      toast.error("As senhas não coincidem");
+      return;
+    }
+    setLoading(true);
+    const { error } = await supabase.auth.signUp({
+      email: matriculaToEmail(matricula),
+      password,
+      options: {
+        data: { matricula: normalizeMatricula(matricula), nome: parsedNome.data },
+      },
+    });
+    setLoading(false);
+    if (error) {
+      toast.error(
+        error.message.toLowerCase().includes("already")
+          ? "Já existe uma senha cadastrada para esta matrícula"
+          : "Não foi possível criar o acesso",
+      );
+      return;
+    }
+    toast.success("Acesso criado com sucesso");
+    navigate({ to: "/painel", replace: true });
   };
 
   return (
@@ -154,6 +227,7 @@ function AuthScreen() {
                       onChange={(e) => setMatricula(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && handleCheckMatricula()}
                       placeholder="Ex: 001"
+                      autoComplete="username"
                       style={{ ...inputStyle, paddingLeft: "2.5rem" }}
                       onFocus={focusAccent}
                       onBlur={blurBorder}
@@ -190,9 +264,33 @@ function AuthScreen() {
                     </p>
                   </div>
                 </div>
+
+                {step === "signup" && (
+                  <div className="space-y-1.5">
+                    <label className={labelClass} style={{ color: "var(--text-3)" }}>
+                      Nome completo
+                    </label>
+                    <div className="relative">
+                      <IdCard
+                        className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2"
+                        style={{ color: "var(--text-4)" }}
+                      />
+                      <input
+                        value={nome}
+                        onChange={(e) => setNome(e.target.value)}
+                        placeholder="Seu nome"
+                        autoComplete="name"
+                        style={{ ...inputStyle, paddingLeft: "2.5rem" }}
+                        onFocus={focusAccent}
+                        onBlur={blurBorder}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-1.5">
                   <label className={labelClass} style={{ color: "var(--text-3)" }}>
-                    Senha
+                    {step === "signup" ? "Criar senha" : "Senha"}
                   </label>
                   <div className="relative">
                     <Lock
@@ -203,8 +301,11 @@ function AuthScreen() {
                       type={showPassword ? "text" : "password"}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-                      placeholder="Sua senha"
+                      onKeyDown={(e) =>
+                        e.key === "Enter" && (step === "signup" ? handleSignup() : handleLogin())
+                      }
+                      placeholder={step === "signup" ? "Mínimo 6 caracteres" : "Sua senha"}
+                      autoComplete={step === "signup" ? "new-password" : "current-password"}
                       style={{ ...inputStyle, paddingLeft: "2.5rem", paddingRight: "3rem" }}
                       onFocus={focusAccent}
                       onBlur={blurBorder}
@@ -224,18 +325,66 @@ function AuthScreen() {
                     </button>
                   </div>
                 </div>
+
+                {step === "signup" && (
+                  <div className="space-y-1.5">
+                    <label className={labelClass} style={{ color: "var(--text-3)" }}>
+                      Confirmar senha
+                    </label>
+                    <div className="relative">
+                      <Lock
+                        className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2"
+                        style={{ color: "var(--text-4)" }}
+                      />
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleSignup()}
+                        placeholder="Repita a senha"
+                        autoComplete="new-password"
+                        style={{ ...inputStyle, paddingLeft: "2.5rem" }}
+                        onFocus={focusAccent}
+                        onBlur={blurBorder}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <button
-                  onClick={handleLogin}
-                  className="flex h-12 w-full items-center justify-center gap-2 rounded-xl font-semibold transition-all active:scale-95"
+                  onClick={step === "signup" ? handleSignup : handleLogin}
+                  disabled={loading}
+                  className="flex h-12 w-full items-center justify-center gap-2 rounded-xl font-semibold transition-all active:scale-95 disabled:opacity-70"
                   style={primaryButtonStyle}
                 >
-                  <span>Entrar</span>
-                  <ChevronRight className="h-4 w-4" />
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <span>{step === "signup" ? "Criar acesso" : "Entrar"}</span>
+                      <ChevronRight className="h-4 w-4" />
+                    </>
+                  )}
                 </button>
+
+                <button
+                  onClick={() => {
+                    setStep(step === "signup" ? "password" : "signup");
+                    setPassword("");
+                    setConfirmPassword("");
+                  }}
+                  className="w-full text-center text-sm font-semibold"
+                  style={{ color: "var(--accent)" }}
+                >
+                  {step === "signup" ? "Já tenho senha" : "Primeiro acesso? Criar senha"}
+                </button>
+
                 <button
                   onClick={() => {
                     setStep("matricula");
                     setPassword("");
+                    setConfirmPassword("");
+                    setNome("");
                   }}
                   className="w-full text-center text-sm transition-colors"
                   style={{ color: "var(--text-4)" }}
