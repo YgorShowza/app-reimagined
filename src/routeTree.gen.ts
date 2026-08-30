@@ -11,7 +11,30 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
+import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authenticated/analytics'
+import { Route as AuthenticatedAuditoriaRouteImport } from './routes/_authenticated/auditoria'
+import { Route as AuthenticatedAvaliacaoPraticaRouteImport } from './routes/_authenticated/avaliacao-pratica'
+import { Route as AuthenticatedCertificadosRouteImport } from './routes/_authenticated/certificados'
+import { Route as AuthenticatedConteudosRouteImport } from './routes/_authenticated/conteudos'
+import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated/equipe'
+import { Route as AuthenticatedFocoRouteImport } from './routes/_authenticated/foco'
+import { Route as AuthenticatedIaBaseRouteImport } from './routes/_authenticated/ia-base'
+import { Route as AuthenticatedIndividualRouteImport } from './routes/_authenticated/individual'
+import { Route as AuthenticatedMinhasOcorrenciasRouteImport } from './routes/_authenticated/minhas-ocorrencias'
+import { Route as AuthenticatedOcorrenciasRouteImport } from './routes/_authenticated/ocorrencias'
+import { Route as AuthenticatedOportunidadesRouteImport } from './routes/_authenticated/oportunidades'
 import { Route as AuthenticatedPainelRouteImport } from './routes/_authenticated/painel'
+import { Route as AuthenticatedPendenciasRouteImport } from './routes/_authenticated/pendencias'
+import { Route as AuthenticatedPraticoRouteImport } from './routes/_authenticated/pratico'
+import { Route as AuthenticatedProgressoRouteImport } from './routes/_authenticated/progresso'
+import { Route as AuthenticatedProvasRouteImport } from './routes/_authenticated/provas'
+import { Route as AuthenticatedProvasCriarRouteImport } from './routes/_authenticated/provas-criar'
+import { Route as AuthenticatedRadarAnalisesRouteImport } from './routes/_authenticated/radar-analises'
+import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
+import { Route as AuthenticatedResumosRouteImport } from './routes/_authenticated/resumos'
+import { Route as AuthenticatedRiscoRouteImport } from './routes/_authenticated/risco'
+import { Route as AuthenticatedTvRouteImport } from './routes/_authenticated/tv'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,32 +45,300 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAnalyticsRoute = AuthenticatedAnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAuditoriaRoute = AuthenticatedAuditoriaRouteImport.update({
+  id: '/auditoria',
+  path: '/auditoria',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAvaliacaoPraticaRoute =
+  AuthenticatedAvaliacaoPraticaRouteImport.update({
+    id: '/avaliacao-pratica',
+    path: '/avaliacao-pratica',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedCertificadosRoute =
+  AuthenticatedCertificadosRouteImport.update({
+    id: '/certificados',
+    path: '/certificados',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedConteudosRoute = AuthenticatedConteudosRouteImport.update({
+  id: '/conteudos',
+  path: '/conteudos',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedEquipeRoute = AuthenticatedEquipeRouteImport.update({
+  id: '/equipe',
+  path: '/equipe',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedFocoRoute = AuthenticatedFocoRouteImport.update({
+  id: '/foco',
+  path: '/foco',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedIaBaseRoute = AuthenticatedIaBaseRouteImport.update({
+  id: '/ia-base',
+  path: '/ia-base',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedIndividualRoute = AuthenticatedIndividualRouteImport.update({
+  id: '/individual',
+  path: '/individual',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedMinhasOcorrenciasRoute =
+  AuthenticatedMinhasOcorrenciasRouteImport.update({
+    id: '/minhas-ocorrencias',
+    path: '/minhas-ocorrencias',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedOcorrenciasRoute =
+  AuthenticatedOcorrenciasRouteImport.update({
+    id: '/ocorrencias',
+    path: '/ocorrencias',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedOportunidadesRoute =
+  AuthenticatedOportunidadesRouteImport.update({
+    id: '/oportunidades',
+    path: '/oportunidades',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedPainelRoute = AuthenticatedPainelRouteImport.update({
   id: '/painel',
   path: '/painel',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedPendenciasRoute = AuthenticatedPendenciasRouteImport.update({
+  id: '/pendencias',
+  path: '/pendencias',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedPraticoRoute = AuthenticatedPraticoRouteImport.update({
+  id: '/pratico',
+  path: '/pratico',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedProgressoRoute = AuthenticatedProgressoRouteImport.update({
+  id: '/progresso',
+  path: '/progresso',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedProvasRoute = AuthenticatedProvasRouteImport.update({
+  id: '/provas',
+  path: '/provas',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedProvasCriarRoute =
+  AuthenticatedProvasCriarRouteImport.update({
+    id: '/provas-criar',
+    path: '/provas-criar',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedRadarAnalisesRoute =
+  AuthenticatedRadarAnalisesRouteImport.update({
+    id: '/radar-analises',
+    path: '/radar-analises',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedRelatoriosRoute = AuthenticatedRelatoriosRouteImport.update({
+  id: '/relatorios',
+  path: '/relatorios',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedResumosRoute = AuthenticatedResumosRouteImport.update({
+  id: '/resumos',
+  path: '/resumos',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedRiscoRoute = AuthenticatedRiscoRouteImport.update({
+  id: '/risco',
+  path: '/risco',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedTvRoute = AuthenticatedTvRouteImport.update({
+  id: '/tv',
+  path: '/tv',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AuthenticatedAdminRoute
+  '/analytics': typeof AuthenticatedAnalyticsRoute
+  '/auditoria': typeof AuthenticatedAuditoriaRoute
+  '/avaliacao-pratica': typeof AuthenticatedAvaliacaoPraticaRoute
+  '/certificados': typeof AuthenticatedCertificadosRoute
+  '/conteudos': typeof AuthenticatedConteudosRoute
+  '/equipe': typeof AuthenticatedEquipeRoute
+  '/foco': typeof AuthenticatedFocoRoute
+  '/ia-base': typeof AuthenticatedIaBaseRoute
+  '/individual': typeof AuthenticatedIndividualRoute
+  '/minhas-ocorrencias': typeof AuthenticatedMinhasOcorrenciasRoute
+  '/ocorrencias': typeof AuthenticatedOcorrenciasRoute
+  '/oportunidades': typeof AuthenticatedOportunidadesRoute
   '/painel': typeof AuthenticatedPainelRoute
+  '/pendencias': typeof AuthenticatedPendenciasRoute
+  '/pratico': typeof AuthenticatedPraticoRoute
+  '/progresso': typeof AuthenticatedProgressoRoute
+  '/provas': typeof AuthenticatedProvasRoute
+  '/provas-criar': typeof AuthenticatedProvasCriarRoute
+  '/radar-analises': typeof AuthenticatedRadarAnalisesRoute
+  '/relatorios': typeof AuthenticatedRelatoriosRoute
+  '/resumos': typeof AuthenticatedResumosRoute
+  '/risco': typeof AuthenticatedRiscoRoute
+  '/tv': typeof AuthenticatedTvRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AuthenticatedAdminRoute
+  '/analytics': typeof AuthenticatedAnalyticsRoute
+  '/auditoria': typeof AuthenticatedAuditoriaRoute
+  '/avaliacao-pratica': typeof AuthenticatedAvaliacaoPraticaRoute
+  '/certificados': typeof AuthenticatedCertificadosRoute
+  '/conteudos': typeof AuthenticatedConteudosRoute
+  '/equipe': typeof AuthenticatedEquipeRoute
+  '/foco': typeof AuthenticatedFocoRoute
+  '/ia-base': typeof AuthenticatedIaBaseRoute
+  '/individual': typeof AuthenticatedIndividualRoute
+  '/minhas-ocorrencias': typeof AuthenticatedMinhasOcorrenciasRoute
+  '/ocorrencias': typeof AuthenticatedOcorrenciasRoute
+  '/oportunidades': typeof AuthenticatedOportunidadesRoute
   '/painel': typeof AuthenticatedPainelRoute
+  '/pendencias': typeof AuthenticatedPendenciasRoute
+  '/pratico': typeof AuthenticatedPraticoRoute
+  '/progresso': typeof AuthenticatedProgressoRoute
+  '/provas': typeof AuthenticatedProvasRoute
+  '/provas-criar': typeof AuthenticatedProvasCriarRoute
+  '/radar-analises': typeof AuthenticatedRadarAnalisesRoute
+  '/relatorios': typeof AuthenticatedRelatoriosRoute
+  '/resumos': typeof AuthenticatedResumosRoute
+  '/risco': typeof AuthenticatedRiscoRoute
+  '/tv': typeof AuthenticatedTvRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/_authenticated/admin': typeof AuthenticatedAdminRoute
+  '/_authenticated/analytics': typeof AuthenticatedAnalyticsRoute
+  '/_authenticated/auditoria': typeof AuthenticatedAuditoriaRoute
+  '/_authenticated/avaliacao-pratica': typeof AuthenticatedAvaliacaoPraticaRoute
+  '/_authenticated/certificados': typeof AuthenticatedCertificadosRoute
+  '/_authenticated/conteudos': typeof AuthenticatedConteudosRoute
+  '/_authenticated/equipe': typeof AuthenticatedEquipeRoute
+  '/_authenticated/foco': typeof AuthenticatedFocoRoute
+  '/_authenticated/ia-base': typeof AuthenticatedIaBaseRoute
+  '/_authenticated/individual': typeof AuthenticatedIndividualRoute
+  '/_authenticated/minhas-ocorrencias': typeof AuthenticatedMinhasOcorrenciasRoute
+  '/_authenticated/ocorrencias': typeof AuthenticatedOcorrenciasRoute
+  '/_authenticated/oportunidades': typeof AuthenticatedOportunidadesRoute
   '/_authenticated/painel': typeof AuthenticatedPainelRoute
+  '/_authenticated/pendencias': typeof AuthenticatedPendenciasRoute
+  '/_authenticated/pratico': typeof AuthenticatedPraticoRoute
+  '/_authenticated/progresso': typeof AuthenticatedProgressoRoute
+  '/_authenticated/provas': typeof AuthenticatedProvasRoute
+  '/_authenticated/provas-criar': typeof AuthenticatedProvasCriarRoute
+  '/_authenticated/radar-analises': typeof AuthenticatedRadarAnalisesRoute
+  '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
+  '/_authenticated/resumos': typeof AuthenticatedResumosRoute
+  '/_authenticated/risco': typeof AuthenticatedRiscoRoute
+  '/_authenticated/tv': typeof AuthenticatedTvRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/painel'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/analytics'
+    | '/auditoria'
+    | '/avaliacao-pratica'
+    | '/certificados'
+    | '/conteudos'
+    | '/equipe'
+    | '/foco'
+    | '/ia-base'
+    | '/individual'
+    | '/minhas-ocorrencias'
+    | '/ocorrencias'
+    | '/oportunidades'
+    | '/painel'
+    | '/pendencias'
+    | '/pratico'
+    | '/progresso'
+    | '/provas'
+    | '/provas-criar'
+    | '/radar-analises'
+    | '/relatorios'
+    | '/resumos'
+    | '/risco'
+    | '/tv'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/painel'
-  id: '__root__' | '/' | '/_authenticated' | '/_authenticated/painel'
+  to:
+    | '/'
+    | '/admin'
+    | '/analytics'
+    | '/auditoria'
+    | '/avaliacao-pratica'
+    | '/certificados'
+    | '/conteudos'
+    | '/equipe'
+    | '/foco'
+    | '/ia-base'
+    | '/individual'
+    | '/minhas-ocorrencias'
+    | '/ocorrencias'
+    | '/oportunidades'
+    | '/painel'
+    | '/pendencias'
+    | '/pratico'
+    | '/progresso'
+    | '/provas'
+    | '/provas-criar'
+    | '/radar-analises'
+    | '/relatorios'
+    | '/resumos'
+    | '/risco'
+    | '/tv'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/_authenticated/admin'
+    | '/_authenticated/analytics'
+    | '/_authenticated/auditoria'
+    | '/_authenticated/avaliacao-pratica'
+    | '/_authenticated/certificados'
+    | '/_authenticated/conteudos'
+    | '/_authenticated/equipe'
+    | '/_authenticated/foco'
+    | '/_authenticated/ia-base'
+    | '/_authenticated/individual'
+    | '/_authenticated/minhas-ocorrencias'
+    | '/_authenticated/ocorrencias'
+    | '/_authenticated/oportunidades'
+    | '/_authenticated/painel'
+    | '/_authenticated/pendencias'
+    | '/_authenticated/pratico'
+    | '/_authenticated/progresso'
+    | '/_authenticated/provas'
+    | '/_authenticated/provas-criar'
+    | '/_authenticated/radar-analises'
+    | '/_authenticated/relatorios'
+    | '/_authenticated/resumos'
+    | '/_authenticated/risco'
+    | '/_authenticated/tv'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -71,6 +362,97 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/admin': {
+      id: '/_authenticated/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthenticatedAdminRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/analytics': {
+      id: '/_authenticated/analytics'
+      path: '/analytics'
+      fullPath: '/analytics'
+      preLoaderRoute: typeof AuthenticatedAnalyticsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/auditoria': {
+      id: '/_authenticated/auditoria'
+      path: '/auditoria'
+      fullPath: '/auditoria'
+      preLoaderRoute: typeof AuthenticatedAuditoriaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/avaliacao-pratica': {
+      id: '/_authenticated/avaliacao-pratica'
+      path: '/avaliacao-pratica'
+      fullPath: '/avaliacao-pratica'
+      preLoaderRoute: typeof AuthenticatedAvaliacaoPraticaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/certificados': {
+      id: '/_authenticated/certificados'
+      path: '/certificados'
+      fullPath: '/certificados'
+      preLoaderRoute: typeof AuthenticatedCertificadosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/conteudos': {
+      id: '/_authenticated/conteudos'
+      path: '/conteudos'
+      fullPath: '/conteudos'
+      preLoaderRoute: typeof AuthenticatedConteudosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/equipe': {
+      id: '/_authenticated/equipe'
+      path: '/equipe'
+      fullPath: '/equipe'
+      preLoaderRoute: typeof AuthenticatedEquipeRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/foco': {
+      id: '/_authenticated/foco'
+      path: '/foco'
+      fullPath: '/foco'
+      preLoaderRoute: typeof AuthenticatedFocoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/ia-base': {
+      id: '/_authenticated/ia-base'
+      path: '/ia-base'
+      fullPath: '/ia-base'
+      preLoaderRoute: typeof AuthenticatedIaBaseRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/individual': {
+      id: '/_authenticated/individual'
+      path: '/individual'
+      fullPath: '/individual'
+      preLoaderRoute: typeof AuthenticatedIndividualRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/minhas-ocorrencias': {
+      id: '/_authenticated/minhas-ocorrencias'
+      path: '/minhas-ocorrencias'
+      fullPath: '/minhas-ocorrencias'
+      preLoaderRoute: typeof AuthenticatedMinhasOcorrenciasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/ocorrencias': {
+      id: '/_authenticated/ocorrencias'
+      path: '/ocorrencias'
+      fullPath: '/ocorrencias'
+      preLoaderRoute: typeof AuthenticatedOcorrenciasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/oportunidades': {
+      id: '/_authenticated/oportunidades'
+      path: '/oportunidades'
+      fullPath: '/oportunidades'
+      preLoaderRoute: typeof AuthenticatedOportunidadesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/painel': {
       id: '/_authenticated/painel'
       path: '/painel'
@@ -78,15 +460,131 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPainelRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/pendencias': {
+      id: '/_authenticated/pendencias'
+      path: '/pendencias'
+      fullPath: '/pendencias'
+      preLoaderRoute: typeof AuthenticatedPendenciasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/pratico': {
+      id: '/_authenticated/pratico'
+      path: '/pratico'
+      fullPath: '/pratico'
+      preLoaderRoute: typeof AuthenticatedPraticoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/progresso': {
+      id: '/_authenticated/progresso'
+      path: '/progresso'
+      fullPath: '/progresso'
+      preLoaderRoute: typeof AuthenticatedProgressoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/provas': {
+      id: '/_authenticated/provas'
+      path: '/provas'
+      fullPath: '/provas'
+      preLoaderRoute: typeof AuthenticatedProvasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/provas-criar': {
+      id: '/_authenticated/provas-criar'
+      path: '/provas-criar'
+      fullPath: '/provas-criar'
+      preLoaderRoute: typeof AuthenticatedProvasCriarRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/radar-analises': {
+      id: '/_authenticated/radar-analises'
+      path: '/radar-analises'
+      fullPath: '/radar-analises'
+      preLoaderRoute: typeof AuthenticatedRadarAnalisesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/relatorios': {
+      id: '/_authenticated/relatorios'
+      path: '/relatorios'
+      fullPath: '/relatorios'
+      preLoaderRoute: typeof AuthenticatedRelatoriosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/resumos': {
+      id: '/_authenticated/resumos'
+      path: '/resumos'
+      fullPath: '/resumos'
+      preLoaderRoute: typeof AuthenticatedResumosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/risco': {
+      id: '/_authenticated/risco'
+      path: '/risco'
+      fullPath: '/risco'
+      preLoaderRoute: typeof AuthenticatedRiscoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/tv': {
+      id: '/_authenticated/tv'
+      path: '/tv'
+      fullPath: '/tv'
+      preLoaderRoute: typeof AuthenticatedTvRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
+  AuthenticatedAnalyticsRoute: typeof AuthenticatedAnalyticsRoute
+  AuthenticatedAuditoriaRoute: typeof AuthenticatedAuditoriaRoute
+  AuthenticatedAvaliacaoPraticaRoute: typeof AuthenticatedAvaliacaoPraticaRoute
+  AuthenticatedCertificadosRoute: typeof AuthenticatedCertificadosRoute
+  AuthenticatedConteudosRoute: typeof AuthenticatedConteudosRoute
+  AuthenticatedEquipeRoute: typeof AuthenticatedEquipeRoute
+  AuthenticatedFocoRoute: typeof AuthenticatedFocoRoute
+  AuthenticatedIaBaseRoute: typeof AuthenticatedIaBaseRoute
+  AuthenticatedIndividualRoute: typeof AuthenticatedIndividualRoute
+  AuthenticatedMinhasOcorrenciasRoute: typeof AuthenticatedMinhasOcorrenciasRoute
+  AuthenticatedOcorrenciasRoute: typeof AuthenticatedOcorrenciasRoute
+  AuthenticatedOportunidadesRoute: typeof AuthenticatedOportunidadesRoute
   AuthenticatedPainelRoute: typeof AuthenticatedPainelRoute
+  AuthenticatedPendenciasRoute: typeof AuthenticatedPendenciasRoute
+  AuthenticatedPraticoRoute: typeof AuthenticatedPraticoRoute
+  AuthenticatedProgressoRoute: typeof AuthenticatedProgressoRoute
+  AuthenticatedProvasRoute: typeof AuthenticatedProvasRoute
+  AuthenticatedProvasCriarRoute: typeof AuthenticatedProvasCriarRoute
+  AuthenticatedRadarAnalisesRoute: typeof AuthenticatedRadarAnalisesRoute
+  AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
+  AuthenticatedResumosRoute: typeof AuthenticatedResumosRoute
+  AuthenticatedRiscoRoute: typeof AuthenticatedRiscoRoute
+  AuthenticatedTvRoute: typeof AuthenticatedTvRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAdminRoute: AuthenticatedAdminRoute,
+  AuthenticatedAnalyticsRoute: AuthenticatedAnalyticsRoute,
+  AuthenticatedAuditoriaRoute: AuthenticatedAuditoriaRoute,
+  AuthenticatedAvaliacaoPraticaRoute: AuthenticatedAvaliacaoPraticaRoute,
+  AuthenticatedCertificadosRoute: AuthenticatedCertificadosRoute,
+  AuthenticatedConteudosRoute: AuthenticatedConteudosRoute,
+  AuthenticatedEquipeRoute: AuthenticatedEquipeRoute,
+  AuthenticatedFocoRoute: AuthenticatedFocoRoute,
+  AuthenticatedIaBaseRoute: AuthenticatedIaBaseRoute,
+  AuthenticatedIndividualRoute: AuthenticatedIndividualRoute,
+  AuthenticatedMinhasOcorrenciasRoute: AuthenticatedMinhasOcorrenciasRoute,
+  AuthenticatedOcorrenciasRoute: AuthenticatedOcorrenciasRoute,
+  AuthenticatedOportunidadesRoute: AuthenticatedOportunidadesRoute,
   AuthenticatedPainelRoute: AuthenticatedPainelRoute,
+  AuthenticatedPendenciasRoute: AuthenticatedPendenciasRoute,
+  AuthenticatedPraticoRoute: AuthenticatedPraticoRoute,
+  AuthenticatedProgressoRoute: AuthenticatedProgressoRoute,
+  AuthenticatedProvasRoute: AuthenticatedProvasRoute,
+  AuthenticatedProvasCriarRoute: AuthenticatedProvasCriarRoute,
+  AuthenticatedRadarAnalisesRoute: AuthenticatedRadarAnalisesRoute,
+  AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
+  AuthenticatedResumosRoute: AuthenticatedResumosRoute,
+  AuthenticatedRiscoRoute: AuthenticatedRiscoRoute,
+  AuthenticatedTvRoute: AuthenticatedTvRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
