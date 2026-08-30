@@ -6,7 +6,10 @@ import {
   Activity, FileBarChart, RefreshCw, Sparkles,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { useQuery } from "@tanstack/react-query";
 import { useCurrentUser } from "@/lib/useCurrentUser";
+import { listEmployees } from "@/lib/employees";
+
 
 const LOGO_URL =
   "https://media.base44.com/images/public/6a1117d573bbf85981b1abee/8271ac857_IMG_9226.png";
