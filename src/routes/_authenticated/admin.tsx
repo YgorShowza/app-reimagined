@@ -101,10 +101,13 @@ export const Route = createFileRoute("/_authenticated/admin")({
 function AdminDashboard() {
   const { data: user } = useCurrentUser();
 
-  // TODO: dados reais quando as entidades (employees, attempts, cronograma) forem portadas.
-  const activeEmployees: Array<{ id: string; full_name: string; sector: string; points?: number }> = [];
+  const { data: employees = [] } = useQuery({ queryKey: ["employees"], queryFn: listEmployees });
+
+  // TODO: métricas de provas/cronograma quando essas entidades forem portadas.
+  const activeEmployees = employees.filter((e) => e.status === "Ativo");
   const riskEmployees = activeEmployees;
-  const topEmployees = activeEmployees.slice(0, 5);
+  const topEmployees = [...activeEmployees].sort((a, b) => b.points - a.points).slice(0, 5);
+
   const coverageRate = "0%";
   const approvalRate = 0;
   const avgScore = 0;
