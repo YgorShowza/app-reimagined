@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      employees: {
+        Row: {
+          access_profile: string
+          created_at: string
+          first_access: boolean
+          full_name: string
+          id: string
+          level: number
+          matricula: string
+          points: number
+          sector: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          access_profile?: string
+          created_at?: string
+          first_access?: boolean
+          full_name: string
+          id?: string
+          level?: number
+          matricula: string
+          points?: number
+          sector?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          access_profile?: string
+          created_at?: string
+          first_access?: boolean
+          full_name?: string
+          id?: string
+          level?: number
+          matricula?: string
+          points?: number
+          sector?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
