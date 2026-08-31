@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: write
+
 concurrency:
   group: segempat-ci-${{ github.ref }}
   cancel-in-progress: true
@@ -17,6 +20,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: true
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -26,13 +31,29 @@ jobs:
       - name: Install dependencies and refresh lockfile
         run: bun install
 
-      - name: Production build
-        run: bun run build
+      - name: Persist refreshed lockfile
+        if: github.event_name == 'push'
+        run: |
+          if ! git diff --quiet -- bun.lock; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add bun.lock
+            git commit -m "Atualiza bun.lock [skip ci]"
+            git push
+          fi
 
-      - name: Upload refreshed lockfile
+      - name: Production build
+        id: build
+        shell: bash
+        run: |
+          set -o pipefail
+          bun run build 2>&1 | tee build.log
+
+      - name: Upload build log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: refreshed-bun-lock
-          path: bun.lock
+          name: segempat-build-log
+          path: build.log
+          if-no-files-found: ignore
           retention-days: 1
