@@ -1,13 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Lock, User, Eye, EyeOff, ChevronRight, IdCard, Loader2 } from "lucide-react";
+import { Lock, User, Eye, EyeOff, ChevronRight, KeyRound, Loader2 } from "lucide-react";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { supabase } from "@/integrations/supabase/client";
 import {
   matriculaSchema,
   matriculaToEmail,
-  nomeSchema,
   normalizeMatricula,
   passwordSchema,
 } from "@/lib/matricula";
@@ -57,7 +56,6 @@ const primaryButtonStyle: React.CSSProperties = {
 const labelClass = "text-xs font-semibold uppercase tracking-wider";
 
 type Step = "matricula" | "password" | "signup";
-
 type Navigate = ReturnType<typeof useNavigate>;
 
 async function navigateHome(navigate: Navigate) {
@@ -79,7 +77,7 @@ async function navigateHome(navigate: Navigate) {
 function AuthScreen() {
   const navigate = useNavigate();
   const [matricula, setMatricula] = useState("");
-  const [nome, setNome] = useState("");
+  const [activationCode, setActivationCode] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -133,9 +131,8 @@ function AuthScreen() {
   };
 
   const handleSignup = async () => {
-    const parsedNome = nomeSchema.safeParse(nome);
-    if (!parsedNome.success) {
-      toast.error(parsedNome.error.issues[0]?.message ?? "Nome inválido");
+    if (!/^\d{8}$/.test(activationCode)) {
+      toast.error("Informe o código de ativação de 8 dígitos");
       return;
     }
     const pwd = passwordSchema.safeParse(password);
@@ -147,24 +144,31 @@ function AuthScreen() {
       toast.error("As senhas não coincidem");
       return;
     }
+
     setLoading(true);
     const { error } = await supabase.auth.signUp({
       email: matriculaToEmail(matricula),
       password,
       options: {
-        data: { matricula: normalizeMatricula(matricula), nome: parsedNome.data },
+        data: {
+          matricula: normalizeMatricula(matricula),
+          activation_code: activationCode,
+        },
       },
     });
     setLoading(false);
+
     if (error) {
       toast.error(
         error.message.toLowerCase().includes("already")
           ? "Já existe uma senha cadastrada para esta matrícula"
-          : "Não foi possível criar o acesso",
+          : "Não foi possível criar o acesso. Verifique matrícula e código de ativação.",
       );
       return;
     }
+
     toast.success("Acesso criado com sucesso");
+    setActivationCode("");
     void navigateHome(navigate);
   };
 
@@ -178,7 +182,6 @@ function AuthScreen() {
       </div>
 
       <div className="w-full max-w-sm">
-        {/* Logo */}
         <div className="mb-8 text-center">
           <div className="mb-4 flex justify-center">
             <div
@@ -209,7 +212,6 @@ function AuthScreen() {
           </div>
         </div>
 
-        {/* Card */}
         <div
           className="overflow-hidden rounded-2xl"
           style={{
@@ -286,23 +288,28 @@ function AuthScreen() {
                 {step === "signup" && (
                   <div className="space-y-1.5">
                     <label className={labelClass} style={{ color: "var(--text-3)" }}>
-                      Nome completo
+                      Código de ativação
                     </label>
                     <div className="relative">
-                      <IdCard
+                      <KeyRound
                         className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2"
                         style={{ color: "var(--text-4)" }}
                       />
                       <input
-                        value={nome}
-                        onChange={(e) => setNome(e.target.value)}
-                        placeholder="Seu nome"
-                        autoComplete="name"
-                        style={{ ...inputStyle, paddingLeft: "2.5rem" }}
+                        value={activationCode}
+                        onChange={(e) => setActivationCode(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                        inputMode="numeric"
+                        maxLength={8}
+                        autoComplete="one-time-code"
+                        placeholder="8 dígitos"
+                        style={{ ...inputStyle, paddingLeft: "2.5rem", letterSpacing: ".18em", fontWeight: 700 }}
                         onFocus={focusAccent}
                         onBlur={blurBorder}
                       />
                     </div>
+                    <p className="text-[11px]" style={{ color: "var(--text-4)" }}>
+                      Solicite seu código de primeiro acesso à Inspetoria.
+                    </p>
                   </div>
                 )}
 
@@ -335,11 +342,7 @@ function AuthScreen() {
                       className="absolute right-3.5 top-1/2 -translate-y-1/2"
                       style={{ color: "var(--text-4)" }}
                     >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
                 </div>
@@ -387,9 +390,11 @@ function AuthScreen() {
 
                 <button
                   onClick={() => {
-                    setStep(step === "signup" ? "password" : "signup");
+                    const next = step === "signup" ? "password" : "signup";
+                    setStep(next);
                     setPassword("");
                     setConfirmPassword("");
+                    setActivationCode("");
                   }}
                   className="w-full text-center text-sm font-semibold"
                   style={{ color: "var(--accent)" }}
@@ -402,7 +407,7 @@ function AuthScreen() {
                     setStep("matricula");
                     setPassword("");
                     setConfirmPassword("");
-                    setNome("");
+                    setActivationCode("");
                   }}
                   className="w-full text-center text-sm transition-colors"
                   style={{ color: "var(--text-4)" }}
