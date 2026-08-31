@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { EmBreve } from "@/components/EmBreve";
+import { PracticalWorkspace } from "@/components/practical/PracticalWorkspace";
 
 export const Route = createFileRoute("/_authenticated/pratico")({
-  head: () => ({ meta: [{ title: "Avaliação Prática · SEGEMPAT" }] }),
-  component: () => <EmBreve titulo="Avaliação Prática" />,
+  head: () => ({ meta: [{ title: "Minha Avaliação Prática · SEGEMPAT" }] }),
+  component: () => <PracticalWorkspace operatorTitle />,
 });
