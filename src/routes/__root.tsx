@@ -15,63 +15,105 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 
-function NotFoundComponent() {
+const THEME_BOOTSTRAP = `(function(){try{var mode=localStorage.getItem('empat_theme')||'light';var resolved=mode==='auto'?(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):mode;if(resolved!=='dark'&&resolved!=='light')resolved='light';var root=document.documentElement;root.setAttribute('data-theme',resolved);root.classList.toggle('dark',resolved==='dark');root.style.colorScheme=resolved;}catch(e){}})();`;
+
+function RecoveryShell({
+  code,
+  title,
+  description,
+  children,
+}: {
+  code?: string;
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
-        <h1 className="text-7xl font-bold text-foreground">404</h1>
-        <h2 className="mt-4 text-xl font-semibold text-foreground">Page not found</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          The page you're looking for doesn't exist or has been moved.
-        </p>
-        <div className="mt-6">
-          <Link
-            to="/"
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+    <div className="flex min-h-screen items-center justify-center px-4 py-10" style={{ background: "var(--bg-base)" }}>
+      <div
+        className="w-full max-w-md overflow-hidden rounded-3xl"
+        style={{
+          background: "var(--bg-surface)",
+          border: "1px solid var(--border)",
+          boxShadow: "var(--shadow-lg)",
+        }}
+      >
+        <div className="h-1 w-full" style={{ background: "var(--accent)" }} />
+        <div className="p-7 text-center md:p-8">
+          <div
+            className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl text-sm font-black"
+            style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
           >
-            Go home
-          </Link>
+            {code ?? "!"}
+          </div>
+          <p className="mt-4 text-[10px] font-black uppercase tracking-[.2em]" style={{ color: "var(--text-4)" }}>
+            SEGEMPAT · Sistema operacional
+          </p>
+          <h1 className="mt-2 text-xl font-black" style={{ color: "var(--text-1)" }}>
+            {title}
+          </h1>
+          <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-3)" }}>
+            {description}
+          </p>
+          <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">{children}</div>
+          <p className="mt-5 text-[11px]" style={{ color: "var(--text-4)" }}>
+            Se o problema continuar após uma nova tentativa, informe a Inspetoria.
+          </p>
         </div>
       </div>
     </div>
   );
 }
 
+function NotFoundComponent() {
+  return (
+    <RecoveryShell
+      code="404"
+      title="Página não encontrada"
+      description="O endereço acessado não existe, foi movido ou não está mais disponível nesta versão do sistema."
+    >
+      <Link
+        to="/"
+        className="inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-bold text-white"
+        style={{ background: "var(--accent)" }}
+      >
+        Voltar ao SEGEMPAT
+      </Link>
+    </RecoveryShell>
+  );
+}
+
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
+
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          This page didn't load
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong on our end. You can try refreshing or head back home.
-        </p>
-        <div className="mt-6 flex flex-wrap justify-center gap-2">
-          <button
-            onClick={() => {
-              router.invalidate();
-              reset();
-            }}
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            Try again
-          </button>
-          <a
-            href="/"
-            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
-          >
-            Go home
-          </a>
-        </div>
-      </div>
-    </div>
+    <RecoveryShell
+      title="Não foi possível carregar esta página"
+      description="O SEGEMPAT encontrou uma falha inesperada ao abrir esta área. Seus dados não foram apagados. Tente recarregar o módulo."
+    >
+      <button
+        onClick={() => {
+          router.invalidate();
+          reset();
+        }}
+        className="inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-bold text-white"
+        style={{ background: "var(--accent)" }}
+      >
+        Tentar novamente
+      </button>
+      <a
+        href="/"
+        className="inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-bold"
+        style={{ background: "var(--bg-surface-2)", border: "1px solid var(--border)", color: "var(--text-2)" }}
+      >
+        Ir para o início
+      </a>
+    </RecoveryShell>
   );
 }
 
@@ -97,10 +139,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
-      {
-        rel: "stylesheet",
-        href: appCss,
-      },
+      { rel: "stylesheet", href: appCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
@@ -110,7 +149,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
     ],
   }),
-
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
@@ -119,8 +157,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="pt-BR" data-theme="light">
+    <html lang="pt-BR" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
         <HeadContent />
       </head>
       <body>
@@ -144,12 +183,9 @@ function RootComponent() {
     return () => data.subscription.unsubscribe();
   }, [router, queryClient]);
 
-
-
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
         <Outlet />
         <Toaster />
       </ThemeProvider>
