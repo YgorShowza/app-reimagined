@@ -6,7 +6,8 @@ import {
   LayoutDashboard, ClipboardList, TrendingUp, Award, ClipboardCheck,
   Users, BarChart3, FileText, BookOpen, Brain, Sun, Moon, Monitor,
   LogOut, Target, FileBarChart, Radar, History, Tv, AlertTriangle,
-  Lightbulb, FileSpreadsheet, PlusCircle, Focus, Menu, CalendarDays, type LucideIcon,
+  Lightbulb, FileSpreadsheet, PlusCircle, Focus, Menu, CalendarDays,
+  LibraryBig, GraduationCap, TimerReset, type LucideIcon,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTheme } from "@/components/ThemeProvider";
@@ -38,8 +39,11 @@ const adminSections: MenuSection[] = [
     section: "Treinamento",
     items: [
       { path: "/cronograma", label: "Cronograma", icon: CalendarDays },
-      { path: "/provas-criar", label: "Criar Prova", icon: PlusCircle },
       { path: "/provas", label: "Provas", icon: FileText },
+      { path: "/provas-criar", label: "Criar Prova", icon: PlusCircle },
+      { path: "/banco-questoes", label: "Banco de Questões", icon: LibraryBig },
+      { path: "/modulos-treinamento", label: "Módulos", icon: GraduationCap },
+      { path: "/ciclos-treinamento", label: "Ciclos e Vencimentos", icon: TimerReset },
       { path: "/conteudos", label: "Conteúdos", icon: BookOpen },
       { path: "/ia-base", label: "IA Base", icon: Brain },
       { path: "/avaliacao-pratica", label: "Avaliação Prática", icon: ClipboardCheck },
@@ -58,6 +62,7 @@ const adminSections: MenuSection[] = [
 
 const operadorMenu: MenuItem[] = [
   { path: "/painel", label: "Início", icon: LayoutDashboard },
+  { path: "/provas", label: "Provas", icon: FileText },
   { path: "/pendencias", label: "Pendências", icon: ClipboardList },
   { path: "/progresso", label: "Progresso", icon: TrendingUp },
   { path: "/certificados", label: "Certificados", icon: Award },
