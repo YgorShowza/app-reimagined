@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { SignaturePad } from "@/components/exams/SignaturePad";
 import { getExam, saveAttempt, signAttempt, type ExamAttempt } from "@/lib/exams";
 import { useCurrentUser } from "@/lib/useCurrentUser";
-import { syncCronogramaWithExamAttempts } from "@/lib/cronograma";
+import { syncCronogramaForExamAttempt } from "@/lib/cronograma-exam-sync";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/prova-realizar")({
@@ -58,7 +58,9 @@ function TakeExamPage() {
       const { data: auth } = await supabase.auth.getUser();
       if (!auth.user) throw new Error("Sessão inválida");
       const attempt = await saveAttempt({ exam_id: exam.id, user_id: auth.user.id, matricula: user?.matricula || null, score, passed, answers });
-      await syncCronogramaWithExamAttempts();
+      if (passed) {
+        await syncCronogramaForExamAttempt({ examId: exam.id, matricula: attempt.matricula, finishedAt: attempt.finished_at });
+      }
       setFinished({ score, percent, passed, attempt });
     } catch (error: any) {
       alert(error.message || "Não foi possível salvar a prova");
