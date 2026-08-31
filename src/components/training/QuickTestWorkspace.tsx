@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, ChevronRight, Flame, Loader2, RefreshCw, ShieldCheck, XCircle, Zap } from "lucide-react";
+import { CheckCircle2, ChevronRight, Flame, Loader2, RefreshCw, ShieldCheck, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { listActiveQuestionBank, type QuestionBankItem } from "@/lib/question-bank";
 import { getCurrentEmployeeByAuth } from "@/lib/insights";
@@ -89,7 +89,7 @@ export function QuickTestWorkspace() {
           <p className="mt-4 text-5xl font-black" style={{ color: result.passed ? "#10b981" : "#f59e0b" }}>{result.score.toFixed(1)}</p>
           <p className="mt-1 text-sm" style={{ color: "var(--text-4)" }}>{result.correct}/{questions.length} respostas corretas</p>
           <div className="mt-4 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-black" style={{ background: "rgba(245,158,11,.12)", color: "#f59e0b" }}>
-            <Flame className="h-4 w-4" /> +{result.points} XP
+            <Flame className="h-4 w-4" /> {result.points > 0 ? `+${result.points} XP` : "XP diário já recebido"}
           </div>
         </section>
         <Button onClick={start} className="w-full gap-2 bg-[#f59e0b] text-white hover:bg-[#d68a08]"><RefreshCw className="h-4 w-4" /> Novo teste</Button>
@@ -103,7 +103,8 @@ export function QuickTestWorkspace() {
         <div className="text-6xl">🔥</div>
         <div>
           <h1 className="text-2xl font-black" style={{ color: "var(--text-1)" }}>Teste Rápido</h1>
-          <p className="mt-2 text-sm" style={{ color: "var(--text-4)" }}>5 questões aleatórias do Banco de Questões · setor {employee.data.sector} · +10 XP</p>
+          <p className="mt-2 text-sm" style={{ color: "var(--text-4)" }}>5 questões aleatórias do Banco de Questões · setor {employee.data.sector}</p>
+          <p className="mt-1 text-xs font-bold" style={{ color: "#f59e0b" }}>Até +10 XP na primeira conclusão do dia</p>
         </div>
         <section className="rounded-2xl p-4 text-left" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}>
           <p className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--text-4)" }}>Questões disponíveis para você</p>
@@ -135,7 +136,7 @@ export function QuickTestWorkspace() {
           {question.options.map((option, index) => {
             const active = selected === index;
             return (
-              <button key={`${question.id}-${index}`} onClick={() => setAnswers((prev) => ({ ...prev, [question.id]: index }))} className="w-full rounded-xl p-3 text-left text-sm font-medium transition-all" style={{ background: active ? "rgba(245,158,11,.09)" : "var(--bg-surface-2)", border: `1px solid ${active ? "rgba(245,158,11,.55)" : "var(--border)"}`, color: active ? "#f59e0b" : "var(--text-2)" }}>
+              <button key={`${question.id}-${index}`} onClick={() => setAnswers((prev) => ({ ...prev, [question.id]: index }))} className="w-full rounded-xl p-3 text-left text-sm font-medium transition-colors" style={{ background: active ? "rgba(245,158,11,.09)" : "var(--bg-surface-2)", border: `1px solid ${active ? "rgba(245,158,11,.55)" : "var(--border)"}`, color: active ? "#f59e0b" : "var(--text-2)" }}>
                 <span className="mr-2 font-black">{String.fromCharCode(65 + index)})</span>{option}
               </button>
             );
