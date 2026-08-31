@@ -237,3 +237,5 @@ Uma funcionalidade só deve ser considerada concluída quando possui:
 ## Design
 
 A identidade visual premium atual é parte do produto e deve ser preservada. Alterações de design devem ser feitas somente quando trouxerem ganho claro de consistência, legibilidade, responsividade ou usabilidade.
+
+<!-- preview rebuild: 2026-08-31 -->
