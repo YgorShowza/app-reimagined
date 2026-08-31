@@ -132,13 +132,13 @@ function PrimaryHeader({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="grid w-full gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
         <div
-          className="flex items-center overflow-hidden rounded-xl"
+          className="flex w-full items-center overflow-hidden rounded-xl sm:w-auto"
           style={{ border: "1px solid var(--border)", background: "var(--bg-surface-2)" }}
         >
           <button
-            className="flex h-10 w-10 items-center justify-center"
+            className="flex h-10 w-10 shrink-0 items-center justify-center"
             style={{ color: "var(--text-3)" }}
             onClick={() => setMonth(shiftMonth(month, -1))}
             aria-label="Mês anterior"
@@ -146,7 +146,7 @@ function PrimaryHeader({
             <ChevronLeft className="h-4 w-4" />
           </button>
           <button
-            className="h-10 min-w-[155px] px-3 text-sm font-bold capitalize"
+            className="h-10 min-w-0 flex-1 px-3 text-sm font-bold capitalize sm:min-w-[155px] sm:flex-none"
             style={{
               color: "var(--text-1)",
               borderLeft: "1px solid var(--border)",
@@ -157,7 +157,7 @@ function PrimaryHeader({
             {formatMonth(month)}
           </button>
           <button
-            className="flex h-10 w-10 items-center justify-center"
+            className="flex h-10 w-10 shrink-0 items-center justify-center"
             style={{ color: "var(--text-3)" }}
             onClick={() => setMonth(shiftMonth(month, 1))}
             aria-label="Próximo mês"
@@ -167,7 +167,7 @@ function PrimaryHeader({
         </div>
 
         <div
-          className="flex items-center overflow-hidden rounded-xl"
+          className="flex w-full items-center overflow-hidden rounded-xl sm:w-auto"
           style={{ border: "1px solid var(--border)", background: "var(--bg-surface-2)" }}
         >
           <ViewButton active={view === "lista"} onClick={() => setView("lista")} icon={List} label="Lista" />
@@ -193,7 +193,7 @@ function ViewButton({
   return (
     <button
       onClick={onClick}
-      className="flex h-10 items-center gap-2 px-3.5 text-xs font-bold transition-all"
+      className="flex h-10 flex-1 items-center justify-center gap-1.5 px-2.5 text-[11px] font-bold transition-colors sm:flex-none sm:gap-2 sm:px-3.5 sm:text-xs"
       style={
         active
           ? {
@@ -204,7 +204,7 @@ function ViewButton({
           : { color: "var(--text-3)" }
       }
     >
-      <Icon className="h-3.5 w-3.5" />
+      <Icon className="h-3.5 w-3.5 shrink-0" />
       {label}
     </button>
   );
@@ -274,111 +274,113 @@ function CalendarView({
         {monthSuspended && <Legend icon={PauseCircle} label="Mês suspenso" color="#8b5cf6" />}
       </div>
 
-      <section
-        className="overflow-hidden rounded-2xl"
-        style={{
-          background: "var(--bg-surface)",
-          border: "1px solid var(--border)",
-          boxShadow: "var(--shadow-card, var(--shadow-md))",
-        }}
-      >
-        <div className="grid grid-cols-7">
-          {WEEK.map((weekDay) => (
-            <div
-              key={weekDay}
-              className="py-3 text-center text-[11px] font-black uppercase tracking-widest"
-              style={{
-                background: "var(--bg-surface-2)",
-                color: weekDay === "Dom" || weekDay === "Sáb" ? "#C8102E" : "var(--text-3)",
-                borderBottom: "1px solid var(--border)",
-              }}
-            >
-              {weekDay}
-            </div>
-          ))}
-        </div>
+      <div className="overflow-x-auto pb-1">
+        <section
+          className="min-w-[720px] overflow-hidden rounded-2xl lg:min-w-0"
+          style={{
+            background: "var(--bg-surface)",
+            border: "1px solid var(--border)",
+            boxShadow: "var(--shadow-card, var(--shadow-md))",
+          }}
+        >
+          <div className="grid grid-cols-7">
+            {WEEK.map((weekDay) => (
+              <div
+                key={weekDay}
+                className="py-3 text-center text-[11px] font-black uppercase tracking-widest"
+                style={{
+                  background: "var(--bg-surface-2)",
+                  color: weekDay === "Dom" || weekDay === "Sáb" ? "#C8102E" : "var(--text-3)",
+                  borderBottom: "1px solid var(--border)",
+                }}
+              >
+                {weekDay}
+              </div>
+            ))}
+          </div>
 
-        <div className="grid grid-cols-7">
-          {cells.map((day, index) => {
-            if (!day) {
+          <div className="grid grid-cols-7">
+            {cells.map((day, index) => {
+              if (!day) {
+                return (
+                  <div
+                    key={`empty-${index}`}
+                    className="min-h-[104px] md:min-h-[112px]"
+                    style={{
+                      background: "var(--bg-surface-2)",
+                      opacity: 0.45,
+                      borderRight: "1px solid var(--border-subtle)",
+                      borderBottom: "1px solid var(--border-subtle)",
+                    }}
+                  />
+                );
+              }
+
+              const rows = byDay[day] ?? [];
+              const isToday = day === todayDay;
+              const isSelected = day === selectedDay;
+              const suspended = monthSuspended || absenceDays.has(day);
+              const weekend = index % 7 === 0 || index % 7 === 6;
+
               return (
-                <div
-                  key={`empty-${index}`}
-                  className="min-h-[92px] md:min-h-[112px]"
+                <button
+                  key={day}
+                  onClick={() => setSelectedDay(isSelected ? null : day)}
+                  className="relative min-h-[104px] overflow-hidden p-2 text-left transition-colors md:min-h-[112px]"
                   style={{
-                    background: "var(--bg-surface-2)",
-                    opacity: 0.45,
+                    background: isSelected
+                      ? "rgba(240,196,0,.10)"
+                      : suspended
+                        ? "rgba(139,92,246,.06)"
+                        : weekend
+                          ? "var(--bg-surface-2)"
+                          : "transparent",
                     borderRight: "1px solid var(--border-subtle)",
                     borderBottom: "1px solid var(--border-subtle)",
                   }}
-                />
-              );
-            }
-
-            const rows = byDay[day] ?? [];
-            const isToday = day === todayDay;
-            const isSelected = day === selectedDay;
-            const suspended = monthSuspended || absenceDays.has(day);
-            const weekend = index % 7 === 0 || index % 7 === 6;
-
-            return (
-              <button
-                key={day}
-                onClick={() => setSelectedDay(isSelected ? null : day)}
-                className="relative min-h-[92px] overflow-hidden p-2 text-left transition-colors md:min-h-[112px]"
-                style={{
-                  background: isSelected
-                    ? "rgba(240,196,0,.10)"
-                    : suspended
-                      ? "rgba(139,92,246,.06)"
-                      : weekend
-                        ? "var(--bg-surface-2)"
-                        : "transparent",
-                  borderRight: "1px solid var(--border-subtle)",
-                  borderBottom: "1px solid var(--border-subtle)",
-                }}
-              >
-                <div className="mb-2 flex items-center justify-between gap-1">
-                  <span
-                    className="flex h-7 w-7 items-center justify-center rounded-full text-sm font-black"
-                    style={
-                      isToday
-                        ? { background: "#C8102E", color: "#fff", boxShadow: "0 0 0 3px rgba(200,16,46,.15)" }
-                        : { color: weekend ? "#C8102E" : "var(--text-1)" }
-                    }
-                  >
-                    {day}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    {rows.length > 0 && (
-                      <span className="rounded-md px-1.5 py-0.5 text-[9px] font-black" style={{ background: "var(--bg-surface-3)", color: "var(--text-3)" }}>
-                        {rows.length}
-                      </span>
-                    )}
-                    {suspended && <span className="text-[10px]">⏸</span>}
+                >
+                  <div className="mb-2 flex items-center justify-between gap-1">
+                    <span
+                      className="flex h-7 w-7 items-center justify-center rounded-full text-sm font-black"
+                      style={
+                        isToday
+                          ? { background: "#C8102E", color: "#fff", boxShadow: "0 0 0 3px rgba(200,16,46,.15)" }
+                          : { color: weekend ? "#C8102E" : "var(--text-1)" }
+                      }
+                    >
+                      {day}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      {rows.length > 0 && (
+                        <span className="rounded-md px-1.5 py-0.5 text-[9px] font-black" style={{ background: "var(--bg-surface-3)", color: "var(--text-3)" }}>
+                          {rows.length}
+                        </span>
+                      )}
+                      {suspended && <span className="text-[10px]">⏸</span>}
+                    </div>
                   </div>
-                </div>
 
-                <div className="space-y-1">
-                  {rows.slice(0, 2).map((entry) => {
-                    const style = STATUS[entry.status];
-                    return (
-                      <div
-                        key={entry.id}
-                        className="truncate rounded-md px-1.5 py-1 text-[9px] font-semibold md:text-[10px]"
-                        style={{ background: style.bg, color: style.color, borderLeft: `2px solid ${style.color}` }}
-                      >
-                        {entry.employee_name?.split(" ")[0]} · {entry.theme}
-                      </div>
-                    );
-                  })}
-                  {rows.length > 2 && <div className="text-[9px] font-black" style={{ color: "var(--text-4)" }}>+{rows.length - 2} mais</div>}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </section>
+                  <div className="space-y-1">
+                    {rows.slice(0, 2).map((entry) => {
+                      const style = STATUS[entry.status];
+                      return (
+                        <div
+                          key={entry.id}
+                          className="truncate rounded-md px-1.5 py-1 text-[10px] font-semibold"
+                          style={{ background: style.bg, color: style.color, borderLeft: `2px solid ${style.color}` }}
+                        >
+                          {entry.employee_name?.split(" ")[0]} · {entry.theme}
+                        </div>
+                      );
+                    })}
+                    {rows.length > 2 && <div className="text-[9px] font-black" style={{ color: "var(--text-4)" }}>+{rows.length - 2} mais</div>}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      </div>
 
       {selectedDay && (
         <section className="overflow-hidden rounded-2xl" style={{ background: "var(--bg-surface)", border: "1px solid rgba(240,196,0,.35)" }}>
@@ -388,13 +390,13 @@ function CalendarView({
           {selected.length === 0 ? (
             <p className="p-6 text-center text-sm" style={{ color: "var(--text-4)" }}>Nenhum treinamento previsto para este dia.</p>
           ) : selected.map((entry) => (
-            <div key={entry.id} className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+            <div key={entry.id} className="flex flex-wrap items-center gap-3 px-4 py-3 sm:flex-nowrap" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-black" style={{ background: "linear-gradient(135deg,#f0c400,#ffd700)", color: "#111" }}>
                 {entry.employee_name?.charAt(0)}
               </div>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 basis-[200px]">
                 <p className="text-sm font-bold" style={{ color: "var(--text-1)" }}>{entry.employee_name}</p>
-                <p className="truncate text-xs" style={{ color: "var(--text-3)" }}>{entry.theme}</p>
+                <p className="break-words text-xs" style={{ color: "var(--text-3)" }}>{entry.theme}</p>
                 <p className="text-[10px]" style={{ color: "var(--text-4)" }}>Mat. {entry.employee_matricula} · {entry.employee_sector}</p>
               </div>
               <span className="shrink-0 rounded-full px-2 py-1 text-[10px] font-black" style={{ background: STATUS[entry.status].bg, color: STATUS[entry.status].color }}>
@@ -447,7 +449,7 @@ function AnnualView({
             <button
               key={row.month}
               onClick={() => onSelectMonth(row.month)}
-              className="relative flex min-h-[118px] flex-col items-center justify-center p-4"
+              className="relative flex min-h-[118px] flex-col items-center justify-center p-4 transition-colors"
               style={{ border: "1px solid var(--border-subtle)", background: current ? "rgba(200,16,46,.05)" : "transparent" }}
             >
               {current && <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#C8102E]" />}
