@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Pencil, UserCheck, UserX, Trash2, Users } from "lucide-react";
+import { Plus, Search, Pencil, UserCheck, UserX, Trash2, Users, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -125,10 +125,18 @@ function EquipePage() {
           </p>
         </div>
         {isAdmin && (
-          <Button onClick={openNew} className="w-full bg-[#C8102E] font-bold text-white hover:bg-[#A00D24] sm:w-auto">
-            <Plus className="mr-2 h-4 w-4" />
-            Novo Funcionário
-          </Button>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:w-auto">
+            <Button asChild variant="outline" className="font-bold">
+              <Link to="/acessos">
+                <KeyRound className="mr-2 h-4 w-4" />
+                Acessos
+              </Link>
+            </Button>
+            <Button onClick={openNew} className="bg-[#C8102E] font-bold text-white hover:bg-[#A00D24]">
+              <Plus className="mr-2 h-4 w-4" />
+              Novo Funcionário
+            </Button>
+          </div>
         )}
       </div>
 
