@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { EmBreve } from "@/components/EmBreve";
+import { KnowledgeWorkspace } from "@/components/knowledge/KnowledgeWorkspace";
 
 export const Route = createFileRoute("/_authenticated/ia-base")({
   head: () => ({ meta: [{ title: "IA Base · SEGEMPAT" }] }),
-  component: () => <EmBreve titulo="IA Base" />,
+  component: () => <KnowledgeWorkspace searchMode />,
 });
