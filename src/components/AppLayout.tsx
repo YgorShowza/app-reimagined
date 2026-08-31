@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
   LayoutDashboard, ClipboardList, TrendingUp, Award, ClipboardCheck,
-  Users, BarChart3, FileText, BookOpen, Brain, Sun, Moon, Monitor,
+  Users, BarChart3, FileText, BookOpen, BookOpenCheck, Brain, Sun, Moon, Monitor,
   LogOut, Target, FileBarChart, Radar, History, Tv, AlertTriangle,
   Lightbulb, FileSpreadsheet, PlusCircle, Focus, Menu, CalendarDays, type LucideIcon,
 } from "lucide-react";
@@ -40,6 +40,7 @@ const adminSections: MenuSection[] = [
       { path: "/cronograma", label: "Cronograma", icon: CalendarDays },
       { path: "/provas-criar", label: "Criar Prova", icon: PlusCircle },
       { path: "/provas", label: "Provas", icon: FileText },
+      { path: "/banco-questoes", label: "Banco de Questões", icon: BookOpenCheck },
       { path: "/conteudos", label: "Conteúdos", icon: BookOpen },
       { path: "/ia-base", label: "IA Base", icon: Brain },
       { path: "/avaliacao-pratica", label: "Avaliação Prática", icon: ClipboardCheck },
