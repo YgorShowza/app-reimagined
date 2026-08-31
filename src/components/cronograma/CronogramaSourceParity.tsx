@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarDays, ChevronLeft, ChevronRight, List, BarChart3, Clock3, CheckCircle2, ShieldCheck, PauseCircle } from "lucide-react";
 import { CronogramaWorkspace } from "@/components/cronograma/CronogramaWorkspace";
 import {
@@ -25,6 +25,7 @@ const STATUS = {
 const WEEK = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 export function CronogramaSourceParity() {
+  const queryClient = useQueryClient();
   const [view, setView] = useState<PrimaryView>("lista");
   const [month, setMonth] = useState(currentMonthStr());
   const year = Number(month.slice(0, 4));
@@ -33,10 +34,22 @@ export function CronogramaSourceParity() {
   const yearQuery = useQuery({ queryKey: ["cronograma-parity-year", year], queryFn: () => listCronogramaEntriesByYear(year), enabled: view === "ano" });
   const suspensionQuery = useQuery({ queryKey: ["cronograma-parity-susp", month], queryFn: () => listSuspensions(month), enabled: view !== "lista" });
 
+  const changeView = (nextView: PrimaryView) => {
+    if (view === "lista" && nextView !== "lista") {
+      const activeMonthQuery = queryClient
+        .getQueryCache()
+        .findAll({ queryKey: ["cronograma"], type: "active" })
+        .find((query) => typeof query.queryKey[1] === "string" && /^\d{4}-\d{2}$/.test(String(query.queryKey[1])));
+      const listMonth = activeMonthQuery?.queryKey[1];
+      if (typeof listMonth === "string") setMonth(listMonth);
+    }
+    setView(nextView);
+  };
+
   if (view === "lista") {
     return (
       <div className="mx-auto w-full max-w-7xl space-y-4 pb-10">
-        <ListNavigation view={view} setView={setView} />
+        <ListNavigation view={view} onChangeView={changeView} />
         <CronogramaWorkspace />
       </div>
     );
@@ -44,7 +57,7 @@ export function CronogramaSourceParity() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-4 pb-10">
-      <PrimaryHeader month={month} setMonth={setMonth} view={view} setView={setView} />
+      <PrimaryHeader month={month} setMonth={setMonth} view={view} onChangeView={changeView} />
       {view === "calendario" ? (
         <CalendarView month={month} entries={monthQuery.data ?? []} suspensions={suspensionQuery.data ?? []} loading={monthQuery.isLoading || suspensionQuery.isLoading} />
       ) : (
@@ -54,7 +67,7 @@ export function CronogramaSourceParity() {
   );
 }
 
-function ListNavigation({ view, setView }: { view: PrimaryView; setView: (v: PrimaryView) => void }) {
+function ListNavigation({ view, onChangeView }: { view: PrimaryView; onChangeView: (v: PrimaryView) => void }) {
   return (
     <section className="flex items-center justify-between gap-3 rounded-2xl p-2.5 md:p-3" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", boxShadow: "var(--shadow-card, var(--shadow-md))" }}>
       <div className="hidden min-w-0 sm:block">
@@ -62,15 +75,15 @@ function ListNavigation({ view, setView }: { view: PrimaryView; setView: (v: Pri
         <p className="mt-0.5 text-xs" style={{ color: "var(--text-3)" }}>Alterne sem repetir os controles do planejamento.</p>
       </div>
       <div className="ml-auto flex items-center overflow-hidden rounded-xl" style={{ border: "1px solid var(--border)", background: "var(--bg-surface-2)" }}>
-        <ViewButton active={view === "lista"} onClick={() => setView("lista")} icon={List} label="Lista" />
-        <ViewButton active={view === "calendario"} onClick={() => setView("calendario")} icon={CalendarDays} label="Calendário" />
-        <ViewButton active={view === "ano"} onClick={() => setView("ano")} icon={BarChart3} label="Ano" />
+        <ViewButton active={view === "lista"} onClick={() => onChangeView("lista")} icon={List} label="Lista" />
+        <ViewButton active={view === "calendario"} onClick={() => onChangeView("calendario")} icon={CalendarDays} label="Calendário" />
+        <ViewButton active={view === "ano"} onClick={() => onChangeView("ano")} icon={BarChart3} label="Ano" />
       </div>
     </section>
   );
 }
 
-function PrimaryHeader({ month, setMonth, view, setView }: { month: string; setMonth: (m: string) => void; view: PrimaryView; setView: (v: PrimaryView) => void }) {
+function PrimaryHeader({ month, setMonth, view, onChangeView }: { month: string; setMonth: (m: string) => void; view: PrimaryView; onChangeView: (v: PrimaryView) => void }) {
   return (
     <section className="rounded-2xl p-4 md:p-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", boxShadow: "var(--shadow-card, var(--shadow-md))" }}>
       <div className="flex items-center gap-3 min-w-0">
@@ -89,9 +102,9 @@ function PrimaryHeader({ month, setMonth, view, setView }: { month: string; setM
           <button className="h-10 w-10 flex items-center justify-center" style={{ color: "var(--text-3)" }} onClick={() => setMonth(shiftMonth(month,1))}><ChevronRight className="w-4 h-4" /></button>
         </div>
         <div className="flex items-center rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)", background: "var(--bg-surface-2)" }}>
-          <ViewButton active={view === "lista"} onClick={() => setView("lista")} icon={List} label="Lista" />
-          <ViewButton active={view === "calendario"} onClick={() => setView("calendario")} icon={CalendarDays} label="Calendário" />
-          <ViewButton active={view === "ano"} onClick={() => setView("ano")} icon={BarChart3} label="Ano" />
+          <ViewButton active={view === "lista"} onClick={() => onChangeView("lista")} icon={List} label="Lista" />
+          <ViewButton active={view === "calendario"} onClick={() => onChangeView("calendario")} icon={CalendarDays} label="Calendário" />
+          <ViewButton active={view === "ano"} onClick={() => onChangeView("ano")} icon={BarChart3} label="Ano" />
         </div>
       </div>
     </section>
