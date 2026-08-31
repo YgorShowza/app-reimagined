@@ -30,6 +30,7 @@ const adminSections: MenuSection[] = [
       { path: "/individual", label: "Análise Individual", icon: FileBarChart },
       { path: "/radar-analises", label: "Radar Analítico", icon: Radar },
       { path: "/relatorios", label: "Relatórios", icon: FileSpreadsheet },
+      { path: "/relatorio-mensal", label: "Relatório Mensal", icon: FileSpreadsheet },
       { path: "/tv", label: "TV Mode", icon: Tv },
       { path: "/auditoria", label: "Auditoria", icon: History },
       { path: "/documento-seguranca", label: "Documento de Segurança", icon: FileText },
