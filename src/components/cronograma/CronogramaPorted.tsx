@@ -17,11 +17,11 @@ export function CronogramaPorted() {
   return (
     <div className="relative">
       {user?.isAdmin && (
-        <div className="mx-auto mb-3 flex w-full max-w-7xl flex-wrap justify-end gap-2">
+        <div className="mx-auto mb-3 grid w-full max-w-7xl grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
           <Button
             variant="outline"
             onClick={() => setPdfOpen(true)}
-            className="shadow-sm"
+            className="w-full shadow-sm sm:w-auto"
           >
             <FileText className="mr-2 h-4 w-4" />
             Relatórios PDF
@@ -30,14 +30,14 @@ export function CronogramaPorted() {
           <Button
             variant="outline"
             onClick={() => setImportOpen(true)}
-            className="shadow-sm"
+            className="w-full shadow-sm sm:w-auto"
           >
             <FileSpreadsheet className="mr-2 h-4 w-4" />
             Importar Resultados
           </Button>
           <Button
             onClick={() => setGeneratorOpen(true)}
-            className="bg-[#C8102E] text-white hover:bg-[#A00D24] shadow-sm"
+            className="w-full bg-[#C8102E] text-white shadow-sm hover:bg-[#A00D24] sm:w-auto"
           >
             <Sparkles className="mr-2 h-4 w-4" />
             Gerar Ano
