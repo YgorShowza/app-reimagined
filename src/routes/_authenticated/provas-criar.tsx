@@ -9,6 +9,7 @@ import {
   getExam, updateExam, type ExamForm, type ExamQuestion, type QuestionType,
 } from "@/lib/exams";
 import { useCurrentUser } from "@/lib/useCurrentUser";
+import { QuestionBankPicker } from "@/components/exams/QuestionBankPicker";
 
 export const Route = createFileRoute("/_authenticated/provas-criar")({
   head: () => ({
@@ -103,10 +104,25 @@ function CriarProva() {
       questions: f.questions.map((q) => (q.id === qid ? { ...q, ...patch } : q)),
     }));
 
+  const addBankQuestion = (question: ExamQuestion) => {
+    setForm((current) => {
+      const onlyBlank = current.questions.length === 1 && !current.questions[0]?.statement.trim();
+      return {
+        ...current,
+        questions: onlyBlank ? [question] : [...current.questions, question],
+      };
+    });
+    toast.success("Questão adicionada à prova");
+  };
+
   const submit = (status: string) => {
     if (!form.title.trim()) return toast.error("Informe o título da prova");
     const invalid = form.questions.some((q) => !q.statement.trim());
     if (invalid) return toast.error("Todas as questões precisam de um enunciado");
+    const objectiveWithoutAnswer = form.questions.some((q) =>
+      q.type === "Múltipla escolha" && (!q.options.length || !q.options[q.correct_index]?.trim()),
+    );
+    if (objectiveWithoutAnswer) return toast.error("Toda questão objetiva precisa ter uma alternativa correta preenchida");
     save.mutate(status);
   };
 
@@ -121,7 +137,7 @@ function CriarProva() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-5 pb-10">
+    <div className="mx-auto w-full max-w-4xl space-y-5 pb-10">
       <div
         className="relative overflow-hidden rounded-2xl p-5"
         style={{
@@ -208,6 +224,11 @@ function CriarProva() {
           </div>
         </div>
       </Card>
+
+      <QuestionBankPicker
+        onAdd={addBankQuestion}
+        existingStatements={form.questions.map((question) => question.statement)}
+      />
 
       <div className="space-y-3">
         {form.questions.map((q, idx) => (
@@ -319,7 +340,7 @@ function CriarProva() {
         className="flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-bold"
         style={{ border: "1.5px dashed var(--border)", color: "var(--text-2)" }}
       >
-        <PlusCircle className="h-4 w-4" /> Adicionar questão
+        <PlusCircle className="h-4 w-4" /> Adicionar questão manualmente
       </button>
 
       <div className="flex flex-wrap gap-2">
