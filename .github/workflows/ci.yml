@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   validate:
-    name: Build and lint
+    name: Test, lint and build
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -27,6 +27,9 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Tests
+        run: bun run test
 
       - name: Lint
         run: bun run lint
