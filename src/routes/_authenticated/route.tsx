@@ -5,6 +5,7 @@ import { AppLayout } from "@/components/AppLayout";
 const ADMIN_ONLY_PATHS = new Set([
   "/admin",
   "/equipe",
+  "/acessos",
   "/analytics",
   "/risco",
   "/individual",
