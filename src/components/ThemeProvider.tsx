@@ -1,5 +1,6 @@
 import * as React from "react";
 
+// Build marker: forces Lovable to rebuild the application bundle after rollback.
 type ThemeMode = "light" | "dark" | "auto";
 
 const STORAGE_KEY = "empat_theme";
