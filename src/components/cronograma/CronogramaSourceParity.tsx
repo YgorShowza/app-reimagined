@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { CalendarDays, ChevronLeft, ChevronRight, List, BarChart3, Clock3, CheckCircle2, ShieldCheck, PauseCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { CronogramaWorkspace } from "@/components/cronograma/CronogramaWorkspace";
 import {
   annualSummary,
@@ -36,8 +35,8 @@ export function CronogramaSourceParity() {
 
   if (view === "lista") {
     return (
-      <div className="space-y-4">
-        <PrimaryHeader month={month} setMonth={setMonth} view={view} setView={setView} />
+      <div className="mx-auto w-full max-w-7xl space-y-4 pb-10">
+        <ListNavigation view={view} setView={setView} />
         <CronogramaWorkspace />
       </div>
     );
@@ -52,6 +51,22 @@ export function CronogramaSourceParity() {
         <AnnualView year={year} currentMonth={month} entries={yearQuery.data ?? []} onSelectMonth={(m) => { setMonth(m); setView("calendario"); }} loading={yearQuery.isLoading} />
       )}
     </div>
+  );
+}
+
+function ListNavigation({ view, setView }: { view: PrimaryView; setView: (v: PrimaryView) => void }) {
+  return (
+    <section className="flex items-center justify-between gap-3 rounded-2xl p-2.5 md:p-3" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", boxShadow: "var(--shadow-card, var(--shadow-md))" }}>
+      <div className="hidden min-w-0 sm:block">
+        <p className="text-[10px] font-black uppercase tracking-[.18em]" style={{ color: "var(--text-4)" }}>Visualização</p>
+        <p className="mt-0.5 text-xs" style={{ color: "var(--text-3)" }}>Alterne sem repetir os controles do planejamento.</p>
+      </div>
+      <div className="ml-auto flex items-center overflow-hidden rounded-xl" style={{ border: "1px solid var(--border)", background: "var(--bg-surface-2)" }}>
+        <ViewButton active={view === "lista"} onClick={() => setView("lista")} icon={List} label="Lista" />
+        <ViewButton active={view === "calendario"} onClick={() => setView("calendario")} icon={CalendarDays} label="Calendário" />
+        <ViewButton active={view === "ano"} onClick={() => setView("ano")} icon={BarChart3} label="Ano" />
+      </div>
+    </section>
   );
 }
 
