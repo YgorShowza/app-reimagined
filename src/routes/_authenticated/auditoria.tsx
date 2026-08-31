@@ -1,7 +1,26 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { EmBreve } from "@/components/EmBreve";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { History, Search, Database, FileText, UserCog } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { listAuditLogs } from "@/lib/operations";
 
-export const Route = createFileRoute("/_authenticated/auditoria")({
-  head: () => ({ meta: [{ title: "Auditoria · SEGEMPAT" }] }),
-  component: () => <EmBreve titulo="Auditoria" />,
-});
+export const Route = createFileRoute("/_authenticated/auditoria")({ head: () => ({ meta: [{ title: "Auditoria · SEGEMPAT" }] }), component: AuditPage });
+
+function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) { return <div className={`rounded-2xl ${className}`} style={{ background:"var(--bg-surface)", border:"1px solid var(--border)", boxShadow:"var(--shadow-card, var(--shadow-md))" }}>{children}</div>; }
+
+const actionLabel: Record<string,string> = { INSERT:"Criação", UPDATE:"Alteração", DELETE:"Exclusão" };
+
+function AuditPage() {
+  const [search,setSearch]=useState(""); const [entity,setEntity]=useState("Todos");
+  const {data=[],isLoading}=useQuery({queryKey:["audit-logs"],queryFn:()=>listAuditLogs(300)});
+  const entities=["Todos",...Array.from(new Set(data.map(l=>l.entity))).sort()];
+  const filtered=useMemo(()=>data.filter(l=>{if(entity!=="Todos"&&l.entity!==entity)return false;const q=search.toLowerCase().trim();return !q||[l.action,l.entity,l.entity_id,JSON.stringify(l.details)].some(v=>(v||"").toLowerCase().includes(q));}),[data,search,entity]);
+  if(isLoading)return <div className="flex justify-center py-20"><div className="w-8 h-8 rounded-full border-4 animate-spin" style={{borderColor:"var(--border)",borderTopColor:"#C8102E"}}/></div>;
+  return <div className="mx-auto max-w-6xl space-y-5 pb-10"><div className="rounded-[1.5rem] p-5 md:p-6" style={{background:"linear-gradient(135deg,#171118,#2b0b13 50%,#111216)",border:"1px solid rgba(200,16,46,.26)"}}><div className="flex items-center gap-2 text-[11px] uppercase tracking-[.2em] font-black text-white/40"><History className="w-4 h-4"/> Rastreabilidade</div><h1 className="mt-2 text-2xl md:text-3xl font-black text-white">Auditoria</h1><p className="mt-1 text-sm text-white/50">Histórico automático das principais alterações do sistema.</p></div>
+    <div className="grid grid-cols-3 gap-3">{[["Registros",data.length,Database],["Alterações",data.filter(l=>l.action==="UPDATE").length,UserCog],["Exclusões",data.filter(l=>l.action==="DELETE").length,FileText]].map(([l,v,I]:any)=><Card key={l} className="p-4"><div className="flex justify-between"><div><p className="text-[10px] uppercase font-black" style={{color:"var(--text-4)"}}>{l}</p><p className="mt-2 text-2xl font-black" style={{color:"var(--text-1)"}}>{v}</p></div><I className="w-4 h-4" style={{color:"var(--accent)"}}/></div></Card>)}</div>
+    <Card className="p-4"><div className="grid md:grid-cols-[1fr_220px] gap-3"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{color:"var(--text-4)"}}/><Input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="Buscar ação, entidade ou ID..." className="pl-10"/></div><Select value={entity} onValueChange={setEntity}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{entities.map(e=><SelectItem key={e} value={e}>{e}</SelectItem>)}</SelectContent></Select></div></Card>
+    <div className="space-y-2">{filtered.map(l=><Card key={l.id} className="p-4"><div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><span className="text-[10px] font-black px-2 py-1 rounded-full" style={{color:l.action==="DELETE"?"#ef4444":l.action==="UPDATE"?"#f59e0b":"#10b981",background:l.action==="DELETE"?"rgba(239,68,68,.1)":l.action==="UPDATE"?"rgba(245,158,11,.1)":"rgba(16,185,129,.1)"}}>{actionLabel[l.action]||l.action}</span><p className="font-bold text-sm" style={{color:"var(--text-1)"}}>{l.entity}</p></div><p className="text-xs mt-1" style={{color:"var(--text-4)"}}>ID: {l.entity_id||"—"}</p></div><p className="text-xs" style={{color:"var(--text-4)"}}>{new Date(l.created_at).toLocaleString("pt-BR")}</p></div></Card>)}{!filtered.length&&<Card className="p-10 text-center"><History className="w-10 h-10 mx-auto opacity-30" style={{color:"var(--text-4)"}}/><p className="mt-3 font-bold" style={{color:"var(--text-1)"}}>Nenhum registro de auditoria encontrado.</p></Card>}</div>
+  </div>;
+}
