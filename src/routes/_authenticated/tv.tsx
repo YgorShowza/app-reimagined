@@ -1,7 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { EmBreve } from "@/components/EmBreve";
+import { useQuery } from "@tanstack/react-query";
+import { Tv, Users, Target, CheckCircle2, AlertTriangle } from "lucide-react";
+import { getOperationalSnapshot, snapshotMetrics, sectorMetrics } from "@/lib/insights";
 
-export const Route = createFileRoute("/_authenticated/tv")({
-  head: () => ({ meta: [{ title: "TV Mode · SEGEMPAT" }] }),
-  component: () => <EmBreve titulo="TV Mode" />,
-});
+export const Route = createFileRoute("/_authenticated/tv")({ head:()=>({meta:[{title:"TV Mode · SEGEMPAT"}]}), component:TVPage });
+
+function TVPage(){
+ const year=new Date().getFullYear(); const {data,isLoading}=useQuery({queryKey:["tv-snapshot",year],queryFn:()=>getOperationalSnapshot(year),refetchInterval:60000});
+ if(isLoading)return <div className="flex justify-center py-20"><div className="w-10 h-10 rounded-full border-4 animate-spin" style={{borderColor:"var(--border)",borderTopColor:"#C8102E"}}/></div>;
+ if(!data)return null; const m=snapshotMetrics(data); const sectors=sectorMetrics(data); const topPending=data.cronograma.filter(e=>e.status==="Pendente").slice(0,6);
+ return <div className="mx-auto max-w-7xl space-y-5 pb-10"><div className="rounded-[1.75rem] p-6 md:p-8" style={{background:"linear-gradient(135deg,#100d12,#2b0b13 48%,#0b0c0f)",border:"1px solid rgba(200,16,46,.28)"}}><div className="flex items-center gap-2 text-xs uppercase tracking-[.24em] font-black text-white/40"><Tv className="w-5 h-5"/> Painel de acompanhamento</div><div className="mt-3 flex flex-col md:flex-row md:items-end md:justify-between gap-4"><div><h1 className="text-3xl md:text-5xl font-black text-white">SEGEMPAT</h1><p className="mt-2 text-white/50">Indicadores operacionais em tempo real · atualização automática</p></div><div className="text-right"><p className="text-2xl md:text-3xl font-black text-white">{new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</p><p className="text-sm text-white/40">{new Date().toLocaleDateString("pt-BR")}</p></div></div></div>
+ <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">{[["Equipe",m.activeEmployees,Users],["Execução",`${m.executionRate}%`,Target],["Aprovação",`${m.approvalRate}%`,CheckCircle2],["Pendências",m.pending,AlertTriangle],["Média",m.averageScore,CheckCircle2]].map(([l,v,I]:any)=><div key={l} className="rounded-2xl p-5" style={{background:"var(--bg-surface)",border:"1px solid var(--border)"}}><div className="flex justify-between gap-3"><div><p className="text-[11px] uppercase tracking-[.16em] font-black" style={{color:"var(--text-4)"}}>{l}</p><p className="mt-3 text-3xl md:text-4xl font-black" style={{color:"var(--text-1)"}}>{v}</p></div><I className="w-5 h-5" style={{color:"var(--accent)"}}/></div></div>)}</div>
+ <div className="grid lg:grid-cols-2 gap-4"><div className="rounded-2xl p-5" style={{background:"var(--bg-surface)",border:"1px solid var(--border)"}}><h2 className="font-black" style={{color:"var(--text-1)"}}>Execução por setor</h2><div className="mt-4 space-y-4">{sectors.map(s=><div key={s.sector}><div className="flex justify-between text-sm"><span style={{color:"var(--text-2)"}}>{s.sector}</span><strong style={{color:"var(--text-1)"}}>{s.executionRate}%</strong></div><div className="mt-2 h-3 rounded-full overflow-hidden" style={{background:"var(--bg-surface-3)"}}><div className="h-full rounded-full bg-[#C8102E]" style={{width:`${s.executionRate}%`}}/></div></div>)}</div></div><div className="rounded-2xl overflow-hidden" style={{background:"var(--bg-surface)",border:"1px solid var(--border)"}}><div className="p-5 font-black" style={{color:"var(--text-1)",borderBottom:"1px solid var(--border)"}}>Pendências prioritárias</div><div>{topPending.length?topPending.map(e=><div key={e.id} className="p-4 flex justify-between gap-3" style={{borderBottom:"1px solid var(--border)"}}><div><p className="font-bold" style={{color:"var(--text-1)"}}>{e.employee_name}</p><p className="text-sm mt-1" style={{color:"var(--text-3)"}}>{e.theme}</p></div><span className="text-xs font-black text-amber-500">{e.employee_sector}</span></div>):<div className="p-8 text-center text-emerald-500 font-bold">Sem pendências</div>}</div></div></div>
+ </div>
+}
