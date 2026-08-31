@@ -162,12 +162,47 @@ function MobileNavLink({ item }: { item: MenuItem }) {
   );
 }
 
+function NavItems({ isAdmin }: { isAdmin: boolean }) {
+  if (!isAdmin) {
+    return (
+      <div className="space-y-1.5">
+        {operadorMenu.map((item) => (
+          <MenuLink key={item.path} item={item} />
+        ))}
+      </div>
+    );
+  }
+  return (
+    <>
+      {adminSections.map((sec) => (
+        <div key={sec.section} className="space-y-1.5">
+          <p
+            className="text-[10px] font-bold uppercase tracking-[0.2em] px-3 pb-1"
+            style={{ color: "rgba(255,255,255,0.22)" }}
+          >
+            {sec.section}
+          </p>
+          {sec.items.map((item) => (
+            <MenuLink key={item.path} item={item} />
+          ))}
+        </div>
+      ))}
+    </>
+  );
+}
+
 export function AppLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: user } = useCurrentUser();
   const isAdmin = user?.isAdmin ?? false;
   const [currentTime, setCurrentTime] = useState(() => new Date());
+  const [menuOpen, setMenuOpen] = useState(false);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     const interval = setInterval(() => setCurrentTime(new Date()), 1000);
