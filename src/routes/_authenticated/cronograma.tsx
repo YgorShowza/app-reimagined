@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { CronogramaWorkspace } from "@/components/cronograma/CronogramaWorkspace";
+import { CronogramaPremiumShell } from "@/components/cronograma/CronogramaPremiumShell";
 
 export const Route = createFileRoute("/_authenticated/cronograma")({
   head: () => ({
@@ -8,5 +8,5 @@ export const Route = createFileRoute("/_authenticated/cronograma")({
       { name: "description", content: "Centro de planejamento, execução, pendências, recorrências e suspensões do SEGEMPAT." },
     ],
   }),
-  component: CronogramaWorkspace,
+  component: CronogramaPremiumShell,
 });
