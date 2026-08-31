@@ -39,6 +39,7 @@ const adminSections: MenuSection[] = [
     section: "Treinamento",
     items: [
       { path: "/cronograma", label: "Cronograma", icon: CalendarDays },
+      { path: "/cronograma-relatorio", label: "Relatório do Cronograma", icon: FileSpreadsheet },
       { path: "/provas", label: "Provas", icon: FileText },
       { path: "/provas-criar", label: "Criar Prova", icon: PlusCircle },
       { path: "/banco-questoes", label: "Banco de Questões", icon: LibraryBig },
