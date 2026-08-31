@@ -108,8 +108,11 @@ export async function signAttempt(input: { attemptId: string; userId: string; si
   const path = `${input.userId}/${input.attemptId}.png`;
   const upload = await supabase.storage.from("exam-signatures").upload(path, input.pngBlob, { contentType: "image/png", upsert: true });
   if (upload.error) throw upload.error;
-  const signedAt = new Date().toISOString();
-  const { data, error } = await supabase.from("exam_attempts").update({ signature_path: path, signature_name: input.signerName, signed_at: signedAt, signature_agreed: true } as never).eq("id", input.attemptId).eq("user_id", input.userId).select("*").single();
+  const { data, error } = await (supabase as any).rpc("sign_exam_attempt", {
+    p_attempt_id: input.attemptId,
+    p_signature_path: path,
+    p_signature_name: input.signerName,
+  });
   if (error) throw error;
   return data as ExamAttempt;
 }
