@@ -11,6 +11,7 @@ const OPERATOR_ROUTES = new Set([
   "/certificados",
   "/pratico",
   "/minhas-ocorrencias",
+  "/meu-perfil",
 ]);
 
 export const Route = createFileRoute("/_authenticated")({
