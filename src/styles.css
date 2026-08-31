@@ -1,6 +1,7 @@
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
+@custom-variant dark (&:where(.dark, .dark *));
 
 /* ═══════════════════════════════════════════════════════
    DESIGN SYSTEM — SEGEMPAT / SOUZA PORT SECURITY
@@ -176,6 +177,11 @@
     border-color: var(--border);
   }
 
+  html {
+    background: var(--bg-base);
+    color: var(--text-1);
+  }
+
   body {
     font-family: var(--font-body);
     background: var(--bg-base) !important;
@@ -194,6 +200,7 @@
 
   #root {
     background: var(--bg-base);
+    color: var(--text-1);
     min-height: 100vh;
   }
 }
@@ -243,6 +250,7 @@
    ═══════════════════════════════════════════════════════ */
 .empat-card {
   background: var(--bg-surface);
+  color: var(--text-1);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-card);
