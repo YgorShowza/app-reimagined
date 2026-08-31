@@ -15,7 +15,7 @@ export function CronogramaPracticalActions() {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="shadow-sm">
+          <Button variant="outline" className="w-full shadow-sm sm:w-auto">
             <ClipboardList className="mr-2 h-4 w-4" />
             Avaliação Prática
             <ChevronDown className="ml-2 h-3.5 w-3.5 opacity-60" />
