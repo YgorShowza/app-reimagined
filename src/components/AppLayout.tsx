@@ -46,6 +46,7 @@ const adminSections: MenuSection[] = [
       { path: "/modulos-treinamento", label: "Módulos", icon: Layers3 },
       { path: "/ciclos-treinamento", label: "Ciclos e Vencimentos", icon: CalendarClock },
       { path: "/validar-certificados", label: "Validar Certificados", icon: Award },
+      { path: "/assinaturas-provas", label: "Assinaturas de Provas", icon: ClipboardCheck },
       { path: "/conteudos", label: "Conteúdos", icon: BookOpen },
       { path: "/ia-base", label: "IA Base", icon: Brain },
       { path: "/avaliacao-pratica", label: "Avaliação Prática", icon: ClipboardCheck },
@@ -96,9 +97,9 @@ function ThemeToggle() {
           <motion.button
             key={opt.value}
             onClick={() => setTheme(opt.value)}
-            whileHover={{ scale: 1.08 }}
-            whileTap={{ scale: 0.92 }}
-            className="flex-1 flex items-center justify-center h-8 rounded-lg transition-all duration-300"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.96 }}
+            className="flex-1 flex items-center justify-center h-8 rounded-lg transition-colors duration-200"
             style={active ? { background: "rgba(255,255,255,0.1)", color: "#fff", boxShadow: "0 2px 8px rgba(0,0,0,0.3)" } : { color: "rgba(255,255,255,0.3)" }}
             aria-label={`Tema ${opt.value}`}
           >
@@ -115,11 +116,11 @@ function MenuLink({ item }: { item: MenuItem }) {
   return (
     <Link to={item.path} className="block" activeOptions={{ exact: item.path === "/admin" || item.path === "/painel" }}>
       {({ isActive }) => (
-        <motion.div whileHover={{ x: 3 }} whileTap={{ scale: 0.98 }} className="relative flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all duration-200" style={isActive ? { background: "linear-gradient(135deg, rgba(200,16,46,0.14), rgba(200,16,46,0.06))", border: "1px solid rgba(200,16,46,0.22)", boxShadow: "0 0 24px rgba(200,16,46,0.1)" } : { border: "1px solid transparent" }}>
-          {isActive && <motion.div layoutId="activeMenu" className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full" style={{ background: "linear-gradient(180deg, #e0142f, #C8102E)", boxShadow: "0 0 12px rgba(200,16,46,0.6)" }} />}
+        <div className="relative flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-colors duration-150" style={isActive ? { background: "linear-gradient(135deg, rgba(200,16,46,0.14), rgba(200,16,46,0.06))", border: "1px solid rgba(200,16,46,0.22)", boxShadow: "0 0 18px rgba(200,16,46,0.08)" } : { border: "1px solid transparent" }}>
+          {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full" style={{ background: "linear-gradient(180deg, #e0142f, #C8102E)", boxShadow: "0 0 10px rgba(200,16,46,0.5)" }} />}
           <Icon className="w-[17px] h-[17px] shrink-0 transition-colors" style={{ color: isActive ? "#ff5470" : "rgba(255,255,255,0.35)" }} />
           <span className="text-[13px] font-medium tracking-wide transition-colors" style={{ color: isActive ? "#fff" : "rgba(255,255,255,0.5)" }}>{item.label}</span>
-        </motion.div>
+        </div>
       )}
     </Link>
   );
@@ -127,7 +128,7 @@ function MenuLink({ item }: { item: MenuItem }) {
 
 function MobileNavLink({ item }: { item: MenuItem }) {
   const Icon = item.icon;
-  return <Link to={item.path} className="flex-1" activeOptions={{ exact: true }}>{({ isActive }) => <div className="flex flex-col items-center gap-0.5 py-1.5 rounded-xl transition-all duration-200" style={isActive ? { background: "var(--accent-soft)" } : {}}><Icon className="w-5 h-5" style={{ color: isActive ? "var(--accent)" : "var(--text-4)" }} /><span className="text-[10px] font-medium" style={{ color: isActive ? "var(--accent)" : "var(--text-4)" }}>{item.label}</span></div>}</Link>;
+  return <Link to={item.path} className="flex-1" activeOptions={{ exact: true }}>{({ isActive }) => <div className="flex flex-col items-center gap-0.5 py-1.5 rounded-xl transition-colors duration-150" style={isActive ? { background: "var(--accent-soft)" } : {}}><Icon className="w-5 h-5" style={{ color: isActive ? "var(--accent)" : "var(--text-4)" }} /><span className="text-[10px] font-medium" style={{ color: isActive ? "var(--accent)" : "var(--text-4)" }}>{item.label}</span></div>}</Link>;
 }
 
 function NavItems({ isAdmin }: { isAdmin: boolean }) {
@@ -157,7 +158,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       <aside className="fixed left-0 top-0 bottom-0 w-60 hidden lg:flex flex-col z-40" style={{ background: "var(--sidebar-bg)", borderRight: "1px solid rgba(255,255,255,0.05)" }}>
         <div className="px-4 pt-5 pb-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}><div className="flex items-center justify-center"><div className="rounded-xl overflow-hidden bg-white p-1.5" style={{ boxShadow: "var(--shadow-glow-gold, 0 0 18px rgba(200,160,0,0.35))" }}><img src={LOGO_URL} alt="EMPAT" className="h-12 w-auto object-contain" /></div></div></div>
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-4"><NavItems isAdmin={isAdmin} /></nav>
-        <div className="px-3 pb-4 pt-3 space-y-2.5" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}><ThemeToggle /><motion.button onClick={handleLogout} whileHover={{ x: 3 }} whileTap={{ scale: 0.98 }} className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all duration-200" style={{ border: "1px solid rgba(255,255,255,0.04)" }}><LogOut className="w-[17px] h-[17px]" style={{ color: "rgba(255,255,255,0.35)" }} /><span className="text-[13px] font-medium" style={{ color: "rgba(255,255,255,0.5)" }}>Sair</span></motion.button></div>
+        <div className="px-3 pb-4 pt-3 space-y-2.5" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}><ThemeToggle /><button onClick={handleLogout} className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-colors duration-150" style={{ border: "1px solid rgba(255,255,255,0.04)" }}><LogOut className="w-[17px] h-[17px]" style={{ color: "rgba(255,255,255,0.35)" }} /><span className="text-[13px] font-medium" style={{ color: "rgba(255,255,255,0.5)" }}>Sair</span></button></div>
       </aside>
       <div className="lg:ml-60 flex flex-col min-h-screen">
         <header className="sticky top-0 z-30 px-4 md:px-6 py-3 flex items-center justify-between gap-4" style={{ background: "var(--header-bg)", borderBottom: "1px solid var(--border)", backdropFilter: "blur(12px)" }}>
