@@ -71,6 +71,7 @@ const operadorMenu: MenuItem[] = [
   { path: "/teste-rapido", label: "Teste Rápido", icon: Target },
   { path: "/simulador", label: "Simulador", icon: Target },
   { path: "/stress-test", label: "Stress Test", icon: Target },
+  { path: "/desafio-diario", label: "Desafio Diário", icon: Award },
   { path: "/meu-perfil", label: "Meu Perfil", icon: Users },
   { path: "/pratico", label: "Avaliação Prática", icon: ClipboardCheck },
   { path: "/minhas-ocorrencias", label: "Ocorrências", icon: AlertTriangle },
