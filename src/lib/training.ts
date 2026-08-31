@@ -95,6 +95,16 @@ export async function listTrainingModules(): Promise<TrainingModule[]> {
   return (data ?? []).map((row: any) => ({ ...row, min_score: Number(row.min_score || 7) }));
 }
 
+export async function getTrainingModule(id: string): Promise<TrainingModule> {
+  const { data, error } = await (supabase as any)
+    .from("training_modules")
+    .select("*")
+    .eq("id", id)
+    .single();
+  if (error) throw error;
+  return { ...data, min_score: Number(data.min_score || 7) } as TrainingModule;
+}
+
 export async function createTrainingModule(input: {
   title: string;
   description: string;
