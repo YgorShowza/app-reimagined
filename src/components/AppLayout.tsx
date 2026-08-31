@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import {
   LayoutDashboard, ClipboardList, TrendingUp, Award, ClipboardCheck,
   Users, BarChart3, FileText, BookOpen, BookOpenCheck, Sun, Moon, Monitor,
-  LogOut, Target, FileBarChart, History, Tv, AlertTriangle,
+  LogOut, Target, FileBarChart, History, AlertTriangle,
   FileSpreadsheet, PlusCircle, Menu, CalendarDays, Layers3, CalendarClock, GraduationCap, type LucideIcon,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,7 +30,6 @@ const adminSections: MenuSection[] = [
       { path: "/individual", label: "Análise Individual", icon: FileBarChart },
       { path: "/relatorios", label: "Relatórios", icon: FileSpreadsheet },
       { path: "/relatorio-mensal", label: "Relatório Mensal", icon: FileSpreadsheet },
-      { path: "/tv", label: "TV Mode", icon: Tv },
       { path: "/auditoria", label: "Auditoria", icon: History },
       { path: "/documento-seguranca", label: "Documento de Segurança", icon: FileText },
     ],
