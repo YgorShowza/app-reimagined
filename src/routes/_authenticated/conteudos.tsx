@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { EmBreve } from "@/components/EmBreve";
+import { KnowledgeWorkspace } from "@/components/knowledge/KnowledgeWorkspace";
 
 export const Route = createFileRoute("/_authenticated/conteudos")({
   head: () => ({ meta: [{ title: "Conteúdos · SEGEMPAT" }] }),
-  component: () => <EmBreve titulo="Conteúdos" />,
+  component: KnowledgeWorkspace,
 });
