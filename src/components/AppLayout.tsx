@@ -280,6 +280,49 @@ export function AppLayout({ children }: { children: ReactNode }) {
           }}
         >
           <div className="flex items-center gap-3 min-w-0">
+            <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+              <SheetTrigger asChild>
+                <button
+                  className="lg:hidden p-2 rounded-lg shrink-0"
+                  style={{ color: "var(--text-2)", border: "1px solid var(--border)" }}
+                  aria-label="Abrir menu"
+                >
+                  <Menu className="w-5 h-5" />
+                </button>
+              </SheetTrigger>
+              <SheetContent
+                side="left"
+                className="w-[270px] p-0 border-0"
+                style={{ background: "var(--sidebar-bg)" }}
+              >
+                <SheetTitle className="sr-only">Menu</SheetTitle>
+                <div className="flex h-full flex-col">
+                  <div className="px-4 pt-5 pb-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div className="flex items-center justify-center">
+                      <div className="rounded-xl overflow-hidden bg-white p-1.5">
+                        <img src={LOGO_URL} alt="EMPAT" className="h-10 w-auto object-contain" />
+                      </div>
+                    </div>
+                  </div>
+                  <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
+                    <NavItems isAdmin={isAdmin} />
+                  </nav>
+                  <div className="px-3 pb-4 pt-3 space-y-2.5" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                    <ThemeToggle />
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl"
+                      style={{ border: "1px solid rgba(255,255,255,0.04)" }}
+                    >
+                      <LogOut className="w-[17px] h-[17px]" style={{ color: "rgba(255,255,255,0.35)" }} />
+                      <span className="text-[13px] font-medium" style={{ color: "rgba(255,255,255,0.5)" }}>
+                        Sair
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </SheetContent>
+            </Sheet>
             <div className="lg:hidden rounded-lg overflow-hidden bg-white p-1 shrink-0">
               <img src={LOGO_URL} alt="EMPAT" className="h-8 w-auto object-contain" />
             </div>
