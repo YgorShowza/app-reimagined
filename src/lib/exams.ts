@@ -81,7 +81,7 @@ export const emptyExamForm = (): ExamForm => ({
 function normalize(row: Record<string, unknown>): Exam {
   return {
     ...(row as unknown as Exam),
-    questions: Array.isArray(row.questions) ? (row.questions as ExamQuestion[]) : [],
+    questions: Array.isArray(row["questions"]) ? (row["questions"] as ExamQuestion[]) : [],
   };
 }
 
@@ -111,12 +111,11 @@ export async function createExam(form: ExamForm) {
 }
 
 export async function updateExam(id: string, form: Partial<ExamForm>) {
+  const patch: Record<string, unknown> = { ...form };
+  if (form.questions) patch["questions"] = form.questions;
   const { error } = await supabase
     .from("exams")
-    .update({
-      ...form,
-      ...(form.questions ? { questions: form.questions as unknown as never } : {}),
-    })
+    .update(patch as never)
     .eq("id", id);
   if (error) throw error;
 }
