@@ -4,9 +4,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
   LayoutDashboard, ClipboardList, TrendingUp, Award, ClipboardCheck,
-  Users, BarChart3, FileText, BookOpen, BookOpenCheck, Brain, Sun, Moon, Monitor,
+  Users, BarChart3, FileText, BookOpen, BookOpenCheck, Sun, Moon, Monitor,
   LogOut, Target, FileBarChart, Radar, History, Tv, AlertTriangle,
-  Lightbulb, FileSpreadsheet, PlusCircle, Focus, Menu, CalendarDays, Layers3, CalendarClock, GraduationCap, type LucideIcon,
+  FileSpreadsheet, PlusCircle, Menu, CalendarDays, Layers3, CalendarClock, GraduationCap, type LucideIcon,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTheme } from "@/components/ThemeProvider";
@@ -48,17 +48,13 @@ const adminSections: MenuSection[] = [
       { path: "/validar-certificados", label: "Validar Certificados", icon: Award },
       { path: "/assinaturas-provas", label: "Assinaturas de Provas", icon: ClipboardCheck },
       { path: "/conteudos", label: "Conteúdos", icon: BookOpen },
-      { path: "/ia-base", label: "IA Base", icon: Brain },
       { path: "/avaliacao-pratica", label: "Avaliação Prática", icon: ClipboardCheck },
-      { path: "/resumos", label: "Resumos", icon: FileText },
     ],
   },
   {
     section: "Ocorrências",
     items: [
       { path: "/ocorrencias", label: "Ocorrências", icon: AlertTriangle },
-      { path: "/oportunidades", label: "Oportunidades", icon: Lightbulb },
-      { path: "/foco", label: "Foco do Mês", icon: Focus },
     ],
   },
 ];
