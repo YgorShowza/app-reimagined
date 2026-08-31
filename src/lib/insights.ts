@@ -46,56 +46,110 @@ export function snapshotMetrics(data: OperationalSnapshot) {
 }
 
 export function sectorMetrics(data: OperationalSnapshot) {
-  const sectors = Array.from(new Set(data.employees.filter((e) => e.status === "Ativo" && e.access_profile !== "Inspetor").map((e) => e.sector))).sort();
-  return sectors.map((sector) => {
-    const employeeIds = new Set(data.employees.filter((e) => e.sector === sector).map((e) => e.id));
-    const matriculas = new Set(data.employees.filter((e) => e.sector === sector).map((e) => e.matricula));
-    const rows = data.cronograma.filter((e) => e.employee_sector === sector || employeeIds.has(e.employee_id));
-    const attempts = data.attempts.filter((a) => a.matricula && matriculas.has(a.matricula));
-    const realized = rows.filter((e) => e.status === "Realizado").length;
-    const passed = attempts.filter((a) => a.passed).length;
-    return {
+  type Stats = { employeeIds: Set<string>; planned: number; realized: number; attempts: number; passed: number };
+  const stats = new Map<string, Stats>();
+  const employeeSectorById = new Map<string, string>();
+  const sectorByMatricula = new Map<string, string>();
+
+  for (const employee of data.employees) {
+    if (employee.status !== "Ativo" || employee.access_profile === "Inspetor") continue;
+    const sector = employee.sector;
+    const current = stats.get(sector) ?? { employeeIds: new Set<string>(), planned: 0, realized: 0, attempts: 0, passed: 0 };
+    current.employeeIds.add(employee.id);
+    stats.set(sector, current);
+    employeeSectorById.set(employee.id, sector);
+    sectorByMatricula.set(employee.matricula, sector);
+  }
+
+  for (const entry of data.cronograma) {
+    const sector = stats.has(entry.employee_sector) ? entry.employee_sector : employeeSectorById.get(entry.employee_id);
+    if (!sector) continue;
+    const current = stats.get(sector);
+    if (!current) continue;
+    current.planned += 1;
+    if (entry.status === "Realizado") current.realized += 1;
+  }
+
+  for (const attempt of data.attempts) {
+    if (!attempt.matricula) continue;
+    const sector = sectorByMatricula.get(attempt.matricula);
+    if (!sector) continue;
+    const current = stats.get(sector);
+    if (!current) continue;
+    current.attempts += 1;
+    if (attempt.passed) current.passed += 1;
+  }
+
+  return Array.from(stats.entries())
+    .sort(([a], [b]) => a.localeCompare(b, "pt-BR"))
+    .map(([sector, current]) => ({
       sector,
-      employees: employeeIds.size,
-      planned: rows.length,
-      realized,
-      executionRate: rows.length ? Math.round((realized / rows.length) * 100) : 0,
-      attempts: attempts.length,
-      approvalRate: attempts.length ? Math.round((passed / attempts.length) * 100) : 0,
-    };
-  });
+      employees: current.employeeIds.size,
+      planned: current.planned,
+      realized: current.realized,
+      executionRate: current.planned ? Math.round((current.realized / current.planned) * 100) : 0,
+      attempts: current.attempts,
+      approvalRate: current.attempts ? Math.round((current.passed / current.attempts) * 100) : 0,
+    }));
 }
 
 export function monthlyExecution(data: OperationalSnapshot, year = new Date().getFullYear()) {
+  const months = new Map<string, { planned: number; realized: number; pending: number }>();
+  for (let i = 1; i <= 12; i += 1) months.set(`${year}-${String(i).padStart(2, "0")}`, { planned: 0, realized: 0, pending: 0 });
+
+  for (const entry of data.cronograma) {
+    const current = months.get(entry.month);
+    if (!current) continue;
+    current.planned += 1;
+    if (entry.status === "Realizado") current.realized += 1;
+    if (entry.status === "Pendente") current.pending += 1;
+  }
+
   return Array.from({ length: 12 }, (_, i) => {
     const month = `${year}-${String(i + 1).padStart(2, "0")}`;
-    const rows = data.cronograma.filter((e) => e.month === month);
-    const realized = rows.filter((e) => e.status === "Realizado").length;
+    const current = months.get(month) ?? { planned: 0, realized: 0, pending: 0 };
     return {
       month,
       label: new Date(year, i, 1).toLocaleDateString("pt-BR", { month: "short" }).replace(".", ""),
-      planned: rows.length,
-      realized,
-      pending: rows.filter((e) => e.status === "Pendente").length,
-      rate: rows.length ? Math.round((realized / rows.length) * 100) : 0,
+      planned: current.planned,
+      realized: current.realized,
+      pending: current.pending,
+      rate: current.planned ? Math.round((current.realized / current.planned) * 100) : 0,
     };
   });
 }
 
 export function employeeRisk(data: OperationalSnapshot) {
   const nowMonth = currentMonthStr();
-  return data.employees
-    .filter((e) => e.status === "Ativo" && e.access_profile !== "Inspetor")
+  const today = new Date().toISOString().slice(0, 10);
+  const activeEmployees = data.employees.filter((e) => e.status === "Ativo" && e.access_profile !== "Inspetor");
+  const byId = new Map(activeEmployees.map((employee) => [employee.id, { pending: 0, overdue: 0, failed: 0 }]));
+  const idByMatricula = new Map(activeEmployees.map((employee) => [employee.matricula, employee.id]));
+
+  for (const entry of data.cronograma) {
+    if (entry.status !== "Pendente") continue;
+    const current = byId.get(entry.employee_id);
+    if (!current) continue;
+    current.pending += 1;
+    if (entry.month < nowMonth || (entry.planned_date && entry.planned_date < today)) current.overdue += 1;
+  }
+
+  for (const attempt of data.attempts) {
+    if (attempt.passed || !attempt.matricula) continue;
+    const employeeId = idByMatricula.get(attempt.matricula);
+    if (!employeeId) continue;
+    const current = byId.get(employeeId);
+    if (current) current.failed += 1;
+  }
+
+  return activeEmployees
     .map((employee) => {
-      const pending = data.cronograma.filter((c) => c.employee_id === employee.id && c.status === "Pendente");
-      const overdue = pending.filter((c) => c.month < nowMonth || (c.planned_date && c.planned_date < new Date().toISOString().slice(0, 10))).length;
-      const attempts = data.attempts.filter((a) => a.matricula === employee.matricula);
-      const failed = attempts.filter((a) => !a.passed).length;
-      const score = overdue * 3 + pending.length + failed * 2;
+      const current = byId.get(employee.id) ?? { pending: 0, overdue: 0, failed: 0 };
+      const score = current.overdue * 3 + current.pending + current.failed * 2;
       const level = score >= 8 ? "Alto" : score >= 4 ? "Médio" : score > 0 ? "Baixo" : "Normal";
-      return { employee, pending: pending.length, overdue, failed, score, level };
+      return { employee, pending: current.pending, overdue: current.overdue, failed: current.failed, score, level };
     })
-    .sort((a, b) => b.score - a.score || a.employee.full_name.localeCompare(b.employee.full_name));
+    .sort((a, b) => b.score - a.score || a.employee.full_name.localeCompare(b.employee.full_name, "pt-BR"));
 }
 
 export async function getCurrentEmployeeByAuth() {
