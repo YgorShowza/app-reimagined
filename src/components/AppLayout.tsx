@@ -43,6 +43,7 @@ const adminSections: MenuSection[] = [
       { path: "/banco-questoes", label: "Banco de Questões", icon: BookOpenCheck },
       { path: "/modulos-treinamento", label: "Módulos", icon: Layers3 },
       { path: "/ciclos-treinamento", label: "Ciclos e Vencimentos", icon: CalendarClock },
+      { path: "/validar-certificados", label: "Validar Certificados", icon: Award },
       { path: "/conteudos", label: "Conteúdos", icon: BookOpen },
       { path: "/ia-base", label: "IA Base", icon: Brain },
       { path: "/avaliacao-pratica", label: "Avaliação Prática", icon: ClipboardCheck },
