@@ -1,16 +1,17 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
   LayoutDashboard, ClipboardList, TrendingUp, Award, ClipboardCheck,
   Users, BarChart3, FileText, BookOpen, Brain, Sun, Moon, Monitor,
   LogOut, Target, FileBarChart, Radar, History, Tv, AlertTriangle,
-  Lightbulb, FileSpreadsheet, PlusCircle, Focus, type LucideIcon,
+  Lightbulb, FileSpreadsheet, PlusCircle, Focus, Menu, type LucideIcon,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTheme } from "@/components/ThemeProvider";
 import { useCurrentUser } from "@/lib/useCurrentUser";
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 const LOGO_URL =
   "https://media.base44.com/images/public/6a1117d573bbf85981b1abee/8271ac857_IMG_9226.png";
@@ -161,12 +162,47 @@ function MobileNavLink({ item }: { item: MenuItem }) {
   );
 }
 
+function NavItems({ isAdmin }: { isAdmin: boolean }) {
+  if (!isAdmin) {
+    return (
+      <div className="space-y-1.5">
+        {operadorMenu.map((item) => (
+          <MenuLink key={item.path} item={item} />
+        ))}
+      </div>
+    );
+  }
+  return (
+    <>
+      {adminSections.map((sec) => (
+        <div key={sec.section} className="space-y-1.5">
+          <p
+            className="text-[10px] font-bold uppercase tracking-[0.2em] px-3 pb-1"
+            style={{ color: "rgba(255,255,255,0.22)" }}
+          >
+            {sec.section}
+          </p>
+          {sec.items.map((item) => (
+            <MenuLink key={item.path} item={item} />
+          ))}
+        </div>
+      ))}
+    </>
+  );
+}
+
 export function AppLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: user } = useCurrentUser();
   const isAdmin = user?.isAdmin ?? false;
   const [currentTime, setCurrentTime] = useState(() => new Date());
+  const [menuOpen, setMenuOpen] = useState(false);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     const interval = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -211,27 +247,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
         {/* Menu */}
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
-          {isAdmin ? (
-            adminSections.map((sec) => (
-              <div key={sec.section} className="space-y-1.5">
-                <p
-                  className="text-[10px] font-bold uppercase tracking-[0.2em] px-3 pb-1"
-                  style={{ color: "rgba(255,255,255,0.22)" }}
-                >
-                  {sec.section}
-                </p>
-                {sec.items.map((item) => (
-                  <MenuLink key={item.path} item={item} />
-                ))}
-              </div>
-            ))
-          ) : (
-            <div className="space-y-1.5">
-              {operadorMenu.map((item) => (
-                <MenuLink key={item.path} item={item} />
-              ))}
-            </div>
-          )}
+          <NavItems isAdmin={isAdmin} />
         </nav>
 
         {/* Footer */}
@@ -264,6 +280,49 @@ export function AppLayout({ children }: { children: ReactNode }) {
           }}
         >
           <div className="flex items-center gap-3 min-w-0">
+            <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+              <SheetTrigger asChild>
+                <button
+                  className="lg:hidden p-2 rounded-lg shrink-0"
+                  style={{ color: "var(--text-2)", border: "1px solid var(--border)" }}
+                  aria-label="Abrir menu"
+                >
+                  <Menu className="w-5 h-5" />
+                </button>
+              </SheetTrigger>
+              <SheetContent
+                side="left"
+                className="w-[270px] p-0 border-0"
+                style={{ background: "var(--sidebar-bg)" }}
+              >
+                <SheetTitle className="sr-only">Menu</SheetTitle>
+                <div className="flex h-full flex-col">
+                  <div className="px-4 pt-5 pb-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div className="flex items-center justify-center">
+                      <div className="rounded-xl overflow-hidden bg-white p-1.5">
+                        <img src={LOGO_URL} alt="EMPAT" className="h-10 w-auto object-contain" />
+                      </div>
+                    </div>
+                  </div>
+                  <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
+                    <NavItems isAdmin={isAdmin} />
+                  </nav>
+                  <div className="px-3 pb-4 pt-3 space-y-2.5" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                    <ThemeToggle />
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl"
+                      style={{ border: "1px solid rgba(255,255,255,0.04)" }}
+                    >
+                      <LogOut className="w-[17px] h-[17px]" style={{ color: "rgba(255,255,255,0.35)" }} />
+                      <span className="text-[13px] font-medium" style={{ color: "rgba(255,255,255,0.5)" }}>
+                        Sair
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </SheetContent>
+            </Sheet>
             <div className="lg:hidden rounded-lg overflow-hidden bg-white p-1 shrink-0">
               <img src={LOGO_URL} alt="EMPAT" className="h-8 w-auto object-contain" />
             </div>

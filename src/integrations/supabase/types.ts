@@ -56,6 +56,98 @@ export type Database = {
         }
         Relationships: []
       }
+      exam_attempts: {
+        Row: {
+          answers: Json
+          created_at: string
+          exam_id: string
+          finished_at: string
+          id: string
+          matricula: string | null
+          passed: boolean
+          score: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          answers?: Json
+          created_at?: string
+          exam_id: string
+          finished_at?: string
+          id?: string
+          matricula?: string | null
+          passed?: boolean
+          score?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          answers?: Json
+          created_at?: string
+          exam_id?: string
+          finished_at?: string
+          id?: string
+          matricula?: string | null
+          passed?: boolean
+          score?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exam_attempts_exam_id_fkey"
+            columns: ["exam_id"]
+            isOneToOne: false
+            referencedRelation: "exams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      exams: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          exam_type: string
+          id: string
+          min_approval_pct: number
+          questions: Json
+          scheduled_date: string | null
+          status: string
+          target_sector: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          exam_type?: string
+          id?: string
+          min_approval_pct?: number
+          questions?: Json
+          scheduled_date?: string | null
+          status?: string
+          target_sector?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          exam_type?: string
+          id?: string
+          min_approval_pct?: number
+          questions?: Json
+          scheduled_date?: string | null
+          status?: string
+          target_sector?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
