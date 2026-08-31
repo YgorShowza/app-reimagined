@@ -247,27 +247,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
         {/* Menu */}
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
-          {isAdmin ? (
-            adminSections.map((sec) => (
-              <div key={sec.section} className="space-y-1.5">
-                <p
-                  className="text-[10px] font-bold uppercase tracking-[0.2em] px-3 pb-1"
-                  style={{ color: "rgba(255,255,255,0.22)" }}
-                >
-                  {sec.section}
-                </p>
-                {sec.items.map((item) => (
-                  <MenuLink key={item.path} item={item} />
-                ))}
-              </div>
-            ))
-          ) : (
-            <div className="space-y-1.5">
-              {operadorMenu.map((item) => (
-                <MenuLink key={item.path} item={item} />
-              ))}
-            </div>
-          )}
+          <NavItems isAdmin={isAdmin} />
         </nav>
 
         {/* Footer */}
