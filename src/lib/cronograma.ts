@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 export type CronogramaStatus = "Pendente" | "Realizado" | "Justificado";
 export type CronogramaType = "Planejado" | "Realizado";
+export type SuspensionType = "mes_suspenso" | "ausencia_operador";
 
 export interface CronogramaEntry {
   id: string;
@@ -43,6 +44,64 @@ export interface CronogramaEntryInput {
   question_bank_ids?: string[];
 }
 
+export interface RecurringModel {
+  id: string;
+  theme: string;
+  target_sector: string;
+  recurrence: "monthly";
+  active: boolean;
+  created_by: string | null;
+  created_by_name: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RecurringModelInput {
+  theme: string;
+  target_sector: string;
+  active?: boolean;
+  created_by_name?: string | null;
+}
+
+export interface CronogramaSuspension {
+  id: string;
+  type: SuspensionType;
+  month: string;
+  reason: string;
+  notes: string | null;
+  employee_id: string | null;
+  employee_name: string | null;
+  employee_matricula: string | null;
+  date_start: string | null;
+  date_end: string | null;
+  created_by: string | null;
+  created_by_name: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CronogramaSuspensionInput {
+  type: SuspensionType;
+  month: string;
+  reason: string;
+  notes?: string | null;
+  employee_id?: string | null;
+  employee_name?: string | null;
+  employee_matricula?: string | null;
+  date_start?: string | null;
+  date_end?: string | null;
+  created_by_name?: string | null;
+}
+
+export interface AnnualMonthSummary {
+  month: string;
+  total: number;
+  realizado: number;
+  pendente: number;
+  justificado: number;
+  executionRate: number;
+}
+
 export const JUSTIFICATION_OPTIONS = [
   "Férias",
   "Atestado médico",
@@ -53,6 +112,8 @@ export const JUSTIFICATION_OPTIONS = [
   "Escala de serviço",
   "Outro motivo",
 ] as const;
+
+export const TARGET_SECTORS = ["Todos", "CFTV", "Vigilância", "Portaria", "Ronda", "Administrativo"] as const;
 
 export function currentMonthStr() {
   const d = new Date();
@@ -77,6 +138,11 @@ export function formatDate(value?: string | null) {
   return `${d}/${m}/${y}`;
 }
 
+async function authUserId() {
+  const { data } = await supabase.auth.getUser();
+  return data.user?.id ?? null;
+}
+
 export async function listCronogramaEntries(month: string): Promise<CronogramaEntry[]> {
   const { data, error } = await (supabase as any)
     .from("cronograma_entries")
@@ -88,9 +154,23 @@ export async function listCronogramaEntries(month: string): Promise<CronogramaEn
   return (data ?? []) as CronogramaEntry[];
 }
 
+export async function listCronogramaEntriesByYear(year: number): Promise<CronogramaEntry[]> {
+  const start = `${year}-01`;
+  const end = `${year}-12`;
+  const { data, error } = await (supabase as any)
+    .from("cronograma_entries")
+    .select("*")
+    .gte("month", start)
+    .lte("month", end)
+    .order("month", { ascending: true })
+    .order("employee_name", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as CronogramaEntry[];
+}
+
 export async function createCronogramaEntries(entries: CronogramaEntryInput[]) {
-  const { data: authData } = await supabase.auth.getUser();
-  const createdBy = authData.user?.id ?? null;
+  if (!entries.length) return;
+  const createdBy = await authUserId();
   const payload = entries.map((entry) => ({
     ...entry,
     created_by: createdBy,
@@ -125,6 +205,14 @@ export async function deleteCronogramaEntry(id: string) {
   if (error) throw error;
 }
 
+export async function markCronogramaEntryComplete(id: string, date = new Date().toISOString().slice(0, 10)) {
+  const { error } = await (supabase as any)
+    .from("cronograma_entries")
+    .update({ status: "Realizado", type: "Realizado", completion_date: date, justification: null })
+    .eq("id", id);
+  if (error) throw error;
+}
+
 export function cronogramaMetrics(entries: CronogramaEntry[]) {
   const total = entries.length;
   const realizado = entries.filter((e) => e.status === "Realizado").length;
@@ -132,4 +220,152 @@ export function cronogramaMetrics(entries: CronogramaEntry[]) {
   const justificado = entries.filter((e) => e.status === "Justificado").length;
   const executionRate = total ? Math.round((realizado / total) * 100) : 0;
   return { total, realizado, pendente, justificado, executionRate };
+}
+
+export function annualSummary(entries: CronogramaEntry[], year: number): AnnualMonthSummary[] {
+  return Array.from({ length: 12 }, (_, i) => {
+    const month = `${year}-${String(i + 1).padStart(2, "0")}`;
+    const rows = entries.filter((e) => e.month === month);
+    return { month, ...cronogramaMetrics(rows) };
+  });
+}
+
+export async function listRecurringModels(): Promise<RecurringModel[]> {
+  const { data, error } = await (supabase as any)
+    .from("cronograma_recurring_models")
+    .select("*")
+    .order("active", { ascending: false })
+    .order("theme", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as RecurringModel[];
+}
+
+export async function createRecurringModel(input: RecurringModelInput) {
+  const createdBy = await authUserId();
+  const { error } = await (supabase as any).from("cronograma_recurring_models").insert({
+    theme: input.theme.trim(),
+    target_sector: input.target_sector,
+    recurrence: "monthly",
+    active: input.active ?? true,
+    created_by: createdBy,
+    created_by_name: input.created_by_name || null,
+  });
+  if (error) throw error;
+}
+
+export async function updateRecurringModel(id: string, patch: Partial<RecurringModelInput>) {
+  const { error } = await (supabase as any).from("cronograma_recurring_models").update(patch).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteRecurringModel(id: string) {
+  const { error } = await (supabase as any).from("cronograma_recurring_models").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function applyRecurringModels(params: {
+  month: string;
+  models: RecurringModel[];
+  employees: Array<{ id: string; full_name: string; matricula: string; sector: string; status: string; access_profile: string }>;
+  existingEntries: CronogramaEntry[];
+  plannedDate?: string | null;
+}) {
+  const { month, models, employees, existingEntries, plannedDate = null } = params;
+  const activeEmployees = employees.filter((e) => e.status === "Ativo" && e.access_profile !== "Inspetor");
+  const existingKeys = new Set(existingEntries.map((e) => `${e.employee_id}|${e.theme.trim().toLowerCase()}`));
+  const rows: CronogramaEntryInput[] = [];
+
+  for (const model of models.filter((m) => m.active)) {
+    const targets = activeEmployees.filter((e) => model.target_sector === "Todos" || e.sector === model.target_sector);
+    for (const emp of targets) {
+      const key = `${emp.id}|${model.theme.trim().toLowerCase()}`;
+      if (existingKeys.has(key)) continue;
+      existingKeys.add(key);
+      rows.push({
+        month,
+        employee_id: emp.id,
+        employee_name: emp.full_name,
+        employee_matricula: emp.matricula,
+        employee_sector: emp.sector,
+        theme: model.theme,
+        type: "Planejado",
+        status: "Pendente",
+        planned_date: plannedDate,
+      });
+    }
+  }
+  await createCronogramaEntries(rows);
+  return rows.length;
+}
+
+export async function listSuspensions(month: string): Promise<CronogramaSuspension[]> {
+  const { data, error } = await (supabase as any)
+    .from("cronograma_suspensions")
+    .select("*")
+    .eq("month", month)
+    .order("type", { ascending: true })
+    .order("date_start", { ascending: true, nullsFirst: false });
+  if (error) throw error;
+  return (data ?? []) as CronogramaSuspension[];
+}
+
+export async function createSuspension(input: CronogramaSuspensionInput) {
+  const createdBy = await authUserId();
+  const { error } = await (supabase as any).from("cronograma_suspensions").insert({
+    ...input,
+    created_by: createdBy,
+    employee_id: input.employee_id || null,
+    employee_name: input.employee_name || null,
+    employee_matricula: input.employee_matricula || null,
+    notes: input.notes || null,
+    date_start: input.date_start || null,
+    date_end: input.date_end || null,
+    created_by_name: input.created_by_name || null,
+  });
+  if (error) throw error;
+}
+
+export async function updateSuspension(id: string, patch: Partial<CronogramaSuspensionInput>) {
+  const { error } = await (supabase as any).from("cronograma_suspensions").update(patch).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteSuspension(id: string) {
+  const { error } = await (supabase as any).from("cronograma_suspensions").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function syncCronogramaWithExamAttempts(month?: string) {
+  const entryQuery = (supabase as any)
+    .from("cronograma_entries")
+    .select("id,employee_matricula,exam_id,status,completion_date")
+    .not("exam_id", "is", null)
+    .neq("status", "Realizado");
+  const { data: entries, error: entryError } = month ? await entryQuery.eq("month", month) : await entryQuery;
+  if (entryError) throw entryError;
+  if (!entries?.length) return 0;
+
+  const examIds = Array.from(new Set(entries.map((e: any) => e.exam_id).filter(Boolean)));
+  const matriculas = Array.from(new Set(entries.map((e: any) => e.employee_matricula).filter(Boolean)));
+  const { data: attempts, error: attemptsError } = await (supabase as any)
+    .from("exam_attempts")
+    .select("exam_id,matricula,passed,finished_at")
+    .in("exam_id", examIds)
+    .in("matricula", matriculas)
+    .eq("passed", true)
+    .order("finished_at", { ascending: false });
+  if (attemptsError) throw attemptsError;
+
+  let changed = 0;
+  for (const entry of entries as any[]) {
+    const attempt = (attempts ?? []).find((a: any) => a.exam_id === entry.exam_id && a.matricula === entry.employee_matricula);
+    if (!attempt) continue;
+    const completion = attempt.finished_at?.slice(0, 10) || new Date().toISOString().slice(0, 10);
+    const { error } = await (supabase as any)
+      .from("cronograma_entries")
+      .update({ status: "Realizado", type: "Realizado", completion_date: completion, justification: null })
+      .eq("id", entry.id);
+    if (!error) changed += 1;
+  }
+  return changed;
 }
