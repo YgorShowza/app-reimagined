@@ -32,6 +32,7 @@ const adminSections: MenuSection[] = [
       { path: "/relatorios", label: "Relatórios", icon: FileSpreadsheet },
       { path: "/tv", label: "TV Mode", icon: Tv },
       { path: "/auditoria", label: "Auditoria", icon: History },
+      { path: "/documento-seguranca", label: "Documento de Segurança", icon: FileText },
     ],
   },
   {
