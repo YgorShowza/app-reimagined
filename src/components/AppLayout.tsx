@@ -68,6 +68,7 @@ const operadorMenu: MenuItem[] = [
   { path: "/progresso", label: "Progresso", icon: TrendingUp },
   { path: "/certificados", label: "Certificados", icon: Award },
   { path: "/treinamentos", label: "Treinamentos", icon: GraduationCap },
+  { path: "/teste-rapido", label: "Teste Rápido", icon: Target },
   { path: "/meu-perfil", label: "Meu Perfil", icon: Users },
   { path: "/pratico", label: "Avaliação Prática", icon: ClipboardCheck },
   { path: "/minhas-ocorrencias", label: "Ocorrências", icon: AlertTriangle },
