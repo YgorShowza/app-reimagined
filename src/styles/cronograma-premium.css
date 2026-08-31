@@ -1,0 +1,58 @@
+.cronograma-premium-shell .cronograma-calendar-mode > .mx-auto > section:nth-of-type(4) .grid > button:nth-child(1),
+.cronograma-premium-shell .cronograma-calendar-mode > .mx-auto > section:nth-of-type(4) .grid > button:nth-child(2) {
+  display: none;
+}
+
+.cronograma-premium-shell .cronograma-calendar-mode > .mx-auto > section:nth-of-type(4) .grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.cronograma-premium-shell .annual-premium-grid > * {
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.cronograma-premium-shell .annual-premium-grid > *:hover {
+  box-shadow: inset 0 0 0 1px rgba(200,16,46,.12), 0 10px 30px rgba(0,0,0,.04);
+}
+
+.cronograma-premium-shell .annual-month-cell.is-current {
+  box-shadow: inset 0 0 0 1px rgba(200,16,46,.38), inset 0 3px 0 var(--accent);
+  z-index: 1;
+}
+
+@media (min-width: 1280px) {
+  .cronograma-premium-shell .annual-premium-grid > *:nth-child(6n) {
+    border-right: 0;
+  }
+  .cronograma-premium-shell .annual-premium-grid > *:nth-last-child(-n+6) {
+    border-bottom: 0;
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .cronograma-premium-shell .annual-premium-grid > *:nth-child(3n) {
+    border-right: 0;
+  }
+  .cronograma-premium-shell .annual-premium-grid > *:nth-last-child(-n+3) {
+    border-bottom: 0;
+  }
+}
+
+@media (max-width: 1023px) {
+  .cronograma-premium-shell .annual-premium-grid > *:nth-child(2n) {
+    border-right: 0;
+  }
+  .cronograma-premium-shell .annual-premium-grid > *:nth-last-child(-n+2) {
+    border-bottom: 0;
+  }
+}
+
+@media (max-width: 639px) {
+  .cronograma-premium-shell .cronograma-calendar-mode > .mx-auto > section:nth-of-type(4) .grid {
+    grid-template-columns: 1fr;
+  }
+  .cronograma-premium-shell .annual-month-cell {
+    min-height: 168px;
+  }
+}
