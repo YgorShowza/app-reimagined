@@ -3,7 +3,7 @@ import { CalendarDays, FileSpreadsheet, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { CronogramaSourceParity } from "@/components/cronograma/CronogramaSourceParity";
-import { CronogramaAnnualGenerator } from "@/components/cronograma/CronogramaAnnualGenerator";
+import { CronogramaAnnualGeneratorV2 } from "@/components/cronograma/CronogramaAnnualGeneratorV2";
 import { CronogramaImportResults } from "@/components/cronograma/CronogramaImportResults";
 import { CronogramaPlanEvaluation } from "@/components/cronograma/CronogramaPlanEvaluation";
 
@@ -47,7 +47,7 @@ export function CronogramaPorted() {
 
       {user?.isAdmin && (
         <>
-          <CronogramaAnnualGenerator
+          <CronogramaAnnualGeneratorV2
             open={generatorOpen}
             onOpenChange={setGeneratorOpen}
           />
