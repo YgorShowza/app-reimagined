@@ -192,30 +192,13 @@ function NavItems({ isAdmin }: { isAdmin: boolean }) {
   );
 }
 
-export function AppLayout({ children }: { children: ReactNode }) {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const { data: user } = useCurrentUser();
-  const isAdmin = user?.isAdmin ?? false;
+function HeaderClock() {
   const [currentTime, setCurrentTime] = useState(() => new Date());
-  const [menuOpen, setMenuOpen] = useState(false);
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-
-  useEffect(() => {
-    setMenuOpen(false);
-  }, [pathname]);
 
   useEffect(() => {
     const interval = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
-
-  const handleLogout = async () => {
-    await queryClient.cancelQueries();
-    queryClient.clear();
-    await supabase.auth.signOut();
-    navigate({ to: "/", replace: true });
-  };
 
   const timeStr = currentTime.toLocaleTimeString("pt-BR", {
     hour: "2-digit",
@@ -229,6 +212,33 @@ export function AppLayout({ children }: { children: ReactNode }) {
     month: "short",
     timeZone: "America/Maceio",
   });
+
+  return (
+    <div className="text-right">
+      <p className="text-sm font-bold tabular-nums" style={{ color: "var(--text-1)" }}>{timeStr}</p>
+      <p className="text-[11px] capitalize" style={{ color: "var(--text-4)" }}>{dateStr}</p>
+    </div>
+  );
+}
+
+export function AppLayout({ children }: { children: ReactNode }) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { data: user } = useCurrentUser();
+  const isAdmin = user?.isAdmin ?? false;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+
+  const handleLogout = async () => {
+    await queryClient.cancelQueries();
+    queryClient.clear();
+    await supabase.auth.signOut();
+    navigate({ to: "/", replace: true });
+  };
 
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-base)" }}>
@@ -320,10 +330,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               </div>
               <span className="text-xs font-medium" style={{ color: "var(--text-3)" }}>Online</span>
             </div>
-            <div className="text-right">
-              <p className="text-sm font-bold tabular-nums" style={{ color: "var(--text-1)" }}>{timeStr}</p>
-              <p className="text-[11px] capitalize" style={{ color: "var(--text-4)" }}>{dateStr}</p>
-            </div>
+            <HeaderClock />
             <button onClick={handleLogout} className="lg:hidden p-2 rounded-lg transition-colors" style={{ color: "var(--text-3)" }} aria-label="Sair">
               <LogOut className="w-4 h-4" />
             </button>
