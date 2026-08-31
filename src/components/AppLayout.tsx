@@ -6,7 +6,7 @@ import {
   LayoutDashboard, ClipboardList, TrendingUp, Award, ClipboardCheck,
   Users, BarChart3, FileText, BookOpen, BookOpenCheck, Brain, Sun, Moon, Monitor,
   LogOut, Target, FileBarChart, Radar, History, Tv, AlertTriangle,
-  Lightbulb, FileSpreadsheet, PlusCircle, Focus, Menu, CalendarDays, Layers3, CalendarClock, type LucideIcon,
+  Lightbulb, FileSpreadsheet, PlusCircle, Focus, Menu, CalendarDays, Layers3, CalendarClock, GraduationCap, type LucideIcon,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTheme } from "@/components/ThemeProvider";
@@ -64,6 +64,7 @@ const operadorMenu: MenuItem[] = [
   { path: "/pendencias", label: "Pendências", icon: ClipboardList },
   { path: "/progresso", label: "Progresso", icon: TrendingUp },
   { path: "/certificados", label: "Certificados", icon: Award },
+  { path: "/treinamentos", label: "Treinamentos", icon: GraduationCap },
   { path: "/pratico", label: "Avaliação Prática", icon: ClipboardCheck },
   { path: "/minhas-ocorrencias", label: "Ocorrências", icon: AlertTriangle },
 ];
