@@ -33,20 +33,17 @@ export interface ExamAttempt {
   score: number;
   passed: boolean;
   certificate_code: string | null;
+  signature_path: string | null;
+  signature_name: string | null;
+  signed_at: string | null;
+  signature_agreed: boolean;
   finished_at: string;
   created_at: string;
 }
 
 export const EXAM_TYPES = ["Múltipla escolha", "Discursiva", "Mista"];
 export const EXAM_STATUS = ["Rascunho", "Publicada"];
-export const TARGET_SECTORS = [
-  "Todos",
-  "CFTV",
-  "Vigilância",
-  "Portaria",
-  "Ronda",
-  "Administrativo",
-];
+export const TARGET_SECTORS = ["Todos", "CFTV", "Vigilância", "Portaria", "Ronda", "Administrativo"];
 
 export interface ExamForm {
   title: string;
@@ -59,38 +56,15 @@ export interface ExamForm {
   questions: ExamQuestion[];
 }
 
-export const emptyQuestion = (): ExamQuestion => ({
-  id: crypto.randomUUID(),
-  type: "Múltipla escolha",
-  statement: "",
-  options: ["", "", "", ""],
-  correct_index: 0,
-  points: 1,
-});
-
-export const emptyExamForm = (): ExamForm => ({
-  title: "",
-  description: "",
-  exam_type: "Múltipla escolha",
-  target_sector: "Todos",
-  min_approval_pct: 70,
-  scheduled_date: new Date().toISOString().slice(0, 10),
-  status: "Rascunho",
-  questions: [emptyQuestion()],
-});
+export const emptyQuestion = (): ExamQuestion => ({ id: crypto.randomUUID(), type: "Múltipla escolha", statement: "", options: ["", "", "", ""], correct_index: 0, points: 1 });
+export const emptyExamForm = (): ExamForm => ({ title: "", description: "", exam_type: "Múltipla escolha", target_sector: "Todos", min_approval_pct: 70, scheduled_date: new Date().toISOString().slice(0, 10), status: "Rascunho", questions: [emptyQuestion()] });
 
 function normalize(row: Record<string, unknown>): Exam {
-  return {
-    ...(row as unknown as Exam),
-    questions: Array.isArray(row["questions"]) ? (row["questions"] as ExamQuestion[]) : [],
-  };
+  return { ...(row as unknown as Exam), questions: Array.isArray(row["questions"]) ? (row["questions"] as ExamQuestion[]) : [] };
 }
 
 export async function listExams(): Promise<Exam[]> {
-  const { data, error } = await supabase
-    .from("exams")
-    .select("*")
-    .order("created_at", { ascending: false });
+  const { data, error } = await supabase.from("exams").select("*").order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []).map((r) => normalize(r as Record<string, unknown>));
 }
@@ -102,22 +76,14 @@ export async function getExam(id: string): Promise<Exam> {
 }
 
 export async function createExam(form: ExamForm) {
-  const { error } = await supabase.from("exams").insert({
-    ...form,
-    description: form.description || null,
-    scheduled_date: form.scheduled_date || null,
-    questions: form.questions as unknown as never,
-  });
+  const { error } = await supabase.from("exams").insert({ ...form, description: form.description || null, scheduled_date: form.scheduled_date || null, questions: form.questions as unknown as never });
   if (error) throw error;
 }
 
 export async function updateExam(id: string, form: Partial<ExamForm>) {
   const patch: Record<string, unknown> = { ...form };
   if (form.questions) patch["questions"] = form.questions;
-  const { error } = await supabase
-    .from("exams")
-    .update(patch as never)
-    .eq("id", id);
+  const { error } = await supabase.from("exams").update(patch as never).eq("id", id);
   if (error) throw error;
 }
 
@@ -127,27 +93,31 @@ export async function deleteExam(id: string) {
 }
 
 export async function listMyAttempts(): Promise<ExamAttempt[]> {
-  const { data, error } = await supabase
-    .from("exam_attempts")
-    .select("*")
-    .order("finished_at", { ascending: false });
+  const { data, error } = await supabase.from("exam_attempts").select("*").order("finished_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as ExamAttempt[];
 }
 
-export async function saveAttempt(input: {
-  exam_id: string;
-  user_id: string;
-  matricula: string | null;
-  score: number;
-  passed: boolean;
-  answers: unknown;
-}) {
-  const { error } = await supabase.from("exam_attempts").insert({
-    ...input,
-    answers: input.answers as never,
-  });
+export async function saveAttempt(input: { exam_id: string; user_id: string; matricula: string | null; score: number; passed: boolean; answers: unknown; }): Promise<ExamAttempt> {
+  const { data, error } = await supabase.from("exam_attempts").insert({ ...input, answers: input.answers as never }).select("*").single();
   if (error) throw error;
+  return data as ExamAttempt;
+}
+
+export async function signAttempt(input: { attemptId: string; userId: string; signerName: string; pngBlob: Blob; }) {
+  const path = `${input.userId}/${input.attemptId}.png`;
+  const upload = await supabase.storage.from("exam-signatures").upload(path, input.pngBlob, { contentType: "image/png", upsert: true });
+  if (upload.error) throw upload.error;
+  const signedAt = new Date().toISOString();
+  const { data, error } = await supabase.from("exam_attempts").update({ signature_path: path, signature_name: input.signerName, signed_at: signedAt, signature_agreed: true } as never).eq("id", input.attemptId).eq("user_id", input.userId).select("*").single();
+  if (error) throw error;
+  return data as ExamAttempt;
+}
+
+export async function getSignatureUrl(path: string, expiresIn = 300) {
+  const { data, error } = await supabase.storage.from("exam-signatures").createSignedUrl(path, expiresIn);
+  if (error) throw error;
+  return data.signedUrl;
 }
 
 export function currentMonthStr() {
@@ -157,10 +127,5 @@ export function currentMonthStr() {
 
 export function fmtDate(value?: string | null) {
   if (!value) return "—";
-  return new Date(value).toLocaleDateString("pt-BR", {
-    timeZone: "America/Maceio",
-    day: "2-digit",
-    month: "2-digit",
-    year: "2-digit",
-  });
+  return new Date(value).toLocaleDateString("pt-BR", { timeZone: "America/Maceio", day: "2-digit", month: "2-digit", year: "2-digit" });
 }
