@@ -1,11 +1,12 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Award, CalendarClock, CheckCircle2, FileText, Shield, TrendingUp, User } from "lucide-react";
+import { Award, CalendarClock, CheckCircle2, FileText, Flame, Shield, TrendingUp, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { listEmployees } from "@/lib/employees";
 import { fmtDate, listExams, listMyAttempts } from "@/lib/exams";
 import { listTrainingSchedules } from "@/lib/training-schedules";
+import { listMyTrainingActivities } from "@/lib/training-activities";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 
 const LEVEL_NAMES = ["Recruta", "Patrulheiro", "Sentinela", "Especialista", "Elite"];
@@ -15,6 +16,7 @@ export function MyProfileWorkspace() {
   const { data: user } = useCurrentUser();
   const employees = useQuery({ queryKey: ["employees-profile"], queryFn: listEmployees });
   const attempts = useQuery({ queryKey: ["exam-attempts-my"], queryFn: listMyAttempts });
+  const activities = useQuery({ queryKey: ["training-activities-my"], queryFn: listMyTrainingActivities });
   const exams = useQuery({ queryKey: ["exams"], queryFn: listExams });
   const cycles = useQuery({ queryKey: ["training-schedules"], queryFn: listTrainingSchedules });
 
@@ -24,11 +26,12 @@ export function MyProfileWorkspace() {
   );
   const examMap = useMemo(() => new Map((exams.data ?? []).map((exam) => [exam.id, exam.title])), [exams.data]);
   const rows = attempts.data ?? [];
+  const activityRows = activities.data ?? [];
   const passed = rows.filter((row) => row.passed).length;
   const average = rows.length ? rows.reduce((sum, row) => sum + Number(row.score || 0), 0) / rows.length : 0;
   const cycle = (cycles.data ?? []).find((item) => item.employee_id === employee?.id);
   const level = Math.min(5, Math.max(1, Number(employee?.level || 1)));
-  const loading = employees.isLoading || attempts.isLoading;
+  const loading = employees.isLoading || attempts.isLoading || activities.isLoading;
 
   if (loading) {
     return <div className="flex justify-center py-20"><div className="h-9 w-9 animate-spin rounded-full border-4" style={{ borderColor: "var(--border)", borderTopColor: "#C8102E" }} /></div>;
@@ -48,9 +51,9 @@ export function MyProfileWorkspace() {
       </section>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Metric label="Avaliações" value={rows.length} icon={FileText} color="#60a5fa" />
+        <Metric label="Atividades" value={rows.length + activityRows.length} icon={FileText} color="#60a5fa" />
         <Metric label="Aprovações" value={passed} icon={CheckCircle2} color="#10b981" />
-        <Metric label="Média" value={average.toFixed(1)} icon={TrendingUp} color="#f59e0b" />
+        <Metric label="Média provas" value={average.toFixed(1)} icon={TrendingUp} color="#f59e0b" />
         <Metric label="Ciclo" value={cycle?.status || "—"} icon={CalendarClock} color={cycle?.status === "Vencido" ? "#ef4444" : cycle?.status === "Próximo ao vencimento" ? "#f59e0b" : "#10b981"} compact />
       </div>
 
@@ -61,6 +64,11 @@ export function MyProfileWorkspace() {
       <section className="overflow-hidden rounded-2xl" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", boxShadow: "var(--shadow-card, var(--shadow-md))" }}>
         <div className="flex items-center gap-2 px-4 py-3" style={{ background: "var(--bg-surface-2)", borderBottom: "1px solid var(--border)" }}><User className="h-4 w-4" style={{ color: "var(--accent)" }} /><h2 className="text-sm font-black" style={{ color: "var(--text-1)" }}>Histórico de provas</h2><span className="ml-auto text-xs" style={{ color: "var(--text-4)" }}>{rows.length} registro(s)</span></div>
         {rows.length === 0 ? <div className="p-10 text-center"><p className="text-sm" style={{ color: "var(--text-4)" }}>Nenhuma prova realizada ainda.</p></div> : <div className="divide-y" style={{ borderColor: "var(--border-subtle)" }}>{rows.slice(0, 20).map((row) => <div key={row.id} className="flex items-center gap-3 px-4 py-3"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: row.passed ? "rgba(16,185,129,.1)" : "rgba(239,68,68,.1)", color: row.passed ? "#10b981" : "#ef4444" }}>{row.passed ? <CheckCircle2 className="h-4 w-4" /> : <FileText className="h-4 w-4" />}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold" style={{ color: "var(--text-1)" }}>{examMap.get(row.exam_id) || "Avaliação"}</p><p className="text-[11px]" style={{ color: "var(--text-4)" }}>{fmtDate(row.finished_at || row.created_at)}</p></div><div className="text-right"><p className="text-sm font-black" style={{ color: row.passed ? "#10b981" : "#ef4444" }}>{Number(row.score || 0).toFixed(1)}</p><p className="text-[10px] font-bold" style={{ color: row.passed ? "#10b981" : "#ef4444" }}>{row.passed ? "Aprovado" : "Não aprovado"}</p></div></div>)}</div>}
+      </section>
+
+      <section className="overflow-hidden rounded-2xl" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", boxShadow: "var(--shadow-card, var(--shadow-md))" }}>
+        <div className="flex items-center gap-2 px-4 py-3" style={{ background: "var(--bg-surface-2)", borderBottom: "1px solid var(--border)" }}><Flame className="h-4 w-4 text-amber-500" /><h2 className="text-sm font-black" style={{ color: "var(--text-1)" }}>Atividades de treinamento</h2><span className="ml-auto text-xs" style={{ color: "var(--text-4)" }}>{activityRows.length} registro(s)</span></div>
+        {activityRows.length === 0 ? <div className="p-10 text-center"><p className="text-sm" style={{ color: "var(--text-4)" }}>Nenhuma atividade rápida realizada ainda.</p></div> : <div className="divide-y" style={{ borderColor: "var(--border-subtle)" }}>{activityRows.slice(0, 20).map((row) => <div key={row.id} className="flex items-center gap-3 px-4 py-3"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: "rgba(245,158,11,.10)", color: "#f59e0b" }}><Flame className="h-4 w-4" /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold" style={{ color: "var(--text-1)" }}>{row.activity_title}</p><p className="text-[11px]" style={{ color: "var(--text-4)" }}>{row.activity_type} · {fmtDate(row.created_at)}</p></div><div className="text-right"><p className="text-sm font-black" style={{ color: row.passed ? "#10b981" : "#f59e0b" }}>{Number(row.score || 0).toFixed(1)}</p><p className="text-[10px] font-black text-amber-500">+{row.points_earned} XP</p></div></div>)}</div>}
       </section>
     </div>
   );
