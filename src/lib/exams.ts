@@ -32,6 +32,7 @@ export interface ExamAttempt {
   matricula: string | null;
   score: number;
   passed: boolean;
+  certificate_code: string | null;
   finished_at: string;
   created_at: string;
 }
