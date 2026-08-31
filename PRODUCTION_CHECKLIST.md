@@ -32,15 +32,33 @@ Use este documento antes de publicar uma nova versão do sistema.
 - [ ] Dashboard administrativo validado manualmente em sessão real.
 - [x] Rotas administrativas possuem proteção central por role `admin`.
 - [x] Auditoria é protegida por rota e RLS para Inspetor/admin.
+- [x] Colaborador `Ativo + Inspetor` com conta vinculada recebe role `admin` pela regra funcional.
+- [x] Mudança para Operacional ou Inativo remove a role `admin` vinculada ao colaborador.
+- [x] A matrícula `000` foi reconciliada tecnicamente como Inspetor/admin sem alterar a conta administrativa técnica `970`.
 
 ### Operador
 
 - [ ] Login por matrícula validado manualmente com conta real de Operador.
 - [x] Rotas administrativas redirecionam para o painel quando a role não é `admin`.
+- [x] Guard autenticado encerra sessão de usuário comum sem colaborador ativo.
 - [x] RLS restringe dados próprios quando a regra exigir.
 - [x] Provas publicadas respeitam setor-alvo ou `Todos` no próprio banco.
 - [x] Ciclos, avaliações práticas e ocorrências possuem RLS compatível com o perfil Operador.
 - [x] Banco de Questões, Módulos e Conteúdos ativos respeitam `Todos` ou o setor do usuário na RLS.
+- [x] Tentativas, atividades rápidas e ocorrências próprias exigem colaborador ativo na RLS.
+
+### Primeiro acesso
+
+- [x] Cadastro só é aceito para matrícula existente e `Ativo` em `employees`.
+- [x] Primeiro acesso exige código de ativação de 8 dígitos emitido por admin.
+- [x] Código expira em 24 horas, é de uso único e armazenado somente como hash SHA-256.
+- [x] Código é gerado com RNG criptográfico `gen_random_bytes()`.
+- [x] Geração/revogação de código é bloqueada para não-admin.
+- [x] Reutilização de código consumido é bloqueada.
+- [x] Tela Equipe possui área `Acessos` para gerar/copiar/revogar código.
+- [x] `profiles` e `user_roles` são somente leitura para o cliente autenticado.
+- [x] Matrícula vinculada a conta não pode ser alterada diretamente.
+- [x] Colaborador com conta não pode ser excluído; deve ser inativado.
 
 ## 4. Cronograma
 
@@ -76,7 +94,8 @@ Use este documento antes de publicar uma nova versão do sistema.
 - [ ] Assinatura eletrônica validada manualmente em touchscreen.
 - [x] Bucket `exam-signatures` é privado, limitado a PNG e 512 KB.
 - [x] Operador não possui UPDATE genérico sobre `exam_attempts`.
-- [x] RPC `sign_exam_attempt` só altera tentativa pertencente ao usuário autenticado.
+- [x] RPC `sign_exam_attempt` só altera tentativa pertencente ao usuário autenticado e exige colaborador ativo.
+- [x] Storage de assinatura exige usuário ativo para operações próprias.
 - [x] Interface só libera certificado formal após aprovação + assinatura.
 - [ ] Código validado manualmente pela Inspetoria em fluxo ponta a ponta.
 - [x] Evidência de assinatura usa URL temporária, sem tornar o bucket público.
@@ -91,6 +110,7 @@ Use este documento antes de publicar uma nova versão do sistema.
 - [x] Desafio Diário possui índice único por usuário/tipo/dia.
 - [x] Teste Rápido/Simulador/Stress Test concedem XP apenas na primeira conclusão do tipo no dia.
 - [x] XP é calculado no servidor por RPC `SECURITY DEFINER`.
+- [x] RPC de atividade exige colaborador ativo.
 - [x] Nível é recalculado no servidor conforme faixas de pontos.
 - [x] Atividades são persistidas separadamente de `exam_attempts`, sem gerar certificado formal.
 
@@ -106,7 +126,7 @@ Use este documento antes de publicar uma nova versão do sistema.
 
 - [ ] Operador cria ocorrência em sessão real.
 - [x] Camada de dados preenche `created_by` com o usuário autenticado.
-- [x] RLS limita Operador a ocorrência própria/vinculada.
+- [x] RLS limita Operador ativo a ocorrência própria/vinculada.
 - [x] UPDATE administrativo fica restrito à Inspetoria/admin.
 - [x] DELETE administrativo fica restrito à Inspetoria/admin.
 
