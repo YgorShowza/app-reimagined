@@ -6,7 +6,7 @@ import {
   LayoutDashboard, ClipboardList, TrendingUp, Award, ClipboardCheck,
   Users, BarChart3, FileText, BookOpen, Brain, Sun, Moon, Monitor,
   LogOut, Target, FileBarChart, Radar, History, Tv, AlertTriangle,
-  Lightbulb, FileSpreadsheet, PlusCircle, Focus, Menu, type LucideIcon,
+  Lightbulb, FileSpreadsheet, PlusCircle, Focus, Menu, CalendarDays, type LucideIcon,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTheme } from "@/components/ThemeProvider";
@@ -37,6 +37,7 @@ const adminSections: MenuSection[] = [
   {
     section: "Treinamento",
     items: [
+      { path: "/cronograma", label: "Cronograma", icon: CalendarDays },
       { path: "/provas-criar", label: "Criar Prova", icon: PlusCircle },
       { path: "/provas", label: "Provas", icon: FileText },
       { path: "/conteudos", label: "Conteúdos", icon: BookOpen },
@@ -231,12 +232,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-base)" }}>
-      {/* ── SIDEBAR (desktop) ── */}
       <aside
         className="fixed left-0 top-0 bottom-0 w-60 hidden lg:flex flex-col z-40"
         style={{ background: "var(--sidebar-bg)", borderRight: "1px solid rgba(255,255,255,0.05)" }}
       >
-        {/* Logo */}
         <div className="px-4 pt-5 pb-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
           <div className="flex items-center justify-center">
             <div className="rounded-xl overflow-hidden bg-white p-1.5" style={{ boxShadow: "var(--shadow-glow-gold, 0 0 18px rgba(200,160,0,0.35))" }}>
@@ -244,13 +243,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
             </div>
           </div>
         </div>
-
-        {/* Menu */}
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
           <NavItems isAdmin={isAdmin} />
         </nav>
-
-        {/* Footer */}
         <div className="px-3 pb-4 pt-3 space-y-2.5" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
           <ThemeToggle />
           <motion.button
@@ -261,23 +256,15 @@ export function AppLayout({ children }: { children: ReactNode }) {
             style={{ border: "1px solid rgba(255,255,255,0.04)" }}
           >
             <LogOut className="w-[17px] h-[17px]" style={{ color: "rgba(255,255,255,0.35)" }} />
-            <span className="text-[13px] font-medium" style={{ color: "rgba(255,255,255,0.5)" }}>
-              Sair
-            </span>
+            <span className="text-[13px] font-medium" style={{ color: "rgba(255,255,255,0.5)" }}>Sair</span>
           </motion.button>
         </div>
       </aside>
 
-      {/* ── MAIN AREA ── */}
       <div className="lg:ml-60 flex flex-col min-h-screen">
-        {/* Header */}
         <header
           className="sticky top-0 z-30 px-4 md:px-6 py-3 flex items-center justify-between gap-4"
-          style={{
-            background: "var(--header-bg)",
-            borderBottom: "1px solid var(--border)",
-            backdropFilter: "blur(12px)",
-          }}
+          style={{ background: "var(--header-bg)", borderBottom: "1px solid var(--border)", backdropFilter: "blur(12px)" }}
         >
           <div className="flex items-center gap-3 min-w-0">
             <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
@@ -290,11 +277,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   <Menu className="w-5 h-5" />
                 </button>
               </SheetTrigger>
-              <SheetContent
-                side="left"
-                className="w-[270px] p-0 border-0"
-                style={{ background: "var(--sidebar-bg)" }}
-              >
+              <SheetContent side="left" className="w-[270px] p-0 border-0" style={{ background: "var(--sidebar-bg)" }}>
                 <SheetTitle className="sr-only">Menu</SheetTitle>
                 <div className="flex h-full flex-col">
                   <div className="px-4 pt-5 pb-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
@@ -315,9 +298,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                       style={{ border: "1px solid rgba(255,255,255,0.04)" }}
                     >
                       <LogOut className="w-[17px] h-[17px]" style={{ color: "rgba(255,255,255,0.35)" }} />
-                      <span className="text-[13px] font-medium" style={{ color: "rgba(255,255,255,0.5)" }}>
-                        Sair
-                      </span>
+                      <span className="text-[13px] font-medium" style={{ color: "rgba(255,255,255,0.5)" }}>Sair</span>
                     </button>
                   </div>
                 </div>
@@ -327,12 +308,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
               <img src={LOGO_URL} alt="EMPAT" className="h-8 w-auto object-contain" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-bold truncate" style={{ color: "var(--text-1)" }}>
-                {user?.nome ?? "…"}
-              </p>
-              <p className="text-[11px] font-mono" style={{ color: "var(--text-4)" }}>
-                Mat. {user?.matricula ?? "—"}
-              </p>
+              <p className="text-sm font-bold truncate" style={{ color: "var(--text-1)" }}>{user?.nome ?? "…"}</p>
+              <p className="text-[11px] font-mono" style={{ color: "var(--text-4)" }}>Mat. {user?.matricula ?? "—"}</p>
             </div>
           </div>
           <div className="flex items-center gap-3 md:gap-4 shrink-0">
@@ -341,24 +318,13 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 <span className="absolute inline-flex w-full h-full rounded-full bg-green-400 opacity-60 animate-ping" />
                 <span className="relative inline-flex w-2 h-2 rounded-full bg-green-500" />
               </div>
-              <span className="text-xs font-medium" style={{ color: "var(--text-3)" }}>
-                Online
-              </span>
+              <span className="text-xs font-medium" style={{ color: "var(--text-3)" }}>Online</span>
             </div>
             <div className="text-right">
-              <p className="text-sm font-bold tabular-nums" style={{ color: "var(--text-1)" }}>
-                {timeStr}
-              </p>
-              <p className="text-[11px] capitalize" style={{ color: "var(--text-4)" }}>
-                {dateStr}
-              </p>
+              <p className="text-sm font-bold tabular-nums" style={{ color: "var(--text-1)" }}>{timeStr}</p>
+              <p className="text-[11px] capitalize" style={{ color: "var(--text-4)" }}>{dateStr}</p>
             </div>
-            <button
-              onClick={handleLogout}
-              className="lg:hidden p-2 rounded-lg transition-colors"
-              style={{ color: "var(--text-3)" }}
-              aria-label="Sair"
-            >
+            <button onClick={handleLogout} className="lg:hidden p-2 rounded-lg transition-colors" style={{ color: "var(--text-3)" }} aria-label="Sair">
               <LogOut className="w-4 h-4" />
             </button>
           </div>
@@ -366,20 +332,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
         <main className="flex-1 p-4 md:p-6 pb-24 lg:pb-8">{children}</main>
 
-        {/* Mobile bottom bar (operador) */}
         {!isAdmin && (
-          <nav
-            className="fixed bottom-0 left-0 right-0 lg:hidden z-40 px-2 py-1.5"
-            style={{
-              background: "var(--header-bg)",
-              borderTop: "1px solid var(--border)",
-              backdropFilter: "blur(12px)",
-            }}
-          >
+          <nav className="fixed bottom-0 left-0 right-0 lg:hidden z-40 px-2 py-1.5" style={{ background: "var(--header-bg)", borderTop: "1px solid var(--border)", backdropFilter: "blur(12px)" }}>
             <div className="flex items-center justify-around gap-1">
-              {operadorMenu.slice(0, 5).map((item) => (
-                <MobileNavLink key={item.path} item={item} />
-              ))}
+              {operadorMenu.slice(0, 5).map((item) => <MobileNavLink key={item.path} item={item} />)}
             </div>
           </nav>
         )}
