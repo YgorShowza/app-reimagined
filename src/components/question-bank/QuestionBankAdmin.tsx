@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookOpenCheck, CheckCircle2, CircleOff, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { BookOpenCheck, CheckCircle2, ChevronLeft, ChevronRight, CircleOff, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -16,6 +16,8 @@ import {
   type QuestionBankInput,
   type QuestionBankItem,
 } from "@/lib/question-bank";
+
+const PAGE_SIZE = 20;
 
 const EMPTY: QuestionBankInput = {
   bank_type: "Múltipla escolha",
@@ -36,6 +38,7 @@ export function QuestionBankAdmin() {
   const [search, setSearch] = useState("");
   const [sector, setSector] = useState("Todos");
   const [difficulty, setDifficulty] = useState("Todas");
+  const [page, setPage] = useState(1);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<QuestionBankItem | null>(null);
   const [form, setForm] = useState<QuestionBankInput>(EMPTY);
@@ -51,6 +54,13 @@ export function QuestionBankAdmin() {
       return !q || [row.theme, row.question_text, row.bank_type, row.target_sector].some((value) => (value || "").toLowerCase().includes(q));
     });
   }, [difficulty, rows, search, sector]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paged = useMemo(
+    () => filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [currentPage, filtered],
+  );
 
   const save = useMutation({
     mutationFn: async () => {
@@ -129,35 +139,40 @@ export function QuestionBankAdmin() {
             <h1 className="mt-2 text-2xl font-black text-white md:text-3xl">Banco de Questões</h1>
             <p className="mt-1 text-sm text-white/50">Questões reutilizáveis para provas, cronograma e avaliações.</p>
           </div>
-          <Button onClick={openNew} className="bg-[#C8102E] text-white hover:bg-[#A00D24]"><Plus className="mr-2 h-4 w-4" /> Nova questão</Button>
+          <Button onClick={openNew} className="w-full bg-[#C8102E] text-white hover:bg-[#A00D24] md:w-auto"><Plus className="mr-2 h-4 w-4" /> Nova questão</Button>
         </div>
       </section>
 
       <section className="rounded-2xl p-4" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}>
         <div className="grid gap-3 md:grid-cols-[1fr_180px_160px]">
-          <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: "var(--text-4)" }} /><Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por tema ou enunciado..." className="pl-10" /></div>
-          <Select value={sector} onValueChange={setSector}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["Todos", "CFTV", "Vigilância", "Portaria", "Ronda", "Administrativo"].map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent></Select>
-          <Select value={difficulty} onValueChange={setDifficulty}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["Todas", "Fácil", "Médio", "Difícil"].map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent></Select>
+          <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: "var(--text-4)" }} /><Input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Buscar por tema ou enunciado..." className="pl-10" /></div>
+          <Select value={sector} onValueChange={(value) => { setSector(value); setPage(1); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["Todos", "CFTV", "Vigilância", "Portaria", "Ronda", "Administrativo"].map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent></Select>
+          <Select value={difficulty} onValueChange={(value) => { setDifficulty(value); setPage(1); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["Todas", "Fácil", "Médio", "Difícil"].map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent></Select>
         </div>
+        {!query.isLoading && filtered.length > 0 && (
+          <p className="mt-3 text-[11px]" style={{ color: "var(--text-4)" }}>
+            {filtered.length} questão(ões) encontrada(s) · exibindo {Math.min((currentPage - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(currentPage * PAGE_SIZE, filtered.length)}
+          </p>
+        )}
       </section>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        {filtered.map((item) => (
+        {paged.map((item) => (
           <article key={item.id} className="rounded-2xl p-4" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", boxShadow: "var(--shadow-card, var(--shadow-md))" }}>
-            <div className="flex items-start gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="rounded-full px-2 py-0.5 text-[10px] font-black" style={{ background: "var(--accent-soft)", color: "var(--accent)" }}>{item.theme || "Sem tema"}</span>
                   <span className="text-[10px] font-bold" style={{ color: "var(--text-4)" }}>{item.target_sector} · {item.difficulty} · {item.bank_type}</span>
                 </div>
-                <p className="mt-3 text-sm font-bold" style={{ color: "var(--text-1)" }}>{item.question_text}</p>
+                <p className="mt-3 break-words text-sm font-bold" style={{ color: "var(--text-1)" }}>{item.question_text}</p>
                 {item.bank_type === "Múltipla escolha" && item.options.length > 0 && (
-                  <div className="mt-3 space-y-1.5">{item.options.map((option, index) => <div key={`${item.id}-${index}`} className="rounded-lg px-2.5 py-1.5 text-xs" style={{ background: index === item.correct_index ? "rgba(16,185,129,.08)" : "var(--bg-surface-2)", color: index === item.correct_index ? "#10b981" : "var(--text-3)" }}>{String.fromCharCode(65 + index)}. {option}</div>)}</div>
+                  <div className="mt-3 space-y-1.5">{item.options.map((option, index) => <div key={`${item.id}-${index}`} className="break-words rounded-lg px-2.5 py-1.5 text-xs" style={{ background: index === item.correct_index ? "rgba(16,185,129,.08)" : "var(--bg-surface-2)", color: index === item.correct_index ? "#10b981" : "var(--text-3)" }}>{String.fromCharCode(65 + index)}. {option}</div>)}</div>
                 )}
-                {item.bank_type !== "Múltipla escolha" && item.correct_answer && <p className="mt-3 text-xs" style={{ color: "var(--text-3)" }}><strong>Resposta esperada:</strong> {item.correct_answer}</p>}
-                {item.explanation && <p className="mt-2 text-xs" style={{ color: "var(--text-4)" }}>{item.explanation}</p>}
+                {item.bank_type !== "Múltipla escolha" && item.correct_answer && <p className="mt-3 break-words text-xs" style={{ color: "var(--text-3)" }}><strong>Resposta esperada:</strong> {item.correct_answer}</p>}
+                {item.explanation && <p className="mt-2 break-words text-xs" style={{ color: "var(--text-4)" }}>{item.explanation}</p>}
               </div>
-              <div className="flex shrink-0 gap-1">
+              <div className="flex shrink-0 justify-end gap-1 self-end sm:self-start">
                 <Button size="icon" variant="ghost" onClick={() => toggle.mutate({ id: item.id, active: !item.active })} title={item.active ? "Desativar" : "Ativar"}>{item.active ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <CircleOff className="h-4 w-4" />}</Button>
                 <Button size="icon" variant="ghost" onClick={() => openEdit(item)}><Pencil className="h-4 w-4" /></Button>
                 <Button size="icon" variant="ghost" className="text-red-500" onClick={() => { if (confirm("Excluir esta questão?")) remove.mutate(item.id); }}><Trash2 className="h-4 w-4" /></Button>
@@ -168,6 +183,16 @@ export function QuestionBankAdmin() {
       </div>
 
       {!query.isLoading && filtered.length === 0 && <section className="rounded-2xl p-12 text-center" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}><BookOpenCheck className="mx-auto h-10 w-10 opacity-25" /><p className="mt-3 font-bold" style={{ color: "var(--text-1)" }}>Nenhuma questão encontrada.</p></section>}
+
+      {!query.isLoading && filtered.length > PAGE_SIZE && (
+        <div className="flex flex-col items-center justify-between gap-3 rounded-2xl p-3 sm:flex-row" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}>
+          <p className="text-xs font-bold" style={{ color: "var(--text-4)" }}>Página {currentPage} de {totalPages}</p>
+          <div className="flex w-full gap-2 sm:w-auto">
+            <Button variant="outline" className="flex-1 sm:flex-none" disabled={currentPage <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}><ChevronLeft className="mr-1 h-4 w-4" /> Anterior</Button>
+            <Button variant="outline" className="flex-1 sm:flex-none" disabled={currentPage >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>Próxima <ChevronRight className="ml-1 h-4 w-4" /></Button>
+          </div>
+        </div>
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
