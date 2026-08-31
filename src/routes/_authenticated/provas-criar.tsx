@@ -2,12 +2,13 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { PlusCircle, Trash2, Save, CheckCircle2 } from "lucide-react";
+import { PlusCircle, Trash2, Save, CheckCircle2, GraduationCap } from "lucide-react";
 import { toast } from "sonner";
 import {
   EXAM_STATUS, EXAM_TYPES, TARGET_SECTORS, createExam, emptyExamForm, emptyQuestion,
   getExam, updateExam, type ExamForm, type ExamQuestion, type QuestionType,
 } from "@/lib/exams";
+import { getTrainingModule } from "@/lib/training";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { QuestionBankPicker } from "@/components/exams/QuestionBankPicker";
 
@@ -20,6 +21,7 @@ export const Route = createFileRoute("/_authenticated/provas-criar")({
   }),
   validateSearch: (search: Record<string, unknown>) => ({
     id: typeof search["id"] === "string" ? search["id"] : undefined,
+    module: typeof search["module"] === "string" ? search["module"] : undefined,
   }),
   component: CriarProva,
 });
@@ -57,15 +59,22 @@ function Card({ children }: { children: React.ReactNode }) {
 
 function CriarProva() {
   const navigate = useNavigate();
-  const { id } = Route.useSearch();
+  const { id, module: moduleId } = Route.useSearch();
   const { data: user } = useCurrentUser();
   const isAdmin = user?.isAdmin ?? false;
   const [form, setForm] = useState<ExamForm>(() => emptyExamForm());
+  const [sourceApplied, setSourceApplied] = useState(false);
 
   const { data: existing } = useQuery({
     queryKey: ["exam", id],
     queryFn: () => getExam(id!),
     enabled: !!id,
+  });
+
+  const { data: sourceModule } = useQuery({
+    queryKey: ["training-module", moduleId],
+    queryFn: () => getTrainingModule(moduleId!),
+    enabled: !!moduleId && !id,
   });
 
   useEffect(() => {
@@ -81,6 +90,22 @@ function CriarProva() {
       questions: existing.questions.length ? existing.questions : [emptyQuestion()],
     });
   }, [existing]);
+
+  useEffect(() => {
+    if (!sourceModule || id || sourceApplied) return;
+    if (form.title.trim() || form.description.trim()) return;
+    const minApproval = sourceModule.min_score <= 10
+      ? Math.round(sourceModule.min_score * 10)
+      : Math.min(100, Math.round(sourceModule.min_score));
+    setForm((current) => ({
+      ...current,
+      title: sourceModule.title,
+      description: sourceModule.description,
+      target_sector: sourceModule.target_sector,
+      min_approval_pct: minApproval,
+    }));
+    setSourceApplied(true);
+  }, [sourceModule, id, sourceApplied, form.title, form.description]);
 
   const save = useMutation({
     mutationFn: async (status: string) => {
@@ -152,6 +177,18 @@ function CriarProva() {
         </p>
       </div>
 
+      {sourceModule && !id && (
+        <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: "var(--accent-soft)", border: "1px solid rgba(200,16,46,.20)" }}>
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "var(--bg-surface)" }}>
+            <GraduationCap className="w-4.5 h-4.5" style={{ color: "var(--accent)" }} />
+          </div>
+          <div>
+            <p className="text-sm font-black" style={{ color: "var(--text-1)" }}>Prova vinculada ao módulo “{sourceModule.title}”</p>
+            <p className="mt-1 text-xs" style={{ color: "var(--text-4)" }}>Título, descrição, setor e aprovação mínima foram preenchidos a partir do módulo. Você continua com controle total para editar.</p>
+          </div>
+        </div>
+      )}
+
       <Card>
         <div className="space-y-3">
           <div>
@@ -183,11 +220,7 @@ function CriarProva() {
             </div>
             <div>
               <Label>Setor alvo</Label>
-              <select
-                style={fieldStyle}
-                value={form.target_sector}
-                onChange={(e) => set("target_sector", e.target.value)}
-              >
+              <select style={fieldStyle} value={form.target_sector} onChange={(e) => set("target_sector", e.target.value)}>
                 {TARGET_SECTORS.map((t) => (
                   <option key={t} value={t}>{t}</option>
                 ))}
@@ -195,58 +228,32 @@ function CriarProva() {
             </div>
             <div>
               <Label>Aprovação mínima (%)</Label>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                style={fieldStyle}
-                value={form.min_approval_pct}
-                onChange={(e) => set("min_approval_pct", Number(e.target.value))}
-              />
+              <input type="number" min={0} max={100} style={fieldStyle} value={form.min_approval_pct} onChange={(e) => set("min_approval_pct", Number(e.target.value))} />
             </div>
             <div>
               <Label>Data agendada</Label>
-              <input
-                type="date"
-                style={fieldStyle}
-                value={form.scheduled_date}
-                onChange={(e) => set("scheduled_date", e.target.value)}
-              />
+              <input type="date" style={fieldStyle} value={form.scheduled_date} onChange={(e) => set("scheduled_date", e.target.value)} />
             </div>
           </div>
           <div>
             <Label>Situação</Label>
             <select style={fieldStyle} value={form.status} onChange={(e) => set("status", e.target.value)}>
-              {EXAM_STATUS.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
+              {EXAM_STATUS.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
         </div>
       </Card>
 
-      <QuestionBankPicker
-        onAdd={addBankQuestion}
-        existingStatements={form.questions.map((question) => question.statement)}
-      />
+      <QuestionBankPicker onAdd={addBankQuestion} existingStatements={form.questions.map((question) => question.statement)} />
 
       <div className="space-y-3">
         {form.questions.map((q, idx) => (
           <motion.div key={q.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
             <Card>
               <div className="mb-3 flex items-center justify-between gap-2">
-                <p className="text-xs font-black uppercase tracking-widest" style={{ color: "#C8102E" }}>
-                  Questão {idx + 1}
-                </p>
+                <p className="text-xs font-black uppercase tracking-widest" style={{ color: "#C8102E" }}>Questão {idx + 1}</p>
                 {form.questions.length > 1 && (
-                  <button
-                    onClick={() =>
-                      setForm((f) => ({ ...f, questions: f.questions.filter((x) => x.id !== q.id) }))
-                    }
-                    className="rounded-lg p-1.5"
-                    style={{ color: "#C8102E", background: "rgba(200,16,46,0.08)" }}
-                    aria-label="Remover questão"
-                  >
+                  <button onClick={() => setForm((f) => ({ ...f, questions: f.questions.filter((x) => x.id !== q.id) }))} className="rounded-lg p-1.5" style={{ color: "#C8102E", background: "rgba(200,16,46,0.08)" }} aria-label="Remover questão">
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 )}
@@ -256,34 +263,20 @@ function CriarProva() {
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
                     <Label>Formato</Label>
-                    <select
-                      style={fieldStyle}
-                      value={q.type}
-                      onChange={(e) => setQuestion(q.id, { type: e.target.value as QuestionType })}
-                    >
+                    <select style={fieldStyle} value={q.type} onChange={(e) => setQuestion(q.id, { type: e.target.value as QuestionType })}>
                       <option value="Múltipla escolha">Múltipla escolha</option>
                       <option value="Discursiva">Discursiva</option>
                     </select>
                   </div>
                   <div>
                     <Label>Pontos</Label>
-                    <input
-                      type="number"
-                      min={1}
-                      style={fieldStyle}
-                      value={q.points}
-                      onChange={(e) => setQuestion(q.id, { points: Number(e.target.value) })}
-                    />
+                    <input type="number" min={1} style={fieldStyle} value={q.points} onChange={(e) => setQuestion(q.id, { points: Number(e.target.value) })} />
                   </div>
                 </div>
 
                 <div>
                   <Label>Enunciado</Label>
-                  <textarea
-                    style={{ ...fieldStyle, minHeight: 66, resize: "vertical" }}
-                    value={q.statement}
-                    onChange={(e) => setQuestion(q.id, { statement: e.target.value })}
-                  />
+                  <textarea style={{ ...fieldStyle, minHeight: 66, resize: "vertical" }} value={q.statement} onChange={(e) => setQuestion(q.id, { statement: e.target.value })} />
                 </div>
 
                 {q.type === "Múltipla escolha" ? (
@@ -291,42 +284,18 @@ function CriarProva() {
                     <Label>Alternativas (marque a correta)</Label>
                     {q.options.map((opt, oi) => (
                       <div key={oi} className="flex items-center gap-2">
-                        <button
-                          onClick={() => setQuestion(q.id, { correct_index: oi })}
-                          className="shrink-0 rounded-full p-1"
-                          style={{ color: q.correct_index === oi ? "#10b981" : "var(--text-4)" }}
-                          aria-label={`Marcar alternativa ${oi + 1} como correta`}
-                        >
+                        <button onClick={() => setQuestion(q.id, { correct_index: oi })} className="shrink-0 rounded-full p-1" style={{ color: q.correct_index === oi ? "#10b981" : "var(--text-4)" }} aria-label={`Marcar alternativa ${oi + 1} como correta`}>
                           <CheckCircle2 className="h-4.5 w-4.5" />
                         </button>
-                        <input
-                          style={fieldStyle}
-                          value={opt}
-                          placeholder={`Alternativa ${String.fromCharCode(65 + oi)}`}
-                          onChange={(e) =>
-                            setQuestion(q.id, {
-                              options: q.options.map((o, i2) => (i2 === oi ? e.target.value : o)),
-                            })
-                          }
-                        />
+                        <input style={fieldStyle} value={opt} placeholder={`Alternativa ${String.fromCharCode(65 + oi)}`} onChange={(e) => setQuestion(q.id, { options: q.options.map((o, i2) => (i2 === oi ? e.target.value : o)) })} />
                       </div>
                     ))}
-                    <button
-                      onClick={() => setQuestion(q.id, { options: [...q.options, ""] })}
-                      className="text-xs font-semibold"
-                      style={{ color: "#C8102E" }}
-                    >
-                      + adicionar alternativa
-                    </button>
+                    <button onClick={() => setQuestion(q.id, { options: [...q.options, ""] })} className="text-xs font-semibold" style={{ color: "#C8102E" }}>+ adicionar alternativa</button>
                   </div>
                 ) : (
                   <div>
                     <Label>Resposta esperada (referência)</Label>
-                    <textarea
-                      style={{ ...fieldStyle, minHeight: 60, resize: "vertical" }}
-                      value={q.model_answer ?? ""}
-                      onChange={(e) => setQuestion(q.id, { model_answer: e.target.value })}
-                    />
+                    <textarea style={{ ...fieldStyle, minHeight: 60, resize: "vertical" }} value={q.model_answer ?? ""} onChange={(e) => setQuestion(q.id, { model_answer: e.target.value })} />
                   </div>
                 )}
               </div>
@@ -335,29 +304,15 @@ function CriarProva() {
         ))}
       </div>
 
-      <button
-        onClick={() => setForm((f) => ({ ...f, questions: [...f.questions, emptyQuestion()] }))}
-        className="flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-bold"
-        style={{ border: "1.5px dashed var(--border)", color: "var(--text-2)" }}
-      >
+      <button onClick={() => setForm((f) => ({ ...f, questions: [...f.questions, emptyQuestion()] }))} className="flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-bold" style={{ border: "1.5px dashed var(--border)", color: "var(--text-2)" }}>
         <PlusCircle className="h-4 w-4" /> Adicionar questão manualmente
       </button>
 
       <div className="flex flex-wrap gap-2">
-        <button
-          disabled={save.isPending}
-          onClick={() => submit("Rascunho")}
-          className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold"
-          style={{ background: "var(--bg-surface-3)", border: "1px solid var(--border)", color: "var(--text-1)" }}
-        >
+        <button disabled={save.isPending} onClick={() => submit("Rascunho")} className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold" style={{ background: "var(--bg-surface-3)", border: "1px solid var(--border)", color: "var(--text-1)" }}>
           <Save className="h-4 w-4" /> Salvar rascunho
         </button>
-        <button
-          disabled={save.isPending}
-          onClick={() => submit("Publicada")}
-          className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white"
-          style={{ background: "#C8102E" }}
-        >
+        <button disabled={save.isPending} onClick={() => submit("Publicada")} className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white" style={{ background: "#C8102E" }}>
           <CheckCircle2 className="h-4 w-4" /> Publicar prova
         </button>
       </div>
