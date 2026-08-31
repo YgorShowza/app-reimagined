@@ -16,6 +16,7 @@ export interface TrainingActivityAttempt {
   max_score: number;
   passed: boolean;
   points_earned: number;
+  activity_day: string | null;
   created_at: string;
 }
 
@@ -49,5 +50,6 @@ export async function submitTrainingActivity(input: {
     points_earned: number;
     new_points: number;
     level: number;
+    activity_day?: string;
   };
 }
