@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { currentMonthStr, listCronogramaEntries } from "@/lib/cronograma";
 import { listEmployees } from "@/lib/employees";
-import { exportCronogramaAttendancePdf, exportCronogramaDetailedPdf } from "@/lib/cronograma-pdf";
+import { exportCronogramaAttendancePdf, exportCronogramaDetailedPdf } from "@/lib/cronograma-pdf-client";
 
 export function CronogramaPdfExports({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const [month, setMonth] = useState(currentMonthStr());
