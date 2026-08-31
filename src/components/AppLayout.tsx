@@ -7,7 +7,7 @@ import {
   Users, BarChart3, FileText, BookOpen, Brain, Sun, Moon, Monitor,
   LogOut, Target, FileBarChart, Radar, History, Tv, AlertTriangle,
   Lightbulb, FileSpreadsheet, PlusCircle, Focus, Menu, CalendarDays,
-  LibraryBig, GraduationCap, TimerReset, type LucideIcon,
+  LibraryBig, GraduationCap, TimerReset, UserRound, type LucideIcon,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTheme } from "@/components/ThemeProvider";
@@ -68,6 +68,7 @@ const operadorMenu: MenuItem[] = [
   { path: "/certificados", label: "Certificados", icon: Award },
   { path: "/pratico", label: "Avaliação Prática", icon: ClipboardCheck },
   { path: "/minhas-ocorrencias", label: "Ocorrências", icon: AlertTriangle },
+  { path: "/meu-perfil", label: "Meu Perfil", icon: UserRound },
 ];
 
 function ThemeToggle() {
