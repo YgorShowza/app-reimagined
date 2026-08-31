@@ -55,9 +55,51 @@ USING (
   )
 );
 
--- O próprio usuário pode finalizar a assinatura apenas na própria tentativa.
+-- Nunca conceder UPDATE genérico da tentativa ao Operador.
 DROP POLICY IF EXISTS "Users sign own exam attempts" ON public.exam_attempts;
-CREATE POLICY "Users sign own exam attempts"
-ON public.exam_attempts FOR UPDATE TO authenticated
-USING (user_id = auth.uid() OR public.has_role(auth.uid(), 'admin'))
-WITH CHECK (user_id = auth.uid() OR public.has_role(auth.uid(), 'admin'));
+
+CREATE OR REPLACE FUNCTION public.sign_exam_attempt(
+  p_attempt_id uuid,
+  p_signature_path text,
+  p_signature_name text
+)
+RETURNS public.exam_attempts
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_attempt public.exam_attempts;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'Usuário não autenticado';
+  END IF;
+
+  IF p_signature_path IS NULL OR btrim(p_signature_path) = '' THEN
+    RAISE EXCEPTION 'Caminho da assinatura inválido';
+  END IF;
+
+  IF split_part(p_signature_path, '/', 1) <> auth.uid()::text THEN
+    RAISE EXCEPTION 'Assinatura fora do diretório autorizado';
+  END IF;
+
+  UPDATE public.exam_attempts
+  SET signature_path = p_signature_path,
+      signature_name = nullif(btrim(p_signature_name), ''),
+      signed_at = now(),
+      signature_agreed = true,
+      updated_at = now()
+  WHERE id = p_attempt_id
+    AND user_id = auth.uid()
+  RETURNING * INTO v_attempt;
+
+  IF v_attempt.id IS NULL THEN
+    RAISE EXCEPTION 'Tentativa não encontrada ou não pertence ao usuário';
+  END IF;
+
+  RETURN v_attempt;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.sign_exam_attempt(uuid, text, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.sign_exam_attempt(uuid, text, text) TO authenticated;
