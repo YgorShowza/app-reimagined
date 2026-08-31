@@ -6,7 +6,15 @@ export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
-    if (error || !data.user) throw redirect({ to: "/" });
+
+    if (error || !data.user) {
+      // A sessão persistida pode existir no navegador mesmo quando o token já
+      // não é mais válido no servidor. Limpá-la evita o ciclo
+      // login -> dashboard -> login -> dashboard que derruba o preview.
+      await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+      throw redirect({ to: "/" });
+    }
+
     return { user: data.user };
   },
   component: () => (
