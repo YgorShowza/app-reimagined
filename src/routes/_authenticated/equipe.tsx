@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { motion } from "framer-motion";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Search, Pencil, UserCheck, UserX, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
@@ -112,8 +111,8 @@ function EquipePage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      <div className="flex items-end justify-between flex-wrap gap-4">
+    <div className="mx-auto max-w-5xl space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1
             className="text-2xl font-black tracking-tight"
@@ -121,13 +120,13 @@ function EquipePage() {
           >
             Gestão de Equipe
           </h1>
-          <p className="text-sm mt-1" style={{ color: "var(--text-3)" }}>
+          <p className="mt-1 text-sm" style={{ color: "var(--text-3)" }}>
             {employees.length} funcionários cadastrados · {ativos} ativos
           </p>
         </div>
         {isAdmin && (
-          <Button onClick={openNew} className="bg-[#C8102E] hover:bg-[#A00D24] text-white font-bold">
-            <Plus className="w-4 h-4 mr-2" />
+          <Button onClick={openNew} className="w-full bg-[#C8102E] font-bold text-white hover:bg-[#A00D24] sm:w-auto">
+            <Plus className="mr-2 h-4 w-4" />
             Novo Funcionário
           </Button>
         )}
@@ -135,7 +134,7 @@ function EquipePage() {
 
       <div className="relative">
         <Search
-          className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
+          className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
           style={{ color: "var(--text-4)" }}
         />
         <Input
@@ -148,12 +147,12 @@ function EquipePage() {
 
       {isLoading ? (
         <div className="flex justify-center p-10">
-          <div className="w-8 h-8 border-4 rounded-full animate-spin"
+          <div className="h-8 w-8 animate-spin rounded-full border-4"
             style={{ borderColor: "var(--border)", borderTopColor: "#C8102E" }} />
         </div>
       ) : filtered.length === 0 ? (
         <div
-          className="rounded-2xl p-10 text-center"
+          className="rounded-2xl p-8 text-center sm:p-10"
           style={{
             background: "var(--bg-surface)",
             border: "1px solid var(--border)",
@@ -161,15 +160,15 @@ function EquipePage() {
           }}
         >
           <div
-            className="w-14 h-14 mx-auto mb-4 rounded-2xl flex items-center justify-center"
+            className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl"
             style={{ background: "#C8102E1a" }}
           >
-            <Users className="w-6 h-6" style={{ color: "#C8102E" }} />
+            <Users className="h-6 w-6" style={{ color: "#C8102E" }} />
           </div>
           <p className="font-bold" style={{ color: "var(--text-1)" }}>
             {search ? "Nenhum funcionário encontrado" : "Nenhum funcionário cadastrado"}
           </p>
-          <p className="text-sm mt-1" style={{ color: "var(--text-3)" }}>
+          <p className="mt-1 text-sm" style={{ color: "var(--text-3)" }}>
             {search
               ? "Tente outro nome ou matrícula."
               : isAdmin
@@ -179,53 +178,52 @@ function EquipePage() {
         </div>
       ) : (
         <div className="grid gap-3">
-          {filtered.map((emp, i) => (
-            <motion.div
+          {filtered.map((emp) => (
+            <div
               key={emp.id}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: Math.min(i, 10) * 0.04, duration: 0.35, ease: "easeOut" }}
-              className="rounded-2xl p-4 flex items-center justify-between gap-3"
+              className="flex flex-col gap-3 rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between"
               style={{
                 background: "var(--bg-surface)",
                 border: "1px solid var(--border)",
                 boxShadow: "var(--shadow-card, var(--shadow-md))",
               }}
             >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 rounded-full bg-[#C8102E] flex items-center justify-center text-white font-black text-sm shrink-0">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#C8102E] text-sm font-black text-white">
                   {emp.full_name.charAt(0).toUpperCase()}
                 </div>
                 <div className="min-w-0">
-                  <p className="font-bold text-sm truncate" style={{ color: "var(--text-1)" }}>
+                  <p className="truncate text-sm font-bold" style={{ color: "var(--text-1)" }}>
                     {emp.full_name}
                   </p>
-                  <p className="text-xs" style={{ color: "var(--text-4)" }}>
+                  <p className="truncate text-xs" style={{ color: "var(--text-4)" }}>
                     Mat. {emp.matricula} · {emp.sector}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Badge
-                  variant="outline"
-                  className="text-xs font-bold"
-                  style={
-                    emp.access_profile === "Inspetor"
-                      ? { color: "#C8102E", borderColor: "#C8102E40", background: "#C8102E12" }
-                      : { color: "#2563eb", borderColor: "#2563eb40", background: "#2563eb12" }
-                  }
-                >
-                  {emp.access_profile}
-                </Badge>
-                {emp.status === "Ativo" ? (
-                  <UserCheck className="w-4 h-4 text-green-500" aria-label="Ativo" />
-                ) : (
-                  <UserX className="w-4 h-4" style={{ color: "var(--text-4)" }} aria-label="Inativo" />
-                )}
+              <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end">
+                <div className="flex min-w-0 items-center gap-2">
+                  <Badge
+                    variant="outline"
+                    className="max-w-[130px] truncate text-xs font-bold"
+                    style={
+                      emp.access_profile === "Inspetor"
+                        ? { color: "#C8102E", borderColor: "#C8102E40", background: "#C8102E12" }
+                        : { color: "#2563eb", borderColor: "#2563eb40", background: "#2563eb12" }
+                    }
+                  >
+                    {emp.access_profile}
+                  </Badge>
+                  {emp.status === "Ativo" ? (
+                    <UserCheck className="h-4 w-4 shrink-0 text-green-500" aria-label="Ativo" />
+                  ) : (
+                    <UserX className="h-4 w-4 shrink-0" style={{ color: "var(--text-4)" }} aria-label="Inativo" />
+                  )}
+                </div>
                 {isAdmin && (
-                  <>
+                  <div className="flex shrink-0 items-center gap-1">
                     <Button variant="ghost" size="icon" title="Editar" onClick={() => openEdit(emp)}>
-                      <Pencil className="w-4 h-4" />
+                      <Pencil className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -234,12 +232,12 @@ function EquipePage() {
                       className="text-red-500 hover:text-red-600"
                       onClick={() => setToDelete(emp)}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="h-4 w-4" />
                     </Button>
-                  </>
+                  </div>
                 )}
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
       )}
@@ -271,7 +269,7 @@ function EquipePage() {
                 placeholder="Ex.: 970"
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>Setor</Label>
                 <Select value={form.sector} onValueChange={(v) => setForm({ ...form, sector: v })}>
@@ -309,7 +307,7 @@ function EquipePage() {
             <Button
               onClick={() => save.mutate()}
               disabled={save.isPending}
-              className="bg-[#C8102E] hover:bg-[#A00D24] text-white font-bold"
+              className="bg-[#C8102E] font-bold text-white hover:bg-[#A00D24]"
             >
               {save.isPending ? "Salvando..." : "Salvar"}
             </Button>
@@ -337,7 +335,6 @@ function EquipePage() {
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
-
       </AlertDialog>
     </div>
   );
