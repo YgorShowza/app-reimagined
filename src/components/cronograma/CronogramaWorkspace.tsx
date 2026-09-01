@@ -128,7 +128,7 @@ export function CronogramaWorkspace({
   });
 
   const removeEntry = useMutation({ mutationFn: deleteCronogramaEntry, onSuccess: () => { toast.success("Lançamento excluído"); setToDelete(null); refreshAll(); }, onError: (e: Error) => toast.error(e.message) });
-  const completeEntry = useMutation({ mutationFn: markCronogramaEntryComplete, onSuccess: () => { toast.success("Lançamento marcado como realizado"); refreshAll(); }, onError: (e: Error) => toast.error(e.message) });
+  const completeEntry = useMutation({ mutationFn: (id: string) => markCronogramaEntryComplete(id), onSuccess: () => { toast.success("Lançamento marcado como realizado"); refreshAll(); }, onError: (e: Error) => toast.error(e.message) });
   const syncExams = useMutation({ mutationFn: () => syncCronogramaWithExamAttempts(month), onSuccess: (n) => { toast.success(n ? `${n} lançamento(s) atualizado(s) pelas provas.` : "Nenhum novo resultado de prova encontrado."); refreshAll(); }, onError: (e: Error) => toast.error(e.message) });
 
   const selectEmployee = (id: string) => {

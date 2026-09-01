@@ -321,7 +321,7 @@ function IndividualPage() {
               </Card>
 
               <div className="grid gap-4 lg:grid-cols-2">
-                <Card className="overflow-hidden" style={undefined as never}>
+                <Card className="overflow-hidden">
                   <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: "1px solid rgba(239,68,68,.18)" }}>
                     <XCircle className="h-4 w-4 text-red-500" />
                     <h2 className="text-sm font-black" style={{ color: "var(--text-1)" }}>Precisa Melhorar</h2>
