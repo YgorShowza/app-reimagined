@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, ChevronRight, Flame, Loader2, RefreshCw, ShieldCheck, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { listActiveQuestionBank, type QuestionBankItem } from "@/lib/question-bank";
+import { listActiveQuestionBank, type OperationalQuestionBankItem } from "@/lib/question-bank";
 import { getCurrentEmployeeByAuth } from "@/lib/insights";
 import { submitTrainingActivity } from "@/lib/training-activities";
 
@@ -18,8 +18,8 @@ function shuffled<T>(items: T[]) {
 export function QuickTestWorkspace() {
   const queryClient = useQueryClient();
   const employee = useQuery({ queryKey: ["current-employee-training"], queryFn: getCurrentEmployeeByAuth, staleTime: 60_000 });
-  const bank = useQuery({ queryKey: ["question-bank-active"], queryFn: listActiveQuestionBank, staleTime: 60_000 });
-  const [questions, setQuestions] = useState<QuestionBankItem[]>([]);
+  const bank = useQuery({ queryKey: ["question-bank-operational"], queryFn: listActiveQuestionBank, staleTime: 60_000 });
+  const [questions, setQuestions] = useState<OperationalQuestionBankItem[]>([]);
   const [current, setCurrent] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -28,7 +28,7 @@ export function QuickTestWorkspace() {
   const eligible = useMemo(() => {
     const sector = employee.data?.sector;
     return (bank.data ?? []).filter((item) => {
-      const optionsOk = Array.isArray(item.options) && item.options.length >= 2 && item.correct_index != null;
+      const optionsOk = Array.isArray(item.options) && item.options.length >= 2;
       const sectorOk = !sector || item.target_sector === "Todos" || item.target_sector === sector;
       return item.active && optionsOk && sectorOk;
     });
@@ -43,21 +43,22 @@ export function QuickTestWorkspace() {
 
   const finish = async () => {
     if (!questions.length) return;
-    const correct = questions.reduce((total, question) => total + (answers[question.id] === question.correct_index ? 1 : 0), 0);
-    const score = Math.round(((correct / questions.length) * 10) * 10) / 10;
     setSubmitting(true);
     try {
       const response = await submitTrainingActivity({
         activityType: "Teste Rápido",
         activityTitle: "Teste Rápido",
-        score,
         answers: questions.map((question) => ({
           question_id: question.id,
           selected_index: answers[question.id] ?? -1,
-          correct_index: question.correct_index,
         })),
       });
-      setResult({ score: Number(response.score), correct, points: response.points_earned, passed: response.passed });
+      setResult({
+        score: Number(response.score),
+        correct: Number(response.correct_count ?? 0),
+        points: response.points_earned,
+        passed: response.passed,
+      });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["employees-profile"] }),
         queryClient.invalidateQueries({ queryKey: ["current-employee-training"] }),
@@ -69,6 +70,10 @@ export function QuickTestWorkspace() {
   };
 
   if (employee.isLoading || bank.isLoading) return <Loading />;
+
+  if (employee.isError || bank.isError) {
+    return <div className="mx-auto max-w-lg rounded-2xl p-8 text-center" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}><ShieldCheck className="mx-auto mb-3 h-10 w-10 text-amber-500" /><p className="font-black" style={{ color: "var(--text-1)" }}>Não foi possível carregar o Teste Rápido</p><p className="mt-1 text-sm" style={{ color: "var(--text-4)" }}>Tente novamente. Se o problema persistir, informe a Inspetoria.</p><Button variant="outline" className="mt-4" onClick={() => { employee.refetch(); bank.refetch(); }}><RefreshCw className="mr-2 h-4 w-4" /> Tentar novamente</Button></div>;
+  }
 
   if (!employee.data) {
     return (
@@ -87,7 +92,7 @@ export function QuickTestWorkspace() {
         <section className="rounded-2xl p-7" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", boxShadow: "var(--shadow-card)" }}>
           <h1 className="text-2xl font-black" style={{ color: "var(--text-1)" }}>Teste Rápido concluído</h1>
           <p className="mt-4 text-5xl font-black" style={{ color: result.passed ? "#10b981" : "#f59e0b" }}>{result.score.toFixed(1)}</p>
-          <p className="mt-1 text-sm" style={{ color: "var(--text-4)" }}>{result.correct}/{questions.length} respostas corretas</p>
+          <p className="mt-1 text-sm" style={{ color: "var(--text-4)" }}>{result.correct}/{questions.length} respostas corretas · resultado oficial do servidor</p>
           <div className="mt-4 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-black" style={{ background: "rgba(245,158,11,.12)", color: "#f59e0b" }}>
             <Flame className="h-4 w-4" /> {result.points > 0 ? `+${result.points} XP` : "XP diário já recebido"}
           </div>
@@ -133,11 +138,11 @@ export function QuickTestWorkspace() {
         <div className="mb-4 flex flex-wrap gap-2"><span className="rounded-full px-2 py-1 text-[9px] font-black" style={{ background: "rgba(245,158,11,.10)", color: "#f59e0b" }}>{question.theme || question.bank_type}</span><span className="rounded-full px-2 py-1 text-[9px] font-black" style={{ background: "var(--bg-surface-2)", color: "var(--text-4)" }}>{question.difficulty}</span></div>
         <p className="font-bold leading-6" style={{ color: "var(--text-1)" }}>{question.question_text}</p>
         <div className="mt-5 space-y-2">
-          {question.options.map((option, index) => {
-            const active = selected === index;
+          {question.options.map((option, optionIndex) => {
+            const active = selected === optionIndex;
             return (
-              <button key={`${question.id}-${index}`} onClick={() => setAnswers((prev) => ({ ...prev, [question.id]: index }))} className="w-full rounded-xl p-3 text-left text-sm font-medium transition-colors" style={{ background: active ? "rgba(245,158,11,.09)" : "var(--bg-surface-2)", border: `1px solid ${active ? "rgba(245,158,11,.55)" : "var(--border)"}`, color: active ? "#f59e0b" : "var(--text-2)" }}>
-                <span className="mr-2 font-black">{String.fromCharCode(65 + index)})</span>{option}
+              <button key={`${question.id}-${optionIndex}`} onClick={() => setAnswers((prev) => ({ ...prev, [question.id]: optionIndex }))} className="w-full rounded-xl p-3 text-left text-sm font-medium transition-colors" style={{ background: active ? "rgba(245,158,11,.09)" : "var(--bg-surface-2)", border: `1px solid ${active ? "rgba(245,158,11,.55)" : "var(--border)"}`, color: active ? "#f59e0b" : "var(--text-2)" }}>
+                <span className="mr-2 font-black">{String.fromCharCode(65 + optionIndex)})</span>{option}
               </button>
             );
           })}
