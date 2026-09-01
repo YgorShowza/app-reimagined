@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { listEmployees, type Employee } from "@/lib/employees";
-import { listExams, listMyAttempts, type Exam, type ExamAttempt } from "@/lib/exams";
+import { listExams, listAttemptsByYear, type Exam, type ExamAttempt } from "@/lib/exams";
 import { listCronogramaEntriesByYear, currentMonthStr, type CronogramaEntry } from "@/lib/cronograma";
 
 export interface OperationalSnapshot {
@@ -14,7 +14,7 @@ export async function getOperationalSnapshot(year = new Date().getFullYear()): P
   const [employees, exams, attempts, cronograma] = await Promise.all([
     listEmployees(),
     listExams(),
-    listMyAttempts(),
+    listAttemptsByYear(year),
     listCronogramaEntriesByYear(year),
   ]);
   return { employees, exams, attempts, cronograma };
