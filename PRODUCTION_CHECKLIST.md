@@ -8,9 +8,10 @@ Use este documento antes de publicar uma nova versão do sistema.
 
 - [x] `main` contém somente alterações homologadas nesta rodada técnica.
 - [x] Lovable preview está em estado `ready` no mesmo commit do `main`.
-- [ ] `bun install --frozen-lockfile` conclui sem alterar `bun.lock`.
-- [ ] `bun run build` conclui sem erro fora do preview do Lovable.
-- [ ] Dependências não utilizadas são removidas somente junto da atualização do lockfile.
+- [x] `bun install --frozen-lockfile` conclui sem alterar `bun.lock`.
+- [x] `bun run build` conclui sem erro fora do preview do Lovable.
+- [x] Dependência morta `recharts` foi removida em operação controlada e o `bun.lock` foi regenerado/validado.
+- [x] `jspdf` foi isolado como client-only para não quebrar o SSR de produção.
 - [x] Nenhuma tela “Em breve” está exposta na navegação de produção.
 
 ## 2. Supabase e migrations
@@ -164,7 +165,7 @@ Resultado obtido na última bateria: **zero problemas em todas as verificações
 - [x] Auditoria e Banco de Questões possuem paginação/limitação adequada.
 - [x] Consultas do Cronograma possuem índices por mês, colaborador, setor e status.
 - [x] Conclusão de prova não faz mais varredura global do Cronograma.
-- [ ] Dependências mortas do `package.json`/`bun.lock` removidas em operação controlada.
+- [x] Dependências mortas foram removidas com lockfile regenerado e CI estrito aprovado.
 - [ ] Responsividade final validada manualmente com massa de dados em dispositivos reais.
 
 Referência de stress executada durante homologação: **12.000 lançamentos sintéticos** em tabela temporária; consulta mensal de 1.000 registros usou índice e foi executada em aproximadamente **2,2 ms** no PostgreSQL do ambiente testado.
