@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 
-export type TrainingActivityType = "Simulador" | "Stress Test" | "Desafio Diário" | "Teste Rápido" | "Treinamento";
+export type TrainingActivityType = "Simulador" | "Stress Test" | "Desafio Diário" | "Teste Rápido";
 
 export interface TrainingActivityAttempt {
   id: string;
@@ -33,13 +33,15 @@ export async function submitTrainingActivity(input: {
   activityType: TrainingActivityType;
   activityTitle: string;
   answers: unknown;
-  score: number;
+  score?: number;
 }) {
   const { data, error } = await (supabase as any).rpc("submit_training_activity", {
     p_activity_type: input.activityType,
     p_activity_title: input.activityTitle,
     p_answers: input.answers,
-    p_score: input.score,
+    // Mantido apenas por compatibilidade com a assinatura SQL atual.
+    // O servidor ignora este valor e recalcula a nota usando question_bank.
+    p_score: input.score ?? 0,
   });
   if (error) throw error;
   return data as {
@@ -51,5 +53,8 @@ export async function submitTrainingActivity(input: {
     new_points: number;
     level: number;
     activity_day?: string;
+    already_rewarded_today?: boolean;
+    correct_count?: number;
+    question_count?: number;
   };
 }
