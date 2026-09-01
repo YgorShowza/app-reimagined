@@ -143,6 +143,19 @@ export async function listMyAttempts(): Promise<ExamAttempt[]> {
   return (data ?? []) as ExamAttempt[];
 }
 
+export async function listAttemptsByYear(year: number): Promise<ExamAttempt[]> {
+  const start = `${year}-01-01T00:00:00.000Z`;
+  const end = `${year + 1}-01-01T00:00:00.000Z`;
+  const { data, error } = await supabase
+    .from("exam_attempts")
+    .select("*")
+    .gte("finished_at", start)
+    .lt("finished_at", end)
+    .order("finished_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as ExamAttempt[];
+}
+
 type SaveAttemptInput = {
   exam_id: string;
   answers: unknown;
