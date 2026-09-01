@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, Eraser, PenLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
+const SIGNATURE_INK = "#111827";
+
 export function SignaturePad({
   signerName,
   saving = false,
@@ -47,7 +49,8 @@ export function SignaturePad({
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       ctx.lineWidth = 2;
-      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--text-1").trim() || "#111827";
+      // Assinatura é evidência documental: a tinta não pode variar com o tema visual.
+      ctx.strokeStyle = SIGNATURE_INK;
 
       if (snapshotCtx && previousWidth > 0 && previousHeight > 0) {
         ctx.drawImage(snapshot, 0, 0, previousWidth, previousHeight, 0, 0, rect.width, 180);
@@ -111,7 +114,19 @@ export function SignaturePad({
   const confirm = async () => {
     const canvas = canvasRef.current;
     if (!canvas || !hasDrawn || !agreed || saved || saving) return;
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png", 0.92));
+
+    // Exporta sempre como documento branco com tinta escura. Assim o arquivo fica
+    // legível em certificado, impressão e visualização independente do tema do app.
+    const exportCanvas = document.createElement("canvas");
+    exportCanvas.width = canvas.width;
+    exportCanvas.height = canvas.height;
+    const exportCtx = exportCanvas.getContext("2d");
+    if (!exportCtx) return;
+    exportCtx.fillStyle = "#ffffff";
+    exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+    exportCtx.drawImage(canvas, 0, 0);
+
+    const blob = await new Promise<Blob | null>((resolve) => exportCanvas.toBlob(resolve, "image/png", 0.92));
     if (!blob) return;
     await onConfirm(blob);
   };
@@ -128,10 +143,10 @@ export function SignaturePad({
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl" style={{ background: "var(--bg-surface-2)", border: "1px solid var(--border)" }}>
+      <div className="overflow-hidden rounded-xl" style={{ background: "#ffffff", border: "1px solid var(--border)" }}>
         <canvas
           ref={canvasRef}
-          className="block h-[180px] w-full touch-none"
+          className="block h-[180px] w-full touch-none bg-white"
           onPointerDown={start}
           onPointerMove={move}
           onPointerUp={end}
