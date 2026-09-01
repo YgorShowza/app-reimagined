@@ -7,13 +7,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { listEmployees, type Employee } from "@/lib/employees";
-import {
-  createCronogramaEntries,
-  currentMonthStr,
-  listCronogramaEntries,
-  updateCronogramaEntry,
-  type CronogramaEntry,
-} from "@/lib/cronograma";
+import { currentMonthStr } from "@/lib/cronograma";
+import { importCronogramaResultsAtomic } from "@/lib/cronograma-import";
 
 const MATRICULA_KEYS = ["matricula", "mat", "registration", "matric"];
 const NOME_KEYS = ["nome", "name", "colaborador", "funcionario", "operador", "aluno"];
@@ -189,82 +184,24 @@ export function CronogramaImportResults({ open, onOpenChange, onComplete }: { op
   async function launch() {
     if (!validRows.length) return toast.error("Não há registros válidos para importar.");
     setLaunching(true);
-    let updated = 0;
-    let created = 0;
-    let ignored = invalidRows.length;
-    const monthCache = new Map<string, CronogramaEntry[]>();
-
     try {
-      for (const row of validRows) {
-        const employee = row.employee!;
-        let monthEntries = monthCache.get(row.month);
-        if (!monthEntries) {
-          monthEntries = await listCronogramaEntries(row.month);
-          monthCache.set(row.month, monthEntries);
-        }
-        const employeeEntries = monthEntries.filter((entry) => entry.employee_id === employee.id && sameTheme(entry.theme, row.tema));
-        const pending = employeeEntries.find((entry) => entry.status === "Pendente");
-        const realized = employeeEntries.find((entry) => entry.status === "Realizado");
-        const note = `Importado da planilha · Nota ${row.nota?.toFixed(1)}`;
-
-        if (pending) {
-          await updateCronogramaEntry(pending.id, {
-            status: "Realizado",
-            type: "Realizado",
-            completion_date: row.completionDate,
-            notes: pending.notes ? `${pending.notes} · ${note}` : note,
-          });
-          pending.status = "Realizado";
-          pending.type = "Realizado";
-          pending.completion_date = row.completionDate;
-          updated += 1;
-          continue;
-        }
-        if (realized) {
-          ignored += 1;
-          continue;
-        }
-        await createCronogramaEntries([{
-          month: row.month,
-          employee_id: employee.id,
-          employee_name: employee.full_name,
-          employee_matricula: employee.matricula,
-          employee_sector: employee.sector,
-          theme: row.tema,
-          type: "Realizado",
-          status: "Realizado",
-          completion_date: row.completionDate,
-          notes: note,
-        }]);
-        monthEntries.push({
-          id: crypto.randomUUID(),
-          month: row.month,
-          employee_id: employee.id,
-          employee_name: employee.full_name,
-          employee_matricula: employee.matricula,
-          employee_sector: employee.sector,
-          theme: row.tema,
-          exam_id: null,
-          exam_title: null,
-          type: "Realizado",
-          status: "Realizado",
-          justification: null,
-          planned_date: null,
-          completion_date: row.completionDate,
-          notes: note,
-          question_bank_ids: [],
-          created_by: null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
-        created += 1;
-      }
-
-      setResult({ updated, created, ignored });
+      const response = await importCronogramaResultsAtomic(validRows.map((row) => ({
+        matricula: row.matricula,
+        tema: row.tema,
+        nota: row.nota!,
+        month: row.month,
+        completion_date: row.completionDate,
+      })));
+      const finalResult = {
+        updated: response.updated,
+        created: response.created,
+        ignored: response.ignored + invalidRows.length,
+      };
+      setResult(finalResult);
       toast.success("Resultados importados para o cronograma.");
       onComplete?.();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Falha durante a importação.");
+      toast.error(error instanceof Error ? error.message : "Falha durante a importação. Nenhum registro foi alterado.");
     } finally {
       setLaunching(false);
     }
