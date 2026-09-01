@@ -114,19 +114,26 @@ export async function getExamForAttempt(id: string): Promise<AttemptExam> {
 }
 
 export async function createExam(form: ExamForm) {
-  const { error } = await supabase.from("exams").insert({ ...form, description: form.description || null, scheduled_date: form.scheduled_date || null, questions: form.questions as unknown as never });
+  const { error } = await (supabase as any).rpc("create_exam_admin", {
+    p_input: {
+      ...form,
+      description: form.description || null,
+      scheduled_date: form.scheduled_date || null,
+      questions: form.questions,
+    },
+  });
   if (error) throw error;
 }
 
 export async function updateExam(id: string, form: Partial<ExamForm>) {
   const patch: Record<string, unknown> = { ...form };
   if (form.questions) patch["questions"] = form.questions;
-  const { error } = await supabase.from("exams").update(patch as never).eq("id", id);
+  const { error } = await (supabase as any).rpc("update_exam_admin", { p_id: id, p_patch: patch });
   if (error) throw error;
 }
 
 export async function deleteExam(id: string) {
-  const { error } = await supabase.from("exams").delete().eq("id", id);
+  const { error } = await (supabase as any).rpc("delete_exam_admin", { p_id: id });
   if (error) throw error;
 }
 
@@ -139,8 +146,6 @@ export async function listMyAttempts(): Promise<ExamAttempt[]> {
 type SaveAttemptInput = {
   exam_id: string;
   answers: unknown;
-  // Mantidos temporariamente para compatibilidade com chamadas antigas. A RPC
-  // ignora estes campos e calcula identidade, nota e aprovação no servidor.
   user_id?: string;
   matricula?: string | null;
   score?: number;
