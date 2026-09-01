@@ -1,10 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, ShieldCheck, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SignaturePad } from "@/components/exams/SignaturePad";
-import { getExam, saveAttempt, signAttempt, type ExamAttempt } from "@/lib/exams";
+import { getExamForAttempt, saveAttempt, signAttempt, type ExamAttempt } from "@/lib/exams";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { syncCronogramaForExamAttempt } from "@/lib/cronograma-exam-sync";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,14 +18,13 @@ export const Route = createFileRoute("/_authenticated/prova-realizar")({
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return <div className={`rounded-2xl ${className}`} style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", boxShadow: "var(--shadow-card, var(--shadow-md))" }}>{children}</div>;
 }
-function normalize(value: string) { return value.trim().toLocaleLowerCase("pt-BR").replace(/\s+/g, " "); }
 
 function TakeExamPage() {
   const { id } = Route.useSearch();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: user } = useCurrentUser();
-  const { data: exam, isLoading, isError } = useQuery({ queryKey: ["exam", id], queryFn: () => getExam(id), enabled: !!id });
+  const { data: exam, isLoading, isError } = useQuery({ queryKey: ["exam-attempt", id], queryFn: () => getExamForAttempt(id), enabled: !!id });
   const [index, setIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number | string>>({});
   const [finished, setFinished] = useState<{ score: number; percent: number; passed: boolean; attempt: ExamAttempt } | null>(null);
@@ -35,29 +34,18 @@ function TakeExamPage() {
 
   const question = exam?.questions[index];
   const answered = exam ? exam.questions.filter((q) => answers[q.id] !== undefined && String(answers[q.id]).trim() !== "").length : 0;
-  const totalPoints = useMemo(() => exam?.questions.reduce((sum, q) => sum + Math.max(1, Number(q.points || 1)), 0) || 0, [exam]);
 
   if (isLoading) return <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4" style={{ borderColor: "var(--border)", borderTopColor: "#C8102E" }} /></div>;
   if (isError || !exam || exam.status !== "Publicada") return <Card className="mx-auto max-w-2xl p-10 text-center"><AlertTriangle className="mx-auto h-10 w-10 text-amber-500" /><p className="mt-3 font-bold" style={{ color: "var(--text-1)" }}>Prova indisponível.</p><Button className="mt-4" variant="outline" onClick={() => navigate({ to: "/provas" })}>Voltar</Button></Card>;
 
-  const isCorrect = (q: typeof exam.questions[number]) => {
-    const answer = answers[q.id];
-    if (q.type === "Múltipla escolha") return Number(answer) === Number(q.correct_index);
-    return !!q.model_answer && typeof answer === "string" && normalize(answer) === normalize(q.model_answer);
-  };
-
   const finish = async () => {
     if (answered < exam.questions.length && !confirm(`Você respondeu ${answered} de ${exam.questions.length} questões. Deseja finalizar mesmo assim?`)) return;
-    let earned = 0;
-    for (const q of exam.questions) if (isCorrect(q)) earned += Math.max(1, Number(q.points || 1));
-    const percent = totalPoints ? Math.round((earned / totalPoints) * 100) : 0;
-    const score = Math.round((percent / 10) * 10) / 10;
-    const passed = percent >= Number(exam.min_approval_pct || 70);
     setSaving(true);
     try {
-      const { data: auth } = await supabase.auth.getUser();
-      if (!auth.user) throw new Error("Sessão inválida");
-      const attempt = await saveAttempt({ exam_id: exam.id, user_id: auth.user.id, matricula: user?.matricula || null, score, passed, answers });
+      const attempt = await saveAttempt({ exam_id: exam.id, answers });
+      const score = Number(attempt.score || 0);
+      const percent = Math.max(0, Math.min(100, Math.round(score * 10)));
+      const passed = Boolean(attempt.passed);
       if (passed) {
         await syncCronogramaForExamAttempt({ examId: exam.id, matricula: attempt.matricula, finishedAt: attempt.finished_at });
       }
@@ -87,12 +75,18 @@ function TakeExamPage() {
   };
 
   if (finished) {
+    const codeLabel = signed && finished.passed && finished.attempt.certificate_code
+      ? "Código verificável do certificado"
+      : finished.passed && finished.attempt.certificate_code
+        ? "Código da aprovação — assinatura pendente"
+        : "Identificador da tentativa";
+
     return (
       <div className="mx-auto max-w-3xl space-y-5 pb-10">
         <div className="rounded-[1.5rem] p-7 text-center" style={{ background: "linear-gradient(135deg,#171118,#2b0b13 50%,#111216)", border: "1px solid rgba(200,16,46,.26)" }}>
           {finished.passed ? <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-500" /> : <AlertTriangle className="mx-auto h-12 w-12 text-red-500" />}
           <h1 className="mt-4 text-2xl font-black text-white">{finished.passed ? "Aprovado" : "Não aprovado"}</h1>
-          <p className="mt-2 text-white/50">Resultado registrado. A conclusão formal exige sua assinatura eletrônica.</p>
+          <p className="mt-2 text-white/50">Resultado calculado e registrado pelo servidor. A conclusão formal exige sua assinatura eletrônica.</p>
         </div>
 
         <div className="grid grid-cols-3 gap-3">
@@ -102,20 +96,18 @@ function TakeExamPage() {
         </div>
 
         <Card className="p-4">
-          <div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" /><div><p className="text-[10px] font-black uppercase tracking-[.16em]" style={{ color: "var(--text-4)" }}>{finished.passed && finished.attempt.certificate_code ? "Código verificável do certificado" : "Identificador da tentativa"}</p><p className="mt-1 break-all font-mono text-sm font-black" style={{ color: "var(--text-1)" }}>{finished.attempt.certificate_code || finished.attempt.id}</p><p className="mt-1 text-xs" style={{ color: "var(--text-4)" }}>Mat. {user?.matricula || "—"} · {exam.title}</p></div></div>
+          <div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" /><div><p className="text-[10px] font-black uppercase tracking-[.16em]" style={{ color: "var(--text-4)" }}>{codeLabel}</p><p className="mt-1 break-all font-mono text-sm font-black" style={{ color: "var(--text-1)" }}>{finished.attempt.certificate_code || finished.attempt.id}</p><p className="mt-1 text-xs" style={{ color: "var(--text-4)" }}>Mat. {user?.matricula || "—"} · {exam.title}</p></div></div>
         </Card>
 
         <SignaturePad signerName={user?.nome || user?.matricula || "Operador"} saving={signing} onConfirm={confirmSignature} />
 
         <div>
-          <h2 className="mb-3 text-xs font-black uppercase tracking-[.16em]" style={{ color: "var(--text-4)" }}>Revisão das respostas</h2>
+          <h2 className="mb-3 text-xs font-black uppercase tracking-[.16em]" style={{ color: "var(--text-4)" }}>Respostas enviadas</h2>
           <div className="space-y-2">
             {exam.questions.map((q, qIndex) => {
-              const correct = isCorrect(q);
               const selected = answers[q.id];
               const chosen = q.type === "Múltipla escolha" ? q.options[Number(selected)] : String(selected ?? "");
-              const correctText = q.type === "Múltipla escolha" ? q.options[q.correct_index] : q.model_answer;
-              return <Card key={q.id} className="p-4"><div className="flex items-start gap-2">{correct ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" /> : <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />}<div><p className="text-sm font-bold" style={{ color: "var(--text-1)" }}>{qIndex + 1}. {q.statement}</p><p className="mt-1 text-xs" style={{ color: correct ? "#10b981" : "#ef4444" }}>Sua resposta: {chosen || "(não respondida)"}</p>{!correct && correctText && <p className="mt-0.5 text-xs font-semibold text-emerald-500">Correto: {correctText}</p>}</div></div></Card>;
+              return <Card key={q.id} className="p-4"><div className="flex items-start gap-2"><ClipboardCheck className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" /><div><p className="text-sm font-bold" style={{ color: "var(--text-1)" }}>{qIndex + 1}. {q.statement}</p><p className="mt-1 text-xs" style={{ color: "var(--text-3)" }}>Sua resposta: {chosen || "(não respondida)"}</p></div></div></Card>;
             })}
           </div>
         </div>
