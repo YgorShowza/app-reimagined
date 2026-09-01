@@ -1,13 +1,27 @@
 import { supabase } from "@/integrations/supabase/client";
 import { listEmployees, type Employee } from "@/lib/employees";
 import { listExams, listAttemptsByYear, type Exam, type ExamAttempt } from "@/lib/exams";
-import { listCronogramaEntriesByYear, currentMonthStr, type CronogramaEntry } from "@/lib/cronograma";
+import { listCronogramaEntriesByYear, type CronogramaEntry } from "@/lib/cronograma";
 
 export interface OperationalSnapshot {
   employees: Employee[];
   exams: Exam[];
   attempts: ExamAttempt[];
   cronograma: CronogramaEntry[];
+}
+
+function maceioDateParts() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Maceio",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return {
+    date: `${values.year}-${values.month}-${values.day}`,
+    month: `${values.year}-${values.month}`,
+  };
 }
 
 export async function getOperationalSnapshot(year = new Date().getFullYear()): Promise<OperationalSnapshot> {
@@ -120,8 +134,7 @@ export function monthlyExecution(data: OperationalSnapshot, year = new Date().ge
 }
 
 export function employeeRisk(data: OperationalSnapshot) {
-  const nowMonth = currentMonthStr();
-  const today = new Date().toISOString().slice(0, 10);
+  const { month: nowMonth, date: today } = maceioDateParts();
   const activeEmployees = data.employees.filter((e) => e.status === "Ativo" && e.access_profile !== "Inspetor");
   const byId = new Map(activeEmployees.map((employee) => [employee.id, { pending: 0, overdue: 0, failed: 0 }]));
   const idByMatricula = new Map(activeEmployees.map((employee) => [employee.matricula, employee.id]));
