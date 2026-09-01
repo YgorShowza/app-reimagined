@@ -57,7 +57,7 @@ export function CronogramaSourceParityV2({ actions }: { actions?: ReactNode }) {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-4 pb-10">
-      <PrimaryHeader month={month} setMonth={setMonth} view={view} setView={setView} />
+      <PrimaryHeader month={month} setMonth={setMonth} view={view} setView={setView} actions={actions} />
 
       {view === "lista" && (
         <CronogramaGroupedList
