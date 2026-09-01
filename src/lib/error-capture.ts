@@ -49,6 +49,17 @@ function isErrorLike(value: unknown): value is Error {
   return value instanceof Error;
 }
 
+function notifyUnhandledClientFailure() {
+  if (typeof window === "undefined") return;
+  // Não expõe stack, SQL ou mensagem interna para o usuário. O erro completo já foi
+  // capturado acima para diagnóstico técnico.
+  void import("sonner")
+    .then(({ toast }) => {
+      toast.error("Não foi possível concluir a operação. Tente novamente.");
+    })
+    .catch(() => undefined);
+}
+
 // Wrap console.error so errors logged by any layer — including h3's internal
 // unhandled-error logging, which this file cannot hook directly — are both
 // recorded for consumeLastCapturedError and expanded before serialization.
@@ -64,9 +75,10 @@ console.error = (...args: unknown[]) => {
 
 if (typeof globalThis.addEventListener === "function") {
   globalThis.addEventListener("error", (event) => record((event as ErrorEvent).error ?? event));
-  globalThis.addEventListener("unhandledrejection", (event) =>
-    record((event as PromiseRejectionEvent).reason),
-  );
+  globalThis.addEventListener("unhandledrejection", (event) => {
+    record((event as PromiseRejectionEvent).reason);
+    notifyUnhandledClientFailure();
+  });
 }
 
 export function consumeLastCapturedError(): unknown {
