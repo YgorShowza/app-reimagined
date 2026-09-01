@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { EmBreve } from "@/components/EmBreve";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_authenticated/radar-analises")({
-  head: () => ({ meta: [{ title: "Radar Analítico · SEGEMPAT" }] }),
-  component: () => <EmBreve titulo="Radar Analítico" />,
+  beforeLoad: () => {
+    throw redirect({ to: "/analytics" });
+  },
 });
