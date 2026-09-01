@@ -35,7 +35,7 @@ export function CronogramaHeaderActions() {
             boxShadow: "0 6px 18px rgba(200,160,0,.28)",
           }}
         >
-          <Link to="/cronograma-gestao">
+          <Link to="/cronograma-gestao" search={{ novo: true }}>
             <Plus className="mr-2 h-4 w-4" />
             Novo Registro
           </Link>
