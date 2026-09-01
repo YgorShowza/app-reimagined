@@ -14,8 +14,9 @@
 ## 2. Supabase e migrations
 - [x] Todas as mudanças de schema recentes possuem migration versionada.
 - [x] Ordem-base de `training_activity_attempts` foi corrigida para instalações limpas.
-- [x] Migrations recentes usam timestamps únicos.
-- [ ] Executar o runner oficial de migrations no deploy final e confirmar que `supabase_migrations.schema_migrations` registrou também as migrations aplicadas antecipadamente no ambiente conectado, incluindo `20260901143000_atomic_cronograma_bulk_create.sql`.
+- [x] Migrations recentes usam timestamps únicos; CI bloqueia versões duplicadas.
+- [x] Histórico do ambiente conectado foi confrontado com o schema; a única migration comprovadamente aplicada e ausente (`20260901180000_protect_employee_operational_history.sql`) foi reconciliada após comparação integral.
+- [ ] Executar o runner oficial de migrations no deploy final e confirmar ausência de drift no ambiente de produção.
 - [ ] Realizar backup imediatamente antes do deploy/migration final.
 - [x] Todas as tabelas públicas auditadas possuem RLS habilitada.
 - [x] `anon` não possui acesso direto às tabelas operacionais.
@@ -50,17 +51,17 @@
 - [x] Geração/revogação é bloqueada para não-admin.
 - [x] Fluxo completo de ativação foi testado de forma transacional e sem resíduos.
 - [x] `profiles` e `user_roles` são somente leitura para o cliente.
-- [x] Matrícula vinculada não pode ser alterada diretamente; colaborador com conta deve ser inativado, não excluído.
+- [x] Matrícula vinculada não pode ser alterada diretamente; colaborador com conta/histórico deve ser inativado, não excluído.
 - [ ] Primeiro acesso completo validado manualmente com um Operador real.
 
 ## 4. Cronograma
 - [x] Lista, Calendário e Ano usam a mesma base de dados e lógica homologada.
 - [x] Índice único bloqueia duplicidade exata.
-- [x] Teste transacional validou criação, duplicidade, atualização para Realizado, resumo anual, modelo recorrente e suspensão, com zero resíduos.
+- [x] Testes transacionais validaram criação, sincronização para Realizado e operações atômicas sem resíduos.
 - [x] `Novo Registro` abre o formulário existente via `/cronograma-gestao?novo=true`, sem duplicar CRUD.
 - [x] Importação Excel usa RPC atômica e valida matrícula operacional ativa, mês, data e nota.
-- [x] Teste transacional da importação validou `updated=1`, `created=1`, `ignored=1`, com zero resíduos.
-- [x] Gerador Anual usa criação atômica server-side; não salva mais blocos parciais.
+- [x] Homologação atômica validou `updated=1`, `ignored=1` para duplicado do arquivo e zero resíduos.
+- [x] Gerador/lote usa criação atômica server-side; não salva blocos parciais.
 - [x] Teste de atomicidade confirmou que lote com linha inválida não persiste linhas anteriores.
 - [x] Consulta de escala foi testada com 12.000 lançamentos sintéticos; consulta mensal indexada de 1.000 registros ~2,2 ms no banco testado.
 - [x] PDFs do Cronograma são client-only, paginados, repetem cabeçalho e rodapé.
@@ -74,10 +75,10 @@
 ## 5. Provas, assinatura e certificados
 - [x] Nota e aprovação são calculadas no servidor por `submit_exam_attempt`; INSERT direto em `exam_attempts` é bloqueado.
 - [x] Operador recebe prova sanitizada sem `correct_index`/`model_answer`.
-- [x] Coluna `questions` de `exams` não possui SELECT para `authenticated`; metadados seguros possuem grant por coluna.
+- [x] Coluna `questions` de `exams` não possui SELECT para `authenticated`; somente metadados seguros possuem grant por coluna.
 - [x] Inspetor acessa prova completa por RPC administrativa.
 - [x] Prova publicada respeita setor/`Todos` no banco.
-- [x] Homologação E2E transacional passou: prova → correção server-side → aprovação → assinatura → certificado formal → validação; zero resíduos.
+- [x] Homologação E2E transacional passou: prova → correção server-side → Cronograma `Realizado` → assinatura → certificado formal → validação; zero resíduos.
 - [x] Certificado formal só existe/é válido após aprovação + assinatura completa.
 - [x] Fluxo legado de `certificates/validate_certificate` foi alinhado à mesma regra e não é público.
 - [x] Bucket `exam-signatures` é privado, PNG, 512 KB e vinculado ao usuário ativo.
@@ -89,12 +90,12 @@
 
 ## 6. Treinamento e gamificação
 - [x] Banco operacional é entregue por RPC sanitizada; `correct_index/correct_answer` não chegam ao Operador.
-- [x] `question_bank` não possui SELECT direto para `authenticated`/`anon`.
+- [x] Chaves de correção do `question_bank` não são legíveis diretamente pelo cliente operacional.
 - [x] Score de Teste Rápido, Desafio Diário, Simulador e Stress Test é recalculado no servidor.
 - [x] IDs, setor, tipo, dificuldade e quantidade esperada são validados pelo servidor.
 - [x] Teste Rápido/Simulador/Stress concedem XP apenas na primeira conclusão do tipo no dia.
 - [x] Desafio Diário permite uma execução por dia.
-- [x] Homologação transacional dos quatro modos passou, inclusive tentativa de forjar `p_score=10`; servidor registrou a nota real. Zero resíduos.
+- [x] Homologação transacional dos quatro modos passou: Teste Rápido `8.0/+10 XP`, repetição `10.0/0 XP`, Simulador `7.5/+20`, Stress `8.0/+25`, Desafio `6.7/+15` e repetição diária bloqueada; zero resíduos.
 - [x] Simulador, Stress Test e Desafio Diário possuem loading, erro inicial e retry.
 - [ ] Os quatro modos validados manualmente em sessão real de Operador.
 
@@ -122,7 +123,9 @@
 - [x] Tema é aplicado antes do primeiro paint.
 - [x] Hero escuro usa texto explicitamente claro, evitando desaparecimento no tema claro.
 - [x] Sidebar desktop, drawer mobile e navegação do Operador usam shell responsivo.
-- [x] Cronograma Lista/Calendário/Ano recebeu tratamento mobile.
+- [x] Barra inferior do Operador respeita `safe-area-inset-bottom` em iPhone/iOS.
+- [x] Cronograma Lista/Calendário/Ano possui comportamento mobile: controles empilháveis, visão anual responsiva e calendário com scroll horizontal em vez de compressão das 7 colunas.
+- [x] Análise Individual empilha painel de colaboradores e análise abaixo de `lg`, evitando largura fixa no mobile.
 - [ ] Varredura visual final Claro ↔ Escuro em todas as telas com sessão autenticada real.
 - [ ] Desktop real validado.
 - [ ] Android real validado.
@@ -136,7 +139,7 @@
 - [ ] Remover `.env` versionado somente após confirmar injeção de variáveis no deploy.
 - [ ] Domínio/URL final definido.
 - [ ] URLs permitidas do Supabase Auth configuradas para produção.
-- [ ] Runner oficial de migrations executado e histórico conferido.
+- [ ] Runner oficial de migrations executado e histórico conferido no ambiente final.
 - [ ] Backup pré-publicação concluído.
 - [ ] Conta Inspetor testada no domínio final.
 - [ ] Conta Operador testada no domínio final.
