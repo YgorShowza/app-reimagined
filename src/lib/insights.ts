@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { listEmployees, type Employee } from "@/lib/employees";
 import { listExams, listAttemptsByYear, type Exam, type ExamAttempt } from "@/lib/exams";
 import { listCronogramaEntriesByYear, type CronogramaEntry } from "@/lib/cronograma";
+import { operationalDate, operationalMonth, operationalYear } from "@/lib/operational-time";
 
 export interface OperationalSnapshot {
   employees: Employee[];
@@ -10,21 +11,7 @@ export interface OperationalSnapshot {
   cronograma: CronogramaEntry[];
 }
 
-function maceioDateParts() {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Maceio",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return {
-    date: `${values.year}-${values.month}-${values.day}`,
-    month: `${values.year}-${values.month}`,
-  };
-}
-
-export async function getOperationalSnapshot(year = new Date().getFullYear()): Promise<OperationalSnapshot> {
+export async function getOperationalSnapshot(year = operationalYear()): Promise<OperationalSnapshot> {
   const [employees, exams, attempts, cronograma] = await Promise.all([
     listEmployees(),
     listExams(),
@@ -107,7 +94,7 @@ export function sectorMetrics(data: OperationalSnapshot) {
     }));
 }
 
-export function monthlyExecution(data: OperationalSnapshot, year = new Date().getFullYear()) {
+export function monthlyExecution(data: OperationalSnapshot, year = operationalYear()) {
   const months = new Map<string, { planned: number; realized: number; pending: number }>();
   for (let i = 1; i <= 12; i += 1) months.set(`${year}-${String(i).padStart(2, "0")}`, { planned: 0, realized: 0, pending: 0 });
 
@@ -134,7 +121,8 @@ export function monthlyExecution(data: OperationalSnapshot, year = new Date().ge
 }
 
 export function employeeRisk(data: OperationalSnapshot) {
-  const { month: nowMonth, date: today } = maceioDateParts();
+  const nowMonth = operationalMonth();
+  const today = operationalDate();
   const activeEmployees = data.employees.filter((e) => e.status === "Ativo" && e.access_profile !== "Inspetor");
   const byId = new Map(activeEmployees.map((employee) => [employee.id, { pending: 0, overdue: 0, failed: 0 }]));
   const idByMatricula = new Map(activeEmployees.map((employee) => [employee.matricula, employee.id]));
