@@ -1,0 +1,56 @@
+name: Patch Cronograma Novo Registro
+
+on:
+  push:
+    paths:
+      - '.github/workflows/patch-cronograma-new-record.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Aplicar patch cirúrgico
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/components/cronograma/CronogramaWorkspace.tsx')
+          s = p.read_text()
+          old = 'import { useMemo, useState } from "react";'
+          new = 'import { useEffect, useMemo, useRef, useState } from "react";'
+          if old not in s:
+              raise SystemExit('Import esperado não encontrado')
+          s = s.replace(old, new, 1)
+
+          old = 'export function CronogramaWorkspace() {'
+          new = '''export function CronogramaWorkspace({\n  autoOpenNew = false,\n  onAutoOpenHandled,\n}: {\n  autoOpenNew?: boolean;\n  onAutoOpenHandled?: () => void;\n} = {}) {'''
+          if old not in s:
+              raise SystemExit('Assinatura esperada não encontrada')
+          s = s.replace(old, new, 1)
+
+          old = '  const [toDelete, setToDelete] = useState<CronogramaEntry | null>(null);'
+          new = old + '\n  const autoOpenHandledRef = useRef(false);'
+          if old not in s:
+              raise SystemExit('Estado de referência não encontrado')
+          s = s.replace(old, new, 1)
+
+          marker = '  const openNew = () => { setEditing(null); setForm(emptyForm(month)); setEntryOpen(true); };'
+          addition = marker + '''\n\n  useEffect(() => {\n    if (!autoOpenNew) {\n      autoOpenHandledRef.current = false;\n      return;\n    }\n    if (!isAdmin || autoOpenHandledRef.current) return;\n    autoOpenHandledRef.current = true;\n    setEditing(null);\n    setForm(emptyForm(month));\n    setEntryOpen(true);\n    onAutoOpenHandled?.();\n  }, [autoOpenNew, isAdmin, month, onAutoOpenHandled]);'''
+          if marker not in s:
+              raise SystemExit('Função openNew não encontrada')
+          s = s.replace(marker, addition, 1)
+          p.write_text(s)
+          PY
+      - name: Commitar alteração
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/components/cronograma/CronogramaWorkspace.tsx
+          git diff --cached --check
+          git commit -m 'Abre novo lançamento direto pelo Cronograma'
+          git push
