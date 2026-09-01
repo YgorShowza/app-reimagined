@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { listActiveQuestionBank, questionThemeLabel, type QuestionBankItem } from "@/lib/question-bank";
+import { listQuestionBank, questionThemeLabel, type QuestionBankItem } from "@/lib/question-bank";
 
 export function QuestionBankPicker({ open, onOpenChange, onConfirm, initialSelected = [] }: { open: boolean; onOpenChange: (open: boolean) => void; onConfirm: (items: QuestionBankItem[]) => void; initialSelected?: string[] }) {
-  const { data = [], isLoading } = useQuery({ queryKey: ["question-bank-active"], queryFn: listActiveQuestionBank, enabled: open });
+  const { data: all = [], isLoading } = useQuery({ queryKey: ["question-bank-admin"], queryFn: listQuestionBank, enabled: open });
+  const data = useMemo(() => all.filter((item) => item.active), [all]);
   const [search, setSearch] = useState("");
   const [sector, setSector] = useState("Todos");
   const [difficulty, setDifficulty] = useState("Todos");
