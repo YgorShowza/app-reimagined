@@ -27,16 +27,31 @@ export function SignaturePad({
       const nextWidth = Math.max(1, Math.floor(rect.width * ratio));
       const nextHeight = Math.max(1, Math.floor(180 * ratio));
       if (canvas.width === nextWidth && canvas.height === nextHeight) return;
+
+      // Preserva o traço já existente durante mudança de orientação/viewport.
+      const snapshot = document.createElement("canvas");
+      snapshot.width = canvas.width;
+      snapshot.height = canvas.height;
+      const snapshotCtx = snapshot.getContext("2d");
+      if (snapshotCtx && canvas.width > 0 && canvas.height > 0) {
+        snapshotCtx.drawImage(canvas, 0, 0);
+      }
+
+      const previousWidth = canvas.width;
+      const previousHeight = canvas.height;
       canvas.width = nextWidth;
       canvas.height = nextHeight;
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
-      ctx.scale(ratio, ratio);
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       ctx.lineWidth = 2;
       ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--text-1").trim() || "#111827";
-      setHasDrawn(false);
+
+      if (snapshotCtx && previousWidth > 0 && previousHeight > 0) {
+        ctx.drawImage(snapshot, 0, 0, previousWidth, previousHeight, 0, 0, rect.width, 180);
+      }
     };
     resize();
     window.addEventListener("resize", resize);
@@ -83,7 +98,13 @@ export function SignaturePad({
   const clear = () => {
     const canvas = canvasRef.current;
     if (!canvas || saved || saving) return;
-    canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
+    }
     setHasDrawn(false);
   };
 
