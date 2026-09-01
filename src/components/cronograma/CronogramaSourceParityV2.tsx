@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
+  AlertTriangle,
   BarChart3,
   CalendarDays,
   CheckCircle2,
@@ -9,6 +10,7 @@ import {
   Clock3,
   List,
   PauseCircle,
+  RefreshCw,
   ShieldCheck,
 } from "lucide-react";
 import { CronogramaGroupedList } from "@/components/cronograma/CronogramaGroupedList";
@@ -55,38 +57,59 @@ export function CronogramaSourceParityV2({ actions }: { actions?: ReactNode }) {
     enabled: view === "calendario",
   });
 
+  const activeError = view === "ano"
+    ? yearQuery.isError
+    : view === "calendario"
+      ? monthQuery.isError || suspensionQuery.isError
+      : monthQuery.isError;
+
+  const retryActiveView = () => {
+    if (view === "ano") {
+      void yearQuery.refetch();
+      return;
+    }
+    void monthQuery.refetch();
+    if (view === "calendario") void suspensionQuery.refetch();
+  };
+
   return (
     <div className="mx-auto w-full max-w-7xl space-y-4 pb-10">
       <PrimaryHeader month={month} setMonth={setMonth} view={view} setView={setView} actions={actions} />
 
-      {view === "lista" && (
-        <CronogramaGroupedList
-          entries={monthQuery.data ?? []}
-          loading={monthQuery.isLoading}
-          monthLabel={formatMonth(month)}
-        />
-      )}
+      {activeError ? (
+        <QueryError onRetry={retryActiveView} />
+      ) : (
+        <>
+          {view === "lista" && (
+            <CronogramaGroupedList
+              entries={monthQuery.data ?? []}
+              loading={monthQuery.isLoading}
+              monthLabel={formatMonth(month)}
+            />
+          )}
 
-      {view === "calendario" && (
-        <CalendarView
-          month={month}
-          entries={monthQuery.data ?? []}
-          suspensions={suspensionQuery.data ?? []}
-          loading={monthQuery.isLoading || suspensionQuery.isLoading}
-        />
-      )}
+          {view === "calendario" && (
+            <CalendarView
+              month={month}
+              entries={monthQuery.data ?? []}
+              suspensions={suspensionQuery.data ?? []}
+              loading={monthQuery.isLoading || suspensionQuery.isLoading}
+            />
+          )}
 
-      {view === "ano" && (
-        <AnnualView
-          year={year}
-          currentMonth={month}
-          entries={yearQuery.data ?? []}
-          onSelectMonth={(selectedMonth) => {
-            setMonth(selectedMonth);
-            setView("calendario");
-          }}
-          loading={yearQuery.isLoading}
-        />
+          {view === "ano" && (
+            <AnnualView
+              year={year}
+              currentMonth={month}
+              entries={yearQuery.data ?? []}
+              onSelectMonth={(selectedMonth) => {
+                setMonth(selectedMonth);
+                setView("calendario");
+              }}
+              loading={yearQuery.isLoading}
+            />
+          )}
+        </>
       )}
     </div>
   );
@@ -498,6 +521,30 @@ function Legend({ icon: Icon, label, color }: { icon: typeof Clock3; label: stri
       <Icon className="h-3.5 w-3.5" />
       {label}
     </span>
+  );
+}
+
+function QueryError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <section
+      className="rounded-2xl px-5 py-10 text-center"
+      style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", boxShadow: "var(--shadow-card, var(--shadow-md))" }}
+    >
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl" style={{ background: "rgba(245,158,11,.10)", border: "1px solid rgba(245,158,11,.25)" }}>
+        <AlertTriangle className="h-6 w-6 text-amber-500" />
+      </div>
+      <h2 className="mt-4 text-base font-black" style={{ color: "var(--text-1)" }}>Não foi possível carregar o Cronograma</h2>
+      <p className="mx-auto mt-1 max-w-md text-sm" style={{ color: "var(--text-4)" }}>A consulta desta visão falhou. Seus dados não foram alterados. Verifique a conexão e tente novamente.</p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold text-white"
+        style={{ background: "#C8102E" }}
+      >
+        <RefreshCw className="h-4 w-4" />
+        Tentar novamente
+      </button>
+    </section>
   );
 }
 
