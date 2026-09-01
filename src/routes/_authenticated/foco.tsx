@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { EmBreve } from "@/components/EmBreve";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_authenticated/foco")({
-  head: () => ({ meta: [{ title: "Foco do Mês · SEGEMPAT" }] }),
-  component: () => <EmBreve titulo="Foco do Mês" />,
+  beforeLoad: () => {
+    throw redirect({ to: "/treinamentos" });
+  },
 });
