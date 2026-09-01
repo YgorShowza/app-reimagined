@@ -144,8 +144,8 @@ export async function listMyAttempts(): Promise<ExamAttempt[]> {
 }
 
 export async function listAttemptsByYear(year: number): Promise<ExamAttempt[]> {
-  const start = `${year}-01-01T00:00:00.000Z`;
-  const end = `${year + 1}-01-01T00:00:00.000Z`;
+  const start = `${year}-01-01T00:00:00-03:00`;
+  const end = `${year + 1}-01-01T00:00:00-03:00`;
   const { data, error } = await supabase
     .from("exam_attempts")
     .select("*")
