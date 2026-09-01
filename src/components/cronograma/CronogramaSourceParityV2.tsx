@@ -97,11 +97,13 @@ function PrimaryHeader({
   setMonth,
   view,
   setView,
+  actions,
 }: {
   month: string;
   setMonth: (month: string) => void;
   view: PrimaryView;
   setView: (view: PrimaryView) => void;
+  actions?: ReactNode;
 }) {
   return (
     <section
