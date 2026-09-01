@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { QuestionBankPicker } from "@/components/cronograma/QuestionBankPicker";
 import { listEmployees, type Employee } from "@/lib/employees";
-import { createCronogramaEntries, listCronogramaEntriesByYear, type CronogramaEntryInput } from "@/lib/cronograma";
+import { listCronogramaEntriesByYear, type CronogramaEntryInput } from "@/lib/cronograma";
+import { createCronogramaEntriesAtomic } from "@/lib/cronograma-atomic";
 import { questionThemeLabel, type QuestionBankItem } from "@/lib/question-bank";
 
 const MONTHS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
@@ -136,9 +137,7 @@ export function CronogramaAnnualGeneratorV2({ open, onOpenChange, onGenerated }:
     if (!drafts.length) return;
     setSaving(true);
     try {
-      for (let index = 0; index < drafts.length; index += 100) {
-        await createCronogramaEntries(drafts.slice(index, index + 100).map(({ _key, ...row }) => row));
-      }
+      await createCronogramaEntriesAtomic(drafts.map(({ _key, ...row }) => row));
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["cronograma-year", year] }),
         qc.invalidateQueries({ queryKey: ["cronograma-parity-year", year] }),
@@ -147,7 +146,7 @@ export function CronogramaAnnualGeneratorV2({ open, onOpenChange, onGenerated }:
       onGenerated?.(year);
       close();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Não foi possível gerar o cronograma anual.");
+      toast.error(error instanceof Error ? error.message : "Não foi possível gerar o cronograma anual. Nenhum lançamento foi criado.");
     } finally {
       setSaving(false);
     }
