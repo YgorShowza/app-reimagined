@@ -99,7 +99,13 @@ export async function listMyAttempts(): Promise<ExamAttempt[]> {
 }
 
 export async function saveAttempt(input: { exam_id: string; user_id: string; matricula: string | null; score: number; passed: boolean; answers: unknown; }): Promise<ExamAttempt> {
-  const { data, error } = await supabase.from("exam_attempts").insert({ ...input, answers: input.answers as never }).select("*").single();
+  // score, passed, user_id e matrícula enviados pelo cliente são intencionalmente
+  // ignorados. O banco identifica o usuário autenticado, valida setor/prova publicada
+  // e corrige as respostas antes de persistir a tentativa.
+  const { data, error } = await (supabase as any).rpc("submit_exam_attempt", {
+    p_exam_id: input.exam_id,
+    p_answers: input.answers ?? {},
+  });
   if (error) throw error;
   return data as ExamAttempt;
 }
