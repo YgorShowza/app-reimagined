@@ -98,7 +98,18 @@ export async function listMyAttempts(): Promise<ExamAttempt[]> {
   return (data ?? []) as ExamAttempt[];
 }
 
-export async function saveAttempt(input: { exam_id: string; answers: unknown }): Promise<ExamAttempt> {
+type SaveAttemptInput = {
+  exam_id: string;
+  answers: unknown;
+  // Mantidos temporariamente para compatibilidade com chamadas antigas. A RPC
+  // ignora estes campos e calcula identidade, nota e aprovação no servidor.
+  user_id?: string;
+  matricula?: string | null;
+  score?: number;
+  passed?: boolean;
+};
+
+export async function saveAttempt(input: SaveAttemptInput): Promise<ExamAttempt> {
   const { data, error } = await (supabase as any).rpc("submit_exam_attempt", {
     p_exam_id: input.exam_id,
     p_answers: input.answers ?? {},
