@@ -229,7 +229,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
         <main className="flex-1 p-4 pb-24 md:p-6 md:pb-24 lg:pb-8">{children}</main>
 
-        {!isAdmin && <nav className="fixed bottom-0 left-0 right-0 z-40 px-2 py-1.5 lg:hidden" style={{ background: "var(--header-bg)", borderTop: "1px solid var(--border)", backdropFilter: "blur(12px)" }}><div className="flex items-center justify-around gap-1">{operadorMenu.slice(0, 5).map((item) => <MobileNavLink key={item.path} item={item} />)}</div></nav>}
+        {!isAdmin && <nav className="fixed bottom-0 left-0 right-0 z-40 px-2 py-1.5 lg:hidden" style={{ background: "var(--header-bg)", borderTop: "1px solid var(--border)", backdropFilter: "blur(12px)", paddingBottom: "max(.375rem, env(safe-area-inset-bottom))" }}><div className="flex items-center justify-around gap-1">{operadorMenu.slice(0, 5).map((item) => <MobileNavLink key={item.path} item={item} />)}</div></nav>}
       </div>
     </div>
   );
