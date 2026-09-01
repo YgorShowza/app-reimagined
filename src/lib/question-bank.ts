@@ -41,10 +41,7 @@ export interface QuestionBankInput {
 }
 
 function normalize(row: any): QuestionBankItem {
-  return {
-    ...row,
-    options: Array.isArray(row.options) ? row.options : [],
-  } as QuestionBankItem;
+  return { ...row, options: Array.isArray(row.options) ? row.options : [] } as QuestionBankItem;
 }
 
 function normalizeOperational(row: any): OperationalQuestionBankItem {
@@ -74,26 +71,17 @@ export async function listActiveQuestionBank(): Promise<OperationalQuestionBankI
 }
 
 export async function createQuestionBankItem(input: QuestionBankInput) {
-  const { error } = await (supabase as any).from("question_bank").insert({
-    ...input,
-    options: input.options,
-  });
+  const { error } = await (supabase as any).rpc("create_question_bank_admin", { p_input: input });
   if (error) throw error;
 }
 
 export async function updateQuestionBankItem(id: string, input: Partial<QuestionBankInput>) {
-  const { error } = await (supabase as any)
-    .from("question_bank")
-    .update(input)
-    .eq("id", id);
+  const { error } = await (supabase as any).rpc("update_question_bank_admin", { p_id: id, p_patch: input });
   if (error) throw error;
 }
 
 export async function deleteQuestionBankItem(id: string) {
-  const { error } = await (supabase as any)
-    .from("question_bank")
-    .delete()
-    .eq("id", id);
+  const { error } = await (supabase as any).rpc("delete_question_bank_admin", { p_id: id });
   if (error) throw error;
 }
 
