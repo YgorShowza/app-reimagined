@@ -12,6 +12,14 @@ export interface ExamQuestion {
   points: number;
 }
 
+export interface AttemptExamQuestion {
+  id: string;
+  type: QuestionType;
+  statement: string;
+  options: string[];
+  points: number;
+}
+
 export interface Exam {
   id: string;
   title: string;
@@ -22,6 +30,20 @@ export interface Exam {
   scheduled_date: string | null;
   status: string;
   questions: ExamQuestion[];
+  question_count?: number;
+  created_at: string;
+}
+
+export interface AttemptExam {
+  id: string;
+  title: string;
+  description: string | null;
+  exam_type: string;
+  target_sector: string;
+  min_approval_pct: number;
+  scheduled_date: string | null;
+  status: string;
+  questions: AttemptExamQuestion[];
   created_at: string;
 }
 
@@ -63,16 +85,32 @@ function normalize(row: Record<string, unknown>): Exam {
   return { ...(row as unknown as Exam), questions: Array.isArray(row["questions"]) ? (row["questions"] as ExamQuestion[]) : [] };
 }
 
+function normalizeAttemptExam(row: Record<string, unknown>): AttemptExam {
+  return { ...(row as unknown as AttemptExam), questions: Array.isArray(row["questions"]) ? (row["questions"] as AttemptExamQuestion[]) : [] };
+}
+
 export async function listExams(): Promise<Exam[]> {
   const { data, error } = await supabase.from("exams").select("*").order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []).map((r) => normalize(r as Record<string, unknown>));
 }
 
+export async function listAvailableExams(): Promise<Exam[]> {
+  const { data, error } = await (supabase as any).rpc("list_available_exams");
+  if (error) throw error;
+  return (data ?? []).map((row: Record<string, unknown>) => ({ ...(row as unknown as Exam), questions: [], question_count: Number(row["question_count"] || 0) }));
+}
+
 export async function getExam(id: string): Promise<Exam> {
   const { data, error } = await supabase.from("exams").select("*").eq("id", id).single();
   if (error) throw error;
   return normalize(data as Record<string, unknown>);
+}
+
+export async function getExamForAttempt(id: string): Promise<AttemptExam> {
+  const { data, error } = await (supabase as any).rpc("get_exam_for_attempt", { p_exam_id: id });
+  if (error) throw error;
+  return normalizeAttemptExam(data as Record<string, unknown>);
 }
 
 export async function createExam(form: ExamForm) {
