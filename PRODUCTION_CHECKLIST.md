@@ -1,202 +1,151 @@
 # SEGEMPAT · Checklist de Produção
 
-Use este documento antes de publicar uma nova versão do sistema.
-
-> **Legenda:** `[x]` = validado tecnicamente nesta homologação. `[ ]` = ainda exige validação manual, dispositivo real, deploy ou decisão operacional.
+> `[x]` = comprovado tecnicamente. `[ ]` = ainda exige sessão/dispositivo real, deploy final ou decisão operacional.
 
 ## 1. Código e build
-
-- [x] `main` contém somente alterações homologadas nesta rodada técnica.
-- [x] Lovable preview está em estado `ready` no mesmo commit do `main`.
-- [x] `bun install --frozen-lockfile` conclui sem alterar `bun.lock`.
-- [x] `bun run build` conclui sem erro fora do preview do Lovable.
-- [x] Dependência morta `recharts` foi removida em operação controlada e o `bun.lock` foi regenerado/validado.
-- [x] `jspdf` foi isolado como client-only para não quebrar o SSR de produção.
+- [x] `main` compila com `bun install --frozen-lockfile`.
+- [x] `bun run build` passa no CI de produção.
+- [x] Lovable sincroniza o `main` e permanece `ready` nos commits homologados.
+- [x] `recharts` removido; `bun.lock` regenerado e validado.
+- [x] `jspdf` isolado como client-only para não quebrar SSR.
+- [x] Tela global de erro está em português e com identidade SEGEMPAT.
 - [x] Nenhuma tela “Em breve” está exposta na navegação de produção.
 
 ## 2. Supabase e migrations
-
-- [x] Todas as mudanças recentes de schema possuem migration versionada.
-- [x] A ordem das migrations foi revisada e a dependência de `training_activity_attempts` foi corrigida com migration-base anterior ao Desafio Diário.
-- [x] `supabase_migrations.schema_migrations` corresponde às migrations recentes versionadas.
-- [ ] Backup realizado antes de migration destrutiva ou mudança ampla.
-- [x] Tabelas críticas possuem RLS habilitada.
-- [x] Políticas de Inspetor e Operador foram revisadas.
-- [x] Funções privilegiadas usam `SECURITY DEFINER` somente nos fluxos necessários e com `search_path` explícito.
+- [x] Todas as mudanças de schema recentes possuem migration versionada.
+- [x] Ordem-base de `training_activity_attempts` foi corrigida para instalações limpas.
+- [x] Migrations recentes usam timestamps únicos.
+- [ ] Executar o runner oficial de migrations no deploy final e confirmar que `supabase_migrations.schema_migrations` registrou também as migrations aplicadas antecipadamente no ambiente conectado, incluindo `20260901143000_atomic_cronograma_bulk_create.sql`.
+- [ ] Realizar backup imediatamente antes do deploy/migration final.
+- [x] Todas as tabelas públicas auditadas possuem RLS habilitada.
+- [x] `anon` não possui acesso direto às tabelas operacionais.
+- [x] Grants de `authenticated` foram reduzidos ao necessário.
+- [x] RPCs privilegiadas usam `SECURITY DEFINER` com `search_path` explícito quando necessário.
+- [x] RPCs operacionais sensíveis não são executáveis por `anon`.
 - [x] Nenhuma chave `service_role` foi encontrada no frontend/repositório.
 
 ## 3. Autenticação e autorização
-
 ### Inspetor
-
-- [ ] Login por matrícula validado manualmente no ambiente final.
-- [ ] Dashboard administrativo validado manualmente em sessão real.
-- [x] Rotas administrativas possuem proteção central por role `admin`.
-- [x] Auditoria é protegida por rota e RLS para Inspetor/admin.
-- [x] Colaborador `Ativo + Inspetor` com conta vinculada recebe role `admin` pela regra funcional.
-- [x] Mudança para Operacional ou Inativo remove a role `admin` vinculada ao colaborador.
-- [x] A matrícula `000` foi reconciliada tecnicamente como Inspetor/admin sem alterar a conta administrativa técnica `970`.
+- [ ] Login por matrícula validado manualmente no domínio final.
+- [ ] Dashboard validado manualmente em sessão real.
+- [x] Rotas administrativas são protegidas por role `admin`.
+- [x] Auditoria é restrita por rota + RLS.
+- [x] Colaborador `Ativo + Inspetor` com conta vinculada recebe role administrativa.
+- [x] Mudança para Operacional/Inativo remove role administrativa funcional.
+- [x] Matrícula `000` foi reconciliada como Inspetor/admin; conta técnica `970` foi preservada.
 
 ### Operador
-
-- [ ] Login por matrícula validado manualmente com conta real de Operador.
-- [x] Rotas administrativas redirecionam para o painel quando a role não é `admin`.
-- [x] Guard autenticado encerra sessão de usuário comum sem colaborador ativo.
-- [x] RLS restringe dados próprios quando a regra exigir.
-- [x] Provas publicadas respeitam setor-alvo ou `Todos` no próprio banco.
-- [x] Ciclos, avaliações práticas e ocorrências possuem RLS compatível com o perfil Operador.
-- [x] Banco de Questões, Módulos e Conteúdos ativos respeitam `Todos` ou o setor do usuário na RLS.
-- [x] Tentativas, atividades rápidas e ocorrências próprias exigem colaborador ativo na RLS.
+- [ ] Login validado manualmente com conta real de Operador.
+- [x] Rotas administrativas bloqueiam não-admin antes de renderizar.
+- [x] Usuário comum sem colaborador ativo é bloqueado na sessão e no banco.
+- [x] Dados próprios/setoriais possuem RLS compatível com o perfil.
+- [x] Provas, Banco de Questões, Módulos e Conteúdos respeitam setor/`Todos` no banco.
 
 ### Primeiro acesso
-
-- [x] Cadastro só é aceito para matrícula existente e `Ativo` em `employees`.
-- [x] Primeiro acesso exige código de ativação de 8 dígitos emitido por admin.
-- [x] Código expira em 24 horas, é de uso único e armazenado somente como hash SHA-256.
-- [x] Código é gerado com RNG criptográfico `gen_random_bytes()`.
-- [x] Geração/revogação de código é bloqueada para não-admin.
-- [x] Reutilização de código consumido é bloqueada.
-- [x] Tela Equipe possui área `Acessos` para gerar/copiar/revogar código.
-- [x] `profiles` e `user_roles` são somente leitura para o cliente autenticado.
-- [x] Matrícula vinculada a conta não pode ser alterada diretamente.
-- [x] Colaborador com conta não pode ser excluído; deve ser inativado.
+- [x] Só matrícula de colaborador ativo pode ativar conta.
+- [x] Exige código de ativação de 8 dígitos emitido pela Inspetoria.
+- [x] Código expira em 24h e é de uso único.
+- [x] Novos códigos usam hash adaptativo bcrypt com salt; nenhum código é armazenado em texto puro.
+- [x] Geração usa RNG criptográfico.
+- [x] Geração/revogação é bloqueada para não-admin.
+- [x] Fluxo completo de ativação foi testado de forma transacional e sem resíduos.
+- [x] `profiles` e `user_roles` são somente leitura para o cliente.
+- [x] Matrícula vinculada não pode ser alterada diretamente; colaborador com conta deve ser inativado, não excluído.
+- [ ] Primeiro acesso completo validado manualmente com um Operador real.
 
 ## 4. Cronograma
+- [x] Lista, Calendário e Ano usam a mesma base de dados e lógica homologada.
+- [x] Índice único bloqueia duplicidade exata.
+- [x] Teste transacional validou criação, duplicidade, atualização para Realizado, resumo anual, modelo recorrente e suspensão, com zero resíduos.
+- [x] `Novo Registro` abre o formulário existente via `/cronograma-gestao?novo=true`, sem duplicar CRUD.
+- [x] Importação Excel usa RPC atômica e valida matrícula operacional ativa, mês, data e nota.
+- [x] Teste transacional da importação validou `updated=1`, `created=1`, `ignored=1`, com zero resíduos.
+- [x] Gerador Anual usa criação atômica server-side; não salva mais blocos parciais.
+- [x] Teste de atomicidade confirmou que lote com linha inválida não persiste linhas anteriores.
+- [x] Consulta de escala foi testada com 12.000 lançamentos sintéticos; consulta mensal indexada de 1.000 registros ~2,2 ms no banco testado.
+- [x] PDFs do Cronograma são client-only, paginados, repetem cabeçalho e rodapé.
+- [x] Lista de presença bloqueia exportação sem lançamentos.
+- [ ] Lista/Calendário/Ano validados visualmente com massa operacional real.
+- [ ] Edição/exclusão validadas manualmente em sessão real.
+- [ ] Importação validada com arquivo Excel operacional real.
+- [ ] Gerador Anual validado visualmente com equipe real.
+- [ ] PDF e Lista de Presença conferidos/impressos no navegador operacional.
 
-- [ ] Lista validada manualmente com massa real de colaboradores.
-- [ ] Calendário validado manualmente com troca de mês.
-- [ ] Visão Ano validada manualmente com percentuais reais.
-- [ ] Troca Lista → Calendário → Ano validada manualmente em sequência.
-- [ ] Novo registro validado manualmente.
-- [ ] Edição e exclusão validadas manualmente.
-- [x] Banco possui índice único contra duplicidade exata.
-- [ ] Lançamento em massa validado manualmente com prévia real.
-- [ ] Gerador Anual validado manualmente com equipe real.
-- [ ] Importação Excel validada com arquivo operacional real.
-- [x] Fluxo de sincronização após prova foi reduzido para colaborador/prova envolvidos.
-- [ ] Resultado importado Pendente → Realizado validado manualmente.
-- [ ] Suspensões/ausências validadas manualmente no planejamento.
-- [ ] Modelos recorrentes validados manualmente.
-- [ ] Avaliações práticas recorrentes validadas manualmente.
-- [ ] PDF mensal validado em navegador operacional.
-- [ ] Lista de presença PDF validada em navegador operacional.
-- [x] Layout mobile de Lista/Calendário/Ano foi refinado e recompilado no Lovable.
-
-## 5. Provas e certificados
-
-- [ ] Inspetor cria prova em rascunho em sessão real.
-- [x] Auditoria de integridade encontrou zero provas publicadas sem questões.
-- [x] RLS permite ao Operador somente prova publicada para `Todos` ou setor compatível.
-- [x] Teste de RLS confirmou zero conteúdo de setor indevido em identidade não-admin simulada.
-- [ ] Correção de prova validada manualmente com tentativa real.
-- [ ] Aprovação/reprovação validada manualmente contra percentual mínimo.
-- [x] Trigger gera código único quando a tentativa é aprovada.
-- [ ] Assinatura eletrônica validada manualmente com mouse.
-- [ ] Assinatura eletrônica validada manualmente em touchscreen.
-- [x] Bucket `exam-signatures` é privado, limitado a PNG e 512 KB.
-- [x] Operador não possui UPDATE genérico sobre `exam_attempts`.
-- [x] RPC `sign_exam_attempt` só altera tentativa pertencente ao usuário autenticado e exige colaborador ativo.
-- [x] Storage de assinatura exige usuário ativo para operações próprias.
-- [x] Interface só libera certificado formal após aprovação + assinatura.
-- [ ] Código validado manualmente pela Inspetoria em fluxo ponta a ponta.
-- [x] Evidência de assinatura usa URL temporária, sem tornar o bucket público.
+## 5. Provas, assinatura e certificados
+- [x] Nota e aprovação são calculadas no servidor por `submit_exam_attempt`; INSERT direto em `exam_attempts` é bloqueado.
+- [x] Operador recebe prova sanitizada sem `correct_index`/`model_answer`.
+- [x] Coluna `questions` de `exams` não possui SELECT para `authenticated`; metadados seguros possuem grant por coluna.
+- [x] Inspetor acessa prova completa por RPC administrativa.
+- [x] Prova publicada respeita setor/`Todos` no banco.
+- [x] Homologação E2E transacional passou: prova → correção server-side → aprovação → assinatura → certificado formal → validação; zero resíduos.
+- [x] Certificado formal só existe/é válido após aprovação + assinatura completa.
+- [x] Fluxo legado de `certificates/validate_certificate` foi alinhado à mesma regra e não é público.
+- [x] Bucket `exam-signatures` é privado, PNG, 512 KB e vinculado ao usuário ativo.
+- [x] Assinatura só altera tentativa do próprio usuário e exige arquivo no diretório correto.
+- [ ] Criar/realizar prova manualmente com Inspetor + Operador reais.
+- [ ] Assinatura validada com mouse.
+- [ ] Assinatura validada em touchscreen.
+- [ ] Certificado/PDF conferido visualmente e impresso.
 
 ## 6. Treinamento e gamificação
+- [x] Banco operacional é entregue por RPC sanitizada; `correct_index/correct_answer` não chegam ao Operador.
+- [x] `question_bank` não possui SELECT direto para `authenticated`/`anon`.
+- [x] Score de Teste Rápido, Desafio Diário, Simulador e Stress Test é recalculado no servidor.
+- [x] IDs, setor, tipo, dificuldade e quantidade esperada são validados pelo servidor.
+- [x] Teste Rápido/Simulador/Stress concedem XP apenas na primeira conclusão do tipo no dia.
+- [x] Desafio Diário permite uma execução por dia.
+- [x] Homologação transacional dos quatro modos passou, inclusive tentativa de forjar `p_score=10`; servidor registrou a nota real. Zero resíduos.
+- [x] Simulador, Stress Test e Desafio Diário possuem loading, erro inicial e retry.
+- [ ] Os quatro modos validados manualmente em sessão real de Operador.
 
-- [x] Módulos ativos são restringidos por setor/`Todos` na RLS.
-- [x] Banco possui questões ativas para Simulador e treinamento dinâmico.
-- [ ] Teste Rápido validado manualmente em sessão real de Operador.
-- [ ] Simulador validado manualmente em sessão real de Operador.
-- [x] Stress Test usa setor operacional real do colaborador no código.
-- [x] Desafio Diário possui índice único por usuário/tipo/dia.
-- [x] Teste Rápido/Simulador/Stress Test concedem XP apenas na primeira conclusão do tipo no dia.
-- [x] XP é calculado no servidor por RPC `SECURITY DEFINER`.
-- [x] RPC de atividade exige colaborador ativo.
-- [x] Nível é recalculado no servidor conforme faixas de pontos.
-- [x] Atividades são persistidas separadamente de `exam_attempts`, sem gerar certificado formal.
+## 7. Ciclos, avaliação prática e ocorrências
+- [x] Ciclos recalculam status a partir das datas atuais.
+- [x] Unicidade de ciclo e janelas inválidas foram auditadas.
+- [x] Avaliação prática possui RLS por perfil e estrutura de tarefas/nota/recorrência.
+- [x] Ocorrências preenchem `created_by` e restringem Operador a registros próprios/vinculados.
+- [ ] Avaliação prática concluída com evidência real.
+- [ ] Ocorrência criada por Operador real.
 
-## 7. Ciclos e avaliações práticas
+## 8. Relatórios, auditoria e performance
+- [x] Dashboard não exibe zeros falsos durante loading.
+- [x] Analytics e Zona de Risco distinguem erro de ausência de dados.
+- [x] Análise Individual trata falha de consulta separadamente.
+- [x] Auditoria pagina 50 registros e usa `America/Maceio`.
+- [x] Banco de Questões possui paginação.
+- [x] React Query usa cache e reduz refetch desnecessário.
+- [x] Índices críticos de Cronograma, tentativas, auditoria, ocorrências e avaliações foram revisados.
+- [ ] Relatório Mensal validado com massa real.
 
-- [x] Ciclo calcula status a partir das datas atuais, sem depender apenas do texto salvo.
-- [x] Status `Em dia`, `Próximo ao vencimento` e `Vencido` é recalculado em leitura.
-- [x] Existe unicidade de ciclo por colaborador e a auditoria encontrou zero duplicidades.
-- [x] Modelo de avaliação prática possui estrutura para tarefas/procedimentos, nota mínima, setor e recorrência.
-- [ ] Avaliação prática concluída validada manualmente com evidências reais.
-
-## 8. Ocorrências
-
-- [ ] Operador cria ocorrência em sessão real.
-- [x] Camada de dados preenche `created_by` com o usuário autenticado.
-- [x] RLS limita Operador ativo a ocorrência própria/vinculada.
-- [x] UPDATE administrativo fica restrito à Inspetoria/admin.
-- [x] DELETE administrativo fica restrito à Inspetoria/admin.
-
-## 9. Relatórios e Analytics
-
-- [x] Dashboard não apresenta zeros falsos durante loading.
-- [x] Analytics diferencia erro de ausência de dados e não depende mais de Recharts para renderização.
-- [x] Zona de Risco não interpreta erro de consulta como risco zero.
-- [x] Análise Individual separa ausência de equipe de falha de consulta.
-- [x] Relatório anual bloqueia exportação CSV quando não há dados setoriais.
-- [ ] Relatório Mensal validado manualmente com dados de período real.
-- [x] Auditoria pagina 50 registros por página e usa fuso `America/Maceio`.
+## 9. Tema, responsividade e experiência
+- [x] Tema sincroniza `data-theme`, `.dark` e `color-scheme`.
+- [x] Modo Auto reage à preferência do sistema.
+- [x] Tema é aplicado antes do primeiro paint.
+- [x] Hero escuro usa texto explicitamente claro, evitando desaparecimento no tema claro.
+- [x] Sidebar desktop, drawer mobile e navegação do Operador usam shell responsivo.
+- [x] Cronograma Lista/Calendário/Ano recebeu tratamento mobile.
+- [ ] Varredura visual final Claro ↔ Escuro em todas as telas com sessão autenticada real.
+- [ ] Desktop real validado.
+- [ ] Android real validado.
+- [ ] iPhone/iOS real validado quando aplicável.
 
 ## 10. Integridade de dados
+Últimas baterias: **zero inconsistências conhecidas** em duplicidade exata do Cronograma, vínculos órfãos, aprovação sem código, prova publicada vazia, assinatura incompleta marcada como formal, ciclo inválido, módulo com nota/ordem inválida e Desafio Diário duplicado.
 
-Resultado obtido na última bateria: **zero problemas em todas as verificações abaixo**.
-
-- [x] Duplicidades exatas no Cronograma.
-- [x] Cronograma com colaborador órfão.
-- [x] Tentativa com prova órfã.
-- [x] Ocorrência com colaborador órfão.
-- [x] Avaliação prática com colaborador órfão.
-- [x] Aprovação sem código de validação.
-- [x] Prova publicada sem questões.
-- [x] Assinatura marcada sem arquivo/data.
-- [x] Ciclo com janela de datas inválida.
-- [x] Módulo com nota mínima fora de 0–10.
-- [x] Módulo com ordem inferior a 1.
-- [x] Desafio Diário duplicado no mesmo dia.
-
-## 11. Performance
-
-- [x] React Query possui cache e evita refetch desnecessário ao retornar para a aba.
-- [x] Relógio do cabeçalho está isolado em componente próprio.
-- [x] Auditoria e Banco de Questões possuem paginação/limitação adequada.
-- [x] Consultas do Cronograma possuem índices por mês, colaborador, setor e status.
-- [x] Conclusão de prova não faz mais varredura global do Cronograma.
-- [x] Dependências mortas foram removidas com lockfile regenerado e CI estrito aprovado.
-- [ ] Responsividade final validada manualmente com massa de dados em dispositivos reais.
-
-Referência de stress executada durante homologação: **12.000 lançamentos sintéticos** em tabela temporária; consulta mensal de 1.000 registros usou índice e foi executada em aproximadamente **2,2 ms** no PostgreSQL do ambiente testado.
-
-## 12. Publicação
-
-- [ ] Variáveis do Supabase configuradas no ambiente de deploy.
-- [ ] `.env` versionado removido somente após confirmar injeção correta das variáveis no deploy.
+## 11. Publicação
+- [ ] Variáveis Supabase configuradas no ambiente final.
+- [ ] Remover `.env` versionado somente após confirmar injeção de variáveis no deploy.
 - [ ] Domínio/URL final definido.
-- [ ] URLs permitidas de autenticação do Supabase configuradas para produção.
+- [ ] URLs permitidas do Supabase Auth configuradas para produção.
+- [ ] Runner oficial de migrations executado e histórico conferido.
 - [ ] Backup pré-publicação concluído.
-- [ ] Conta de teste Inspetor validada no domínio final.
-- [ ] Conta de teste Operador validada no domínio final.
-- [ ] Teste em desktop concluído.
-- [ ] Teste em Android concluído.
-- [ ] Teste em iPhone/iOS concluído quando aplicável.
-- [ ] Impressão/PDF validada no navegador usado pela operação.
+- [ ] Conta Inspetor testada no domínio final.
+- [ ] Conta Operador testada no domínio final.
+- [ ] PDFs/impressão validados no navegador usado pela operação.
 
-## 13. Pendência de infraestrutura conhecida
-
+## 12. Infraestrutura
 - [ ] Definir se haverá restrição por IP/VPN.
 
-**Importante:** filtro de IP/VPN não está implementado atualmente. Não tratar esse controle como ativo até existir validação real no backend/rede.
+**Importante:** IP/VPN ainda não é um controle ativo e não deve ser apresentado como implementado.
 
-## 14. Rollback
-
-Antes da publicação, registrar:
-
-- commit estável anterior;
-- commit publicado;
-- backup do banco;
-- migrations novas da versão;
-- procedimento para retornar o frontend ao commit anterior;
-- procedimento para desfazer migration quando tecnicamente seguro.
+## 13. Rollback
+Antes da publicação registrar: commit estável anterior, commit publicado, backup do banco, migrations da versão e procedimento de rollback do frontend/schema quando tecnicamente seguro.
