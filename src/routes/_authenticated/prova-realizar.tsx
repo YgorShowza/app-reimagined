@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, ShieldCheck } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { SignaturePad } from "@/components/exams/SignaturePad";
 import { getExamForAttempt, saveAttempt, signAttempt, type ExamAttempt } from "@/lib/exams";
@@ -46,13 +47,13 @@ function TakeExamPage() {
       const percent = Math.max(0, Math.min(100, Math.round(score * 10)));
       const passed = Boolean(attempt.passed);
       setFinished({ score, percent, passed, attempt });
-    } catch (error: any) {
-      alert(error.message || "Não foi possível salvar a prova");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível salvar a prova");
     } finally { setSaving(false); }
   };
 
   const confirmSignature = async (blob: Blob) => {
-    if (!finished) return;
+    if (!finished || signed) return;
     setSigning(true);
     try {
       const { data: auth } = await supabase.auth.getUser();
@@ -64,8 +65,9 @@ function TakeExamPage() {
         queryClient.invalidateQueries({ queryKey: ["exam-attempts-my"] }),
         queryClient.invalidateQueries({ queryKey: ["employees-profile"] }),
       ]);
-    } catch (error: any) {
-      alert(error.message || "Não foi possível registrar a assinatura");
+      toast.success("Assinatura registrada com sucesso");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível registrar a assinatura");
       throw error;
     } finally { setSigning(false); }
   };
@@ -95,7 +97,7 @@ function TakeExamPage() {
           <div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" /><div><p className="text-[10px] font-black uppercase tracking-[.16em]" style={{ color: "var(--text-4)" }}>{codeLabel}</p><p className="mt-1 break-all font-mono text-sm font-black" style={{ color: "var(--text-1)" }}>{finished.attempt.certificate_code || finished.attempt.id}</p><p className="mt-1 text-xs" style={{ color: "var(--text-4)" }}>Mat. {user?.matricula || "—"} · {exam.title}</p></div></div>
         </Card>
 
-        <SignaturePad signerName={user?.nome || user?.matricula || "Operador"} saving={signing} onConfirm={confirmSignature} />
+        <SignaturePad signerName={user?.nome || user?.matricula || "Operador"} saving={signing} saved={signed} onConfirm={confirmSignature} />
 
         <div>
           <h2 className="mb-3 text-xs font-black uppercase tracking-[.16em]" style={{ color: "var(--text-4)" }}>Respostas enviadas</h2>
