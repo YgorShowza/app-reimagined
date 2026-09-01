@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { EmBreve } from "@/components/EmBreve";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_authenticated/tv")({
-  head: () => ({ meta: [{ title: "TV Mode · SEGEMPAT" }] }),
-  component: () => <EmBreve titulo="TV Mode" />,
+  beforeLoad: () => {
+    throw redirect({ to: "/painel" });
+  },
 });
