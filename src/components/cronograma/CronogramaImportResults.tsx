@@ -75,7 +75,7 @@ function findHeaderRow(rows: unknown[][]) {
   let bestIndex = 0;
   let bestScore = -1;
   rows.slice(0, 15).forEach((row, index) => {
-    const score = (row ?? []).reduce((total, cell) => {
+    const score = (row ?? []).reduce<number>((total, cell) => {
       const normalized = norm(cell);
       return total + (keys.some((key) => normalized === key || normalized.includes(key)) ? 1 : 0);
     }, 0);
