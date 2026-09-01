@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { SignaturePad } from "@/components/exams/SignaturePad";
 import { getExamForAttempt, saveAttempt, signAttempt, type ExamAttempt } from "@/lib/exams";
 import { useCurrentUser } from "@/lib/useCurrentUser";
-import { syncCronogramaForExamAttempt } from "@/lib/cronograma-exam-sync";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/prova-realizar")({
@@ -46,9 +45,6 @@ function TakeExamPage() {
       const score = Number(attempt.score || 0);
       const percent = Math.max(0, Math.min(100, Math.round(score * 10)));
       const passed = Boolean(attempt.passed);
-      if (passed) {
-        await syncCronogramaForExamAttempt({ examId: exam.id, matricula: attempt.matricula, finishedAt: attempt.finished_at });
-      }
       setFinished({ score, percent, passed, attempt });
     } catch (error: any) {
       alert(error.message || "Não foi possível salvar a prova");
