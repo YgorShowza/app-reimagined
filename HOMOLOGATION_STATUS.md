@@ -2,14 +2,14 @@
 
 Atualizado em 01/09/2026.
 
-Este documento separa o que já foi comprovado por código, banco e CI do que ainda depende de uso real em navegador, dispositivo ou ambiente de produção.
+Este documento separa o que já foi comprovado por código, banco, testes transacionais e CI do que ainda depende de uso real em navegador, dispositivo ou ambiente final de produção.
 
 ## Automaticamente homologado
 
 ### Build e execução
 - CI do GitHub verde com `bun install --frozen-lockfile`, typecheck e build de produção.
 - Build SSR validado.
-- CI também falha automaticamente se existirem migrations com versão/timestamp duplicado.
+- CI falha automaticamente se existirem migrations com versão/timestamp duplicado.
 - Lovable em estado `ready` no mesmo HEAD validado pelo CI.
 - `bun.lock` alinhado ao `package.json`.
 
@@ -19,16 +19,26 @@ Este documento separa o que já foi comprovado por código, banco e CI do que ai
 - Nenhuma função `SECURITY DEFINER` pública auditada é executável por `anon`.
 - Primeiro acesso restrito a colaborador ativo + código de ativação de uso único.
 - Código de ativação com RNG criptográfico, validade de 24h e bcrypt com salt.
-- `profiles` e `user_roles` somente leitura para o cliente.
-- Role administrativa reconciliada com colaborador `Ativo + Inspetor`.
-- Colaborador inativo bloqueado no guard, RLS, RPCs e Storage.
+- Código em plaintext não é persistido no banco.
+- Revogação de código temporário validada.
+- Não-admin não consegue gerar código de ativação.
+- Matrícula que já possui conta não recebe novo código de primeiro acesso.
+- `profiles` e `user_roles` são somente leitura para o cliente.
+- Role administrativa é reconciliada com colaborador `Ativo + Inspetor`.
+- Teste transacional confirmou: Operacional não possui admin; Inspetor ativo recebe admin; retorno a Operacional ou Inativo remove admin.
+- Colaborador inativo é bloqueado no guard, RLS, RPCs e Storage mesmo com sessão/token ainda existente.
+- Matrícula de colaborador vinculado a conta não pode ser alterada diretamente.
+- Colaborador com conta vinculada não pode ser excluído diretamente; deve ser inativado para preservar histórico.
 
 ### Provas e certificados
-- Operador não possui acesso à coluna `exams.questions`.
-- Metadados não sensíveis de prova possuem leitura controlada por coluna quando necessária.
+- Operador não possui `SELECT` direto na tabela `exams`.
+- Provas disponíveis são listadas por RPC sanitizada.
 - Prova operacional é entregue por RPC sem `correct_index` e sem `model_answer`.
+- Leitura administrativa completa ocorre por RPC protegida.
 - Nota e aprovação são calculadas no servidor pela RPC `submit_exam_attempt`.
 - `authenticated` não possui `INSERT` direto em `exam_attempts`.
+- Resposta errada foi testada e retornou nota 0/reprovação no servidor.
+- Prova de outro setor foi testada: não aparece, não abre e não aceita submissão.
 - Assinatura exige arquivo real no bucket privado e pertencente ao próprio usuário.
 - Certificado formal só é emitido após aprovação + assinatura eletrônica completa.
 - Fluxo legado de certificados foi alinhado à mesma regra.
@@ -37,18 +47,25 @@ Este documento separa o que já foi comprovado por código, banco e CI do que ai
 ### Homologação transacional da prova
 Fluxo completo aprovado com rollback integral:
 1. prova publicada criada temporariamente;
-2. correção server-side de questão objetiva + discursiva retornou nota 10 e aprovação;
-3. Cronograma foi sincronizado para `Realizado`;
-4. zero certificado antes da assinatura;
-5. assinatura eletrônica validada pela RPC com objeto temporário no bucket privado;
-6. exatamente um certificado formal após assinatura;
-7. validação administrativa retornou certificado válido.
+2. identidade técnica simulada como Operador sem role admin;
+3. prova compatível ficou visível ao Operador;
+4. payload entregue sem chave de resposta;
+5. correção server-side de questão objetiva + discursiva retornou nota 10 e aprovação;
+6. zero certificado antes da assinatura;
+7. assinatura eletrônica validada pela RPC com objeto temporário no bucket privado;
+8. exatamente um certificado formal após assinatura;
+9. validação administrativa retornou certificado válido.
 
-Após o teste: zero prova, tentativa, lançamento, certificado, objeto de assinatura ou log fictício residual.
+Casos negativos também aprovados:
+- resposta errada → nota 0 e reprovação;
+- prova de outro setor → oculta e bloqueada para leitura/submissão;
+- `SELECT` direto em `exams` → revogado.
+
+Após os testes: zero prova, tentativa, certificado, objeto de assinatura ou colaborador fictício residual.
 
 ### Banco de Questões e atividades rápidas
-- Operador não possui `SELECT` direto no Banco de Questões nem acesso às colunas de gabarito.
-- RPC `list_operational_questions` omite `correct_index`, resposta correta e explicação.
+- Operador não possui acesso direto às colunas de gabarito do Banco de Questões.
+- RPC operacional omite `correct_index`, resposta correta e explicação.
 - Teste Rápido, Simulador, Stress Test e Desafio Diário são corrigidos no servidor.
 - `p_score` enviado pelo navegador não possui autoridade.
 - Proteções de setor, tipo, dificuldade, quantidade e IDs são server-side.
@@ -57,26 +74,27 @@ Após o teste: zero prova, tentativa, lançamento, certificado, objeto de assina
 
 ### Homologação transacional das atividades
 Fluxo aprovado com rollback integral:
-1. Teste Rápido: score server-side 10 e 10 XP;
+1. Teste Rápido: score server-side 10 e 10 XP mesmo recebendo `p_score` diferente;
 2. segunda execução do Teste Rápido no mesmo dia: 0 XP;
-3. Desafio Diário: score 10 e 15 XP;
-4. segunda execução do Desafio Diário bloqueada;
-5. Simulador: score 10 e 20 XP;
-6. Stress Test recebeu `p_score=10` falso, servidor recalculou 8,0 e concedeu 25 XP;
-7. tipo genérico `Treinamento` foi bloqueado;
-8. delta total de XP dentro da transação igual ao esperado.
+3. Simulador: score server-side 10 e 20 XP;
+4. Stress Test: score server-side 10 e 25 XP;
+5. Desafio Diário: score server-side 10 e 15 XP;
+6. segunda execução do Desafio Diário bloqueada;
+7. total acumulado dentro da transação: 70 pontos, exatamente o esperado.
 
 Após o teste: zero questão, tentativa, log ou alteração de pontos fictícia residual.
 
 ### Homologação de autorização como Operador
-Como ainda não existe conta Operador real ativa no banco de homologação, foi executada simulação transacional usando a identidade ativa existente, com remoção temporária da role admin e mudança temporária para perfil Operacional. Todo o bloco terminou em rollback.
+Como ainda não existe conta Operador real ativa no banco de homologação, foram executadas simulações transacionais usando identidade já existente com remoção temporária da role admin e vínculo operacional temporário. Todos os blocos terminaram em rollback.
 
 Resultado aprovado:
 - role administrativa removida durante a simulação;
 - provas entregues somente para `Todos`/setor permitido;
 - questões operacionais entregues somente para `Todos`/setor permitido;
-- RPC administrativa de provas bloqueada;
+- RPCs administrativas bloqueadas;
 - geração de código de primeiro acesso bloqueada para não-admin;
+- usuário inativado deixa de ser considerado colaborador ativo imediatamente;
+- atividades operacionais ficam bloqueadas após inativação;
 - zero resíduo após rollback.
 
 ### Cronograma
@@ -86,59 +104,72 @@ Resultado aprovado:
 - Calendário mantém largura legível e scroll horizontal em telas estreitas.
 - Visão anual é navegável por mês.
 - Importação possui fluxo atômico server-side.
+- Criação em massa possui RPC atômica com validações server-side.
+- Trigger valida questões vinculadas, existência, atividade e compatibilidade de setor.
 - Conclusão de prova sincroniza o Cronograma no servidor.
 
-### Tema e shell
+### Homologação transacional do Cronograma
+Fluxos aprovados com rollback integral:
+- lote válido criou 2 registros;
+- duplicidade no mesmo lote foi bloqueada e deixou 0 registros parciais;
+- questão incompatível com o setor foi bloqueada e deixou 0 registros parciais;
+- questão compatível foi vinculada corretamente;
+- importação válida converteu pendência em `Realizado` com data correta;
+- lote de importação contendo uma linha inválida foi bloqueado e deixou 0 atualizações parciais.
+
+### Tema, mobile e shell
 - Claro/Escuro/Auto sincronizam `data-theme`, classe `.dark` e `color-scheme`.
 - Tema é aplicado antes do primeiro paint para reduzir flash visual.
 - Sidebar permanece escura de propósito; conteúdo usa tokens semânticos.
 - Heroes de fundo permanentemente escuro usam texto explicitamente claro, inclusive no tema claro.
-- Drawer mobile, bottom nav do Operador e espaçamento inferior foram revisados.
+- Drawer mobile, bottom nav do Operador, safe area e espaçamento inferior foram revisados.
 - Logout só limpa cache/redireciona após `supabase.auth.signOut()` bem-sucedido.
 - 404 e error boundary estão em português e seguem o tema.
+- Assinatura usa Pointer Events, pointer capture, `touch-none` e `devicePixelRatio`.
+- Assinatura agora preserva o traço durante resize/orientação do viewport em vez de zerar o canvas.
 
 ### Integridade final
-Última bateria: **14/14 com zero problemas**.
+Última bateria ampla retornou zero problemas:
 - zero duplicidade crítica no Cronograma;
 - zero tentativa órfã de prova;
-- zero tentativa órfã de perfil;
 - zero aprovação sem código;
 - zero assinatura incompleta marcada como válida;
 - zero certificado formal inconsistente;
+- zero Desafio Diário duplicado;
+- zero vínculo inválido entre Cronograma e Banco de Questões;
 - zero Inspetor ativo sem admin;
-- zero código de ativação em texto puro;
-- zero prova publicada sem questões;
 - zero tabela pública auditada sem RLS;
-- zero privilégio de tabela pública para `anon`;
 - zero função `SECURITY DEFINER` executável por `anon`;
-- zero acesso autenticado ao JSON de gabarito das provas;
-- zero acesso autenticado ao gabarito/explicação do Banco de Questões.
+- `anon` sem acesso direto a `exams`;
+- `authenticated` sem acesso direto ao JSON completo de `exams`.
 
 ### Migrations
-- Histórico do Supabase reconciliado até `20260901036000_safe_exam_metadata_columns`.
-- A colisão de versão `20260901034000` foi eliminada; os dois arquivos foram renumerados para `035000` e `036000`.
-- O CI agora valida padrão de nome e unicidade das versões de todas as migrations.
+- Histórico do Supabase reconciliado até `20260901144000_validate_cronograma_question_links`.
+- Schema, trigger e privilégios da migration `144000` foram comparados com o arquivo antes da reconciliação do histórico; o SQL não foi reexecutado.
+- A colisão histórica de versões anteriores foi eliminada.
+- O CI valida padrão de nome e unicidade das versões de todas as migrations.
 - Sem drift conhecido entre os objetos auditados do schema e as migrations registradas.
 
 ## Pendências que dependem de homologação manual/operacional
 
 - Primeiro acesso com um Operador real usando código de ativação emitido pela Inspetoria.
 - Fluxo real de uma prova em navegador autenticado de Operador.
-- Assinatura com dedo em touchscreen.
+- Assinatura com dedo em touchscreen físico.
 - Teste físico em iPhone e Android.
 - Conferência de PDFs e impressão no navegador/impressora operacional.
 - Teste de navegação Claro → Escuro → Auto nas principais telas em dispositivo real.
-- Teste do Cronograma com volume operacional real e usuários reais.
+- Teste do Cronograma com volume e usuários operacionais reais.
 - Backup imediatamente antes da publicação.
 - Configuração final de domínio/URLs de autenticação.
 - Decisão operacional sobre restrição por IP/VPN.
 
 ## Melhorias conhecidas de baixo risco
 
-- `CronogramaSourceParityV2` ainda pode ganhar um fallback visual explícito de erro/retry para falhas de rede nas queries de Lista/Calendário/Ano. O núcleo e os dados estão protegidos; trata-se de UX de recuperação.
-- Simulador e Stress Test já tratam falha de carregamento inicial, mas ainda é desejável mostrar feedback visual explícito caso a submissão final da atividade falhe e substituir o retorno via `window.location.assign` por navegação interna do TanStack Router.
+- `CronogramaSourceParityV2` ainda pode ganhar fallback visual explícito de erro/retry para falhas de rede nas queries de Lista/Calendário/Ano. O núcleo e os dados estão protegidos; trata-se de UX de recuperação.
+- Simulador e Stress Test já tratam falha de carregamento inicial; ainda é desejável padronizar feedback visual da falha de submissão e substituir retornos com recarga completa por navegação interna quando aplicável.
+- Nos PDFs do Cronograma, quando há quebra de página no meio de um setor, o subtítulo `SETOR:` pode precisar ser repetido antes da primeira linha da nova página. Cabeçalho da tabela e rodapé já são repetidos. Deve ser confirmado/corrigido junto ao teste físico de impressão.
 
-Esses itens são melhorias de UX e não alteram a autoridade server-side, RLS, cálculo de nota ou integridade dos dados.
+Esses itens são melhorias de UX/documentação e não alteram autoridade server-side, RLS, cálculo de nota ou integridade dos dados.
 
 ## Critério de conclusão
 
