@@ -90,9 +90,9 @@ function normalizeAttemptExam(row: Record<string, unknown>): AttemptExam {
 }
 
 export async function listExams(): Promise<Exam[]> {
-  const { data, error } = await supabase.from("exams").select("*").order("created_at", { ascending: false });
+  const { data, error } = await (supabase as any).rpc("list_exams_admin");
   if (error) throw error;
-  return (data ?? []).map((r) => normalize(r as Record<string, unknown>));
+  return (data ?? []).map((r: Record<string, unknown>) => normalize(r));
 }
 
 export async function listAvailableExams(): Promise<Exam[]> {
@@ -102,7 +102,7 @@ export async function listAvailableExams(): Promise<Exam[]> {
 }
 
 export async function getExam(id: string): Promise<Exam> {
-  const { data, error } = await supabase.from("exams").select("*").eq("id", id).single();
+  const { data, error } = await (supabase as any).rpc("get_exam_admin", { p_exam_id: id });
   if (error) throw error;
   return normalize(data as Record<string, unknown>);
 }
