@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { SignaturePad } from "@/components/exams/SignaturePad";
 import { getExamForAttempt, saveAttempt, signAttempt, type ExamAttempt } from "@/lib/exams";
 import { useCurrentUser } from "@/lib/useCurrentUser";
@@ -31,6 +32,7 @@ function TakeExamPage() {
   const [saving, setSaving] = useState(false);
   const [signing, setSigning] = useState(false);
   const [signed, setSigned] = useState(false);
+  const [confirmFinishOpen, setConfirmFinishOpen] = useState(false);
 
   const question = exam?.questions[index];
   const answered = exam ? exam.questions.filter((q) => answers[q.id] !== undefined && String(answers[q.id]).trim() !== "").length : 0;
@@ -38,8 +40,7 @@ function TakeExamPage() {
   if (isLoading) return <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4" style={{ borderColor: "var(--border)", borderTopColor: "#C8102E" }} /></div>;
   if (isError || !exam || exam.status !== "Publicada") return <Card className="mx-auto max-w-2xl p-10 text-center"><AlertTriangle className="mx-auto h-10 w-10 text-amber-500" /><p className="mt-3 font-bold" style={{ color: "var(--text-1)" }}>Prova indisponível.</p><Button className="mt-4" variant="outline" onClick={() => navigate({ to: "/provas" })}>Voltar</Button></Card>;
 
-  const finish = async () => {
-    if (answered < exam.questions.length && !confirm(`Você respondeu ${answered} de ${exam.questions.length} questões. Deseja finalizar mesmo assim?`)) return;
+  const submitAttempt = async () => {
     setSaving(true);
     try {
       const attempt = await saveAttempt({ exam_id: exam.id, answers });
@@ -50,6 +51,19 @@ function TakeExamPage() {
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Não foi possível salvar a prova");
     } finally { setSaving(false); }
+  };
+
+  const finish = () => {
+    if (answered < exam.questions.length) {
+      setConfirmFinishOpen(true);
+      return;
+    }
+    void submitAttempt();
+  };
+
+  const confirmIncompleteFinish = () => {
+    setConfirmFinishOpen(false);
+    void submitAttempt();
   };
 
   const confirmSignature = async (blob: Blob) => {
@@ -134,6 +148,21 @@ function TakeExamPage() {
         <Button variant="outline" disabled={index === 0} onClick={() => setIndex((value) => value - 1)}><ChevronLeft className="mr-2 h-4 w-4" />Anterior</Button>
         {index < exam.questions.length - 1 ? <Button className="bg-[#C8102E] text-white hover:bg-[#A00D24]" onClick={() => setIndex((value) => value + 1)}>Próxima<ChevronRight className="ml-2 h-4 w-4" /></Button> : <Button className="bg-[#C8102E] text-white hover:bg-[#A00D24]" disabled={saving} onClick={finish}>{saving ? "Salvando..." : "Finalizar prova"}</Button>}
       </div>
+
+      <AlertDialog open={confirmFinishOpen} onOpenChange={setConfirmFinishOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Finalizar com questões em branco?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você respondeu {answered} de {exam.questions.length} questões. As questões sem resposta serão consideradas incorretas pelo servidor.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Continuar respondendo</AlertDialogCancel>
+            <AlertDialogAction className="bg-[#C8102E] hover:bg-[#A00D24]" onClick={confirmIncompleteFinish}>Finalizar mesmo assim</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
