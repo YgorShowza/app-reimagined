@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 import {
   LayoutDashboard, ClipboardList, TrendingUp, Award, ClipboardCheck,
   Users, BarChart3, FileText, BookOpen, BookOpenCheck, Sun, Moon, Monitor,
@@ -81,7 +82,7 @@ function ThemeToggle() {
   ];
   return (
     <div
-      className="flex items-center gap-1 p-1 rounded-xl"
+      className="flex items-center gap-1 rounded-xl p-1"
       style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}
     >
       {options.map((opt) => {
@@ -91,13 +92,13 @@ function ThemeToggle() {
           <motion.button
             key={opt.value}
             onClick={() => setTheme(opt.value)}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.96 }}
-            className="flex-1 flex items-center justify-center h-8 rounded-lg transition-colors duration-200"
-            style={active ? { background: "rgba(255,255,255,0.1)", color: "#fff", boxShadow: "0 2px 8px rgba(0,0,0,0.3)" } : { color: "rgba(255,255,255,0.3)" }}
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.97 }}
+            className="flex h-8 flex-1 items-center justify-center rounded-lg transition-colors duration-150"
+            style={active ? { background: "#C8102E", color: "#fff", boxShadow: "0 2px 10px rgba(200,16,46,.24)" } : { color: "rgba(255,255,255,0.34)" }}
             aria-label={`Tema ${opt.value}`}
           >
-            <Icon className="w-3.5 h-3.5" />
+            <Icon className="h-3.5 w-3.5" />
           </motion.button>
         );
       })}
@@ -110,10 +111,14 @@ function MenuLink({ item }: { item: MenuItem }) {
   return (
     <Link to={item.path} className="block" activeOptions={{ exact: item.path === "/admin" || item.path === "/painel" }}>
       {({ isActive }) => (
-        <div className="relative flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-colors duration-150" style={isActive ? { background: "linear-gradient(135deg, rgba(200,16,46,0.14), rgba(200,16,46,0.06))", border: "1px solid rgba(200,16,46,0.22)", boxShadow: "0 0 18px rgba(200,16,46,0.08)" } : { border: "1px solid transparent" }}>
-          {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full" style={{ background: "linear-gradient(180deg, #e0142f, #C8102E)", boxShadow: "0 0 10px rgba(200,16,46,0.5)" }} />}
-          <Icon className="w-[17px] h-[17px] shrink-0 transition-colors" style={{ color: isActive ? "#ff5470" : "rgba(255,255,255,0.35)" }} />
-          <span className="text-[13px] font-medium tracking-wide transition-colors" style={{ color: isActive ? "#fff" : "rgba(255,255,255,0.5)" }}>{item.label}</span>
+        <div
+          className="relative flex items-center gap-3 rounded-xl px-3.5 py-2.5 transition-colors duration-150"
+          style={isActive
+            ? { background: "linear-gradient(135deg,#e0142f,#C8102E)", border: "1px solid rgba(255,84,112,.32)", boxShadow: "0 8px 20px rgba(200,16,46,.20)" }
+            : { border: "1px solid transparent" }}
+        >
+          <Icon className="h-[17px] w-[17px] shrink-0" style={{ color: isActive ? "#fff" : "rgba(255,255,255,0.40)" }} />
+          <span className="text-[13px] font-semibold tracking-wide" style={{ color: isActive ? "#fff" : "rgba(255,255,255,0.62)" }}>{item.label}</span>
         </div>
       )}
     </Link>
@@ -122,12 +127,12 @@ function MenuLink({ item }: { item: MenuItem }) {
 
 function MobileNavLink({ item }: { item: MenuItem }) {
   const Icon = item.icon;
-  return <Link to={item.path} className="flex-1" activeOptions={{ exact: true }}>{({ isActive }) => <div className="flex flex-col items-center gap-0.5 py-1.5 rounded-xl transition-colors duration-150" style={isActive ? { background: "var(--accent-soft)" } : {}}><Icon className="w-5 h-5" style={{ color: isActive ? "var(--accent)" : "var(--text-4)" }} /><span className="text-[10px] font-medium" style={{ color: isActive ? "var(--accent)" : "var(--text-4)" }}>{item.label}</span></div>}</Link>;
+  return <Link to={item.path} className="flex-1" activeOptions={{ exact: true }}>{({ isActive }) => <div className="flex flex-col items-center gap-0.5 rounded-xl py-1.5 transition-colors duration-150" style={isActive ? { background: "var(--accent-soft)" } : {}}><Icon className="h-5 w-5" style={{ color: isActive ? "var(--accent)" : "var(--text-4)" }} /><span className="text-[10px] font-medium" style={{ color: isActive ? "var(--accent)" : "var(--text-4)" }}>{item.label}</span></div>}</Link>;
 }
 
 function NavItems({ isAdmin }: { isAdmin: boolean }) {
   if (!isAdmin) return <div className="space-y-1.5">{operadorMenu.map((item) => <MenuLink key={item.path} item={item} />)}</div>;
-  return <>{adminSections.map((sec) => <div key={sec.section} className="space-y-1.5"><p className="text-[10px] font-bold uppercase tracking-[0.2em] px-3 pb-1" style={{ color: "rgba(255,255,255,0.22)" }}>{sec.section}</p>{sec.items.map((item) => <MenuLink key={item.path} item={item} />)}</div>)}</>;
+  return <>{adminSections.map((sec) => <div key={sec.section} className="space-y-1.5"><p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: "rgba(255,255,255,0.25)" }}>{sec.section}</p>{sec.items.map((item) => <MenuLink key={item.path} item={item} />)}</div>)}</>;
 }
 
 function HeaderClock() {
@@ -138,33 +143,93 @@ function HeaderClock() {
   return <div className="text-right"><p className="text-sm font-bold tabular-nums" style={{ color: "var(--text-1)" }}>{timeStr}</p><p className="text-[11px] capitalize" style={{ color: "var(--text-4)" }}>{dateStr}</p></div>;
 }
 
+function SidebarIdentity({ user, isAdmin }: { user: ReturnType<typeof useCurrentUser>["data"]; isAdmin: boolean }) {
+  const initial = user?.nome?.trim()?.charAt(0)?.toUpperCase() || "S";
+  return (
+    <div className="px-4 py-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-black text-white" style={{ background: "linear-gradient(135deg,#e0142f,#C8102E)", boxShadow: "0 8px 18px rgba(200,16,46,.24)" }}>
+          {initial}
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-[13px] font-black text-white">{user?.nome ?? "SEGEMPAT"}</p>
+          <p className="mt-0.5 text-[10px] font-mono" style={{ color: "rgba(255,255,255,.36)" }}>Mat. {user?.matricula ?? "—"}</p>
+        </div>
+      </div>
+      <div className="mt-3 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-black" style={{ background: "rgba(200,16,46,.12)", border: "1px solid rgba(200,16,46,.32)", color: "#ff5470" }}>
+        <span className="h-1.5 w-1.5 rounded-full bg-[#e0142f]" />
+        {isAdmin ? "Inspetor" : "Operador"}{user?.setor ? ` · ${user.setor}` : ""}
+      </div>
+    </div>
+  );
+}
+
 export function AppLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: user } = useCurrentUser();
   const isAdmin = user?.isAdmin ?? false;
   const [menuOpen, setMenuOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   useEffect(() => { setMenuOpen(false); }, [pathname]);
-  const handleLogout = async () => { await queryClient.cancelQueries(); queryClient.clear(); await supabase.auth.signOut(); navigate({ to: "/", replace: true }); };
+
+  const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      await queryClient.cancelQueries();
+      queryClient.clear();
+      navigate({ to: "/", replace: true });
+    } catch (error) {
+      console.error("Falha ao encerrar sessão", error);
+      toast.error("Não foi possível encerrar a sessão. Tente novamente.");
+    } finally {
+      setLoggingOut(false);
+    }
+  };
+
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-base)" }}>
-      <aside className="fixed left-0 top-0 bottom-0 w-60 hidden lg:flex flex-col z-40" style={{ background: "var(--sidebar-bg)", borderRight: "1px solid rgba(255,255,255,0.05)" }}>
-        <div className="px-4 pt-5 pb-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}><div className="flex items-center justify-center"><div className="rounded-xl overflow-hidden bg-white p-1.5" style={{ boxShadow: "var(--shadow-glow-gold, 0 0 18px rgba(200,160,0,0.35))" }}><img src={LOGO_URL} alt="EMPAT" className="h-12 w-auto object-contain" /></div></div></div>
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-4"><NavItems isAdmin={isAdmin} /></nav>
-        <div className="px-3 pb-4 pt-3 space-y-2.5" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}><ThemeToggle /><button onClick={handleLogout} className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-colors duration-150" style={{ border: "1px solid rgba(255,255,255,0.04)" }}><LogOut className="w-[17px] h-[17px]" style={{ color: "rgba(255,255,255,0.35)" }} /><span className="text-[13px] font-medium" style={{ color: "rgba(255,255,255,0.5)" }}>Sair</span></button></div>
+      <aside className="fixed bottom-0 left-0 top-0 z-40 hidden w-60 flex-col lg:flex" style={{ background: "var(--sidebar-bg)", borderRight: "1px solid rgba(255,255,255,0.05)" }}>
+        <div className="px-4 pb-4 pt-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}><div className="flex items-center justify-center"><div className="overflow-hidden rounded-xl bg-white p-1.5" style={{ boxShadow: "0 8px 22px rgba(0,0,0,.18)" }}><img src={LOGO_URL} alt="EMPAT" className="h-12 w-auto object-contain" /></div></div></div>
+        <SidebarIdentity user={user} isAdmin={isAdmin} />
+        <nav className="flex-1 space-y-4 overflow-y-auto px-3 py-4"><NavItems isAdmin={isAdmin} /></nav>
+        <div className="space-y-2.5 px-3 pb-4 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+          <ThemeToggle />
+          <button disabled={loggingOut} onClick={handleLogout} className="flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 transition-colors duration-150 disabled:opacity-50" style={{ border: "1px solid rgba(200,16,46,.28)", background: "rgba(200,16,46,.08)" }}><LogOut className="h-[17px] w-[17px]" style={{ color: "#ff5470" }} /><span className="text-[13px] font-semibold" style={{ color: "#ff5470" }}>{loggingOut ? "Saindo..." : "Sair do sistema"}</span></button>
+        </div>
       </aside>
-      <div className="lg:ml-60 flex flex-col min-h-screen">
-        <header className="sticky top-0 z-30 px-4 md:px-6 py-3 flex items-center justify-between gap-4" style={{ background: "var(--header-bg)", borderBottom: "1px solid var(--border)", backdropFilter: "blur(12px)" }}>
-          <div className="flex items-center gap-3 min-w-0">
-            <Sheet open={menuOpen} onOpenChange={setMenuOpen}><SheetTrigger asChild><button className="lg:hidden p-2 rounded-lg shrink-0" style={{ color: "var(--text-2)", border: "1px solid var(--border)" }} aria-label="Abrir menu"><Menu className="w-5 h-5" /></button></SheetTrigger><SheetContent side="left" className="w-[270px] p-0 border-0" style={{ background: "var(--sidebar-bg)" }}><SheetTitle className="sr-only">Menu</SheetTitle><div className="flex h-full flex-col"><div className="px-4 pt-5 pb-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}><div className="flex items-center justify-center"><div className="rounded-xl overflow-hidden bg-white p-1.5"><img src={LOGO_URL} alt="EMPAT" className="h-10 w-auto object-contain" /></div></div></div><nav className="flex-1 overflow-y-auto px-3 py-4 space-y-4"><NavItems isAdmin={isAdmin} /></nav><div className="px-3 pb-4 pt-3 space-y-2.5" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}><ThemeToggle /><button onClick={handleLogout} className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl" style={{ border: "1px solid rgba(255,255,255,0.04)" }}><LogOut className="w-[17px] h-[17px]" style={{ color: "rgba(255,255,255,0.35)" }} /><span className="text-[13px] font-medium" style={{ color: "rgba(255,255,255,0.5)" }}>Sair</span></button></div></div></SheetContent></Sheet>
-            <div className="lg:hidden rounded-lg overflow-hidden bg-white p-1 shrink-0"><img src={LOGO_URL} alt="EMPAT" className="h-8 w-auto object-contain" /></div>
-            <div className="min-w-0"><p className="text-sm font-bold truncate" style={{ color: "var(--text-1)" }}>{user?.nome ?? "…"}</p><p className="text-[11px] font-mono" style={{ color: "var(--text-4)" }}>Mat. {user?.matricula ?? "—"}</p></div>
+
+      <div className="flex min-h-screen flex-col lg:ml-60">
+        <header className="sticky top-0 z-30 flex items-center justify-between gap-4 px-4 py-3 md:px-6" style={{ background: "var(--header-bg)", borderBottom: "1px solid var(--border)", backdropFilter: "blur(12px)" }}>
+          <div className="flex min-w-0 items-center gap-3">
+            <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+              <SheetTrigger asChild><button className="shrink-0 rounded-lg p-2 lg:hidden" style={{ color: "var(--text-2)", border: "1px solid var(--border)" }} aria-label="Abrir menu"><Menu className="h-5 w-5" /></button></SheetTrigger>
+              <SheetContent side="left" className="w-[280px] border-0 p-0" style={{ background: "var(--sidebar-bg)" }}>
+                <SheetTitle className="sr-only">Menu</SheetTitle>
+                <div className="flex h-full flex-col">
+                  <div className="px-4 pb-4 pt-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}><div className="flex items-center justify-center"><div className="overflow-hidden rounded-xl bg-white p-1.5"><img src={LOGO_URL} alt="EMPAT" className="h-10 w-auto object-contain" /></div></div></div>
+                  <SidebarIdentity user={user} isAdmin={isAdmin} />
+                  <nav className="flex-1 space-y-4 overflow-y-auto px-3 py-4"><NavItems isAdmin={isAdmin} /></nav>
+                  <div className="space-y-2.5 px-3 pb-4 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                    <ThemeToggle />
+                    <button disabled={loggingOut} onClick={handleLogout} className="flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 disabled:opacity-50" style={{ border: "1px solid rgba(200,16,46,.28)", background: "rgba(200,16,46,.08)" }}><LogOut className="h-[17px] w-[17px]" style={{ color: "#ff5470" }} /><span className="text-[13px] font-semibold" style={{ color: "#ff5470" }}>{loggingOut ? "Saindo..." : "Sair do sistema"}</span></button>
+                  </div>
+                </div>
+              </SheetContent>
+            </Sheet>
+            <div className="shrink-0 overflow-hidden rounded-lg bg-white p-1 lg:hidden"><img src={LOGO_URL} alt="EMPAT" className="h-8 w-auto object-contain" /></div>
+            <div className="min-w-0"><p className="truncate text-sm font-bold" style={{ color: "var(--text-1)" }}>{user?.nome ?? "…"}</p><p className="text-[11px] font-mono" style={{ color: "var(--text-4)" }}>Mat. {user?.matricula ?? "—"}</p></div>
           </div>
-          <div className="flex items-center gap-3 md:gap-4 shrink-0"><div className="hidden sm:flex items-center gap-2"><div className="relative flex w-2 h-2"><span className="absolute inline-flex w-full h-full rounded-full bg-green-400 opacity-60 animate-ping" /><span className="relative inline-flex w-2 h-2 rounded-full bg-green-500" /></div><span className="text-xs font-medium" style={{ color: "var(--text-3)" }}>Online</span></div><HeaderClock /><button onClick={handleLogout} className="lg:hidden p-2 rounded-lg transition-colors" style={{ color: "var(--text-3)" }} aria-label="Sair"><LogOut className="w-4 h-4" /></button></div>
+          <div className="flex shrink-0 items-center gap-3 md:gap-4"><div className="hidden items-center gap-2 sm:flex"><div className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-60" /><span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" /></div><span className="text-xs font-medium" style={{ color: "var(--text-3)" }}>Online</span></div><HeaderClock /><button disabled={loggingOut} onClick={handleLogout} className="rounded-lg p-2 transition-colors disabled:opacity-50 lg:hidden" style={{ color: "var(--text-3)" }} aria-label="Sair"><LogOut className="h-4 w-4" /></button></div>
         </header>
-        <main className="flex-1 p-4 md:p-6 pb-24 lg:pb-8">{children}</main>
-        {!isAdmin && <nav className="fixed bottom-0 left-0 right-0 lg:hidden z-40 px-2 py-1.5" style={{ background: "var(--header-bg)", borderTop: "1px solid var(--border)", backdropFilter: "blur(12px)" }}><div className="flex items-center justify-around gap-1">{operadorMenu.slice(0, 5).map((item) => <MobileNavLink key={item.path} item={item} />)}</div></nav>}
+
+        <main className="flex-1 p-4 pb-24 md:p-6 md:pb-24 lg:pb-8">{children}</main>
+
+        {!isAdmin && <nav className="fixed bottom-0 left-0 right-0 z-40 px-2 py-1.5 lg:hidden" style={{ background: "var(--header-bg)", borderTop: "1px solid var(--border)", backdropFilter: "blur(12px)" }}><div className="flex items-center justify-around gap-1">{operadorMenu.slice(0, 5).map((item) => <MobileNavLink key={item.path} item={item} />)}</div></nav>}
       </div>
     </div>
   );
