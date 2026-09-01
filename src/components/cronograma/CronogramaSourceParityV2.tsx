@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   BarChart3,
@@ -34,7 +34,7 @@ const STATUS = {
 
 const WEEK = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
-export function CronogramaSourceParityV2() {
+export function CronogramaSourceParityV2({ actions }: { actions?: ReactNode }) {
   const [view, setView] = useState<PrimaryView>("lista");
   const [month, setMonth] = useState(currentMonthStr());
   const year = Number(month.slice(0, 4));
@@ -57,7 +57,7 @@ export function CronogramaSourceParityV2() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-4 pb-10">
-      <PrimaryHeader month={month} setMonth={setMonth} view={view} setView={setView} />
+      <PrimaryHeader month={month} setMonth={setMonth} view={view} setView={setView} actions={actions} />
 
       {view === "lista" && (
         <CronogramaGroupedList
@@ -97,11 +97,13 @@ function PrimaryHeader({
   setMonth,
   view,
   setView,
+  actions,
 }: {
   month: string;
   setMonth: (month: string) => void;
   view: PrimaryView;
   setView: (view: PrimaryView) => void;
+  actions?: ReactNode;
 }) {
   return (
     <section
@@ -174,6 +176,17 @@ function PrimaryHeader({
           <ViewButton active={view === "calendario"} onClick={() => setView("calendario")} icon={CalendarDays} label="Calendário" />
           <ViewButton active={view === "ano"} onClick={() => setView("ano")} icon={BarChart3} label="Ano" />
         </div>
+
+        {actions && (
+          <>
+            <span
+              className="hidden h-8 w-px shrink-0 sm:block"
+              style={{ background: "var(--border)" }}
+              aria-hidden
+            />
+            {actions}
+          </>
+        )}
       </div>
     </section>
   );
