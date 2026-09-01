@@ -34,7 +34,7 @@ const STATUS = {
 
 const WEEK = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
-export function CronogramaSourceParityV2() {
+export function CronogramaSourceParityV2({ actions }: { actions?: ReactNode }) {
   const [view, setView] = useState<PrimaryView>("lista");
   const [month, setMonth] = useState(currentMonthStr());
   const year = Number(month.slice(0, 4));
