@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
@@ -56,7 +56,13 @@ function StatusBadge({ status }: { status: CronogramaStatus }) {
   return <span className="text-[10px] font-black px-2 py-1 rounded-full" style={{ color: s.color, background: s.bg, border: `1px solid ${s.border}` }}>{status}</span>;
 }
 
-export function CronogramaWorkspace() {
+export function CronogramaWorkspace({
+  autoOpenNew = false,
+  onAutoOpenHandled,
+}: {
+  autoOpenNew?: boolean;
+  onAutoOpenHandled?: () => void;
+} = {}) {
   const qc = useQueryClient();
   const { data: user } = useCurrentUser();
   const isAdmin = user?.isAdmin ?? false;
@@ -73,6 +79,7 @@ export function CronogramaWorkspace() {
   const [editing, setEditing] = useState<CronogramaEntry | null>(null);
   const [form, setForm] = useState<CronogramaEntryInput>(() => emptyForm(month));
   const [toDelete, setToDelete] = useState<CronogramaEntry | null>(null);
+  const autoOpenHandledRef = useRef(false);
 
   const entriesQuery = useQuery({ queryKey: ["cronograma", month], queryFn: () => listCronogramaEntries(month) });
   const yearQuery = useQuery({ queryKey: ["cronograma-year", year], queryFn: () => listCronogramaEntriesByYear(year), enabled: view === "ano" });
@@ -134,6 +141,19 @@ export function CronogramaWorkspace() {
     setForm((f) => ({ ...f, exam_id: id, exam_title: exam?.title ?? null, theme: exam?.title || f.theme }));
   };
   const openNew = () => { setEditing(null); setForm(emptyForm(month)); setEntryOpen(true); };
+
+  useEffect(() => {
+    if (!autoOpenNew) {
+      autoOpenHandledRef.current = false;
+      return;
+    }
+    if (!isAdmin || autoOpenHandledRef.current) return;
+    autoOpenHandledRef.current = true;
+    setEditing(null);
+    setForm(emptyForm(month));
+    setEntryOpen(true);
+    onAutoOpenHandled?.();
+  }, [autoOpenNew, isAdmin, month, onAutoOpenHandled]);
   const openEdit = (e: CronogramaEntry) => { setEditing(e); setForm({ month: e.month, employee_id: e.employee_id, employee_name: e.employee_name, employee_matricula: e.employee_matricula, employee_sector: e.employee_sector, theme: e.theme, exam_id: e.exam_id, exam_title: e.exam_title, type: e.type, status: e.status, justification: e.justification, planned_date: e.planned_date, completion_date: e.completion_date, notes: e.notes, question_bank_ids: e.question_bank_ids }); setEntryOpen(true); };
 
   const views: Array<{ id: ViewMode; label: string; icon: typeof CalendarDays }> = [
