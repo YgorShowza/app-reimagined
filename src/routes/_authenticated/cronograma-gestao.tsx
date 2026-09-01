@@ -2,9 +2,10 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { CronogramaWorkspace } from "@/components/cronograma/CronogramaWorkspace";
 
 export const Route = createFileRoute("/_authenticated/cronograma-gestao")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    novo: search["novo"] === true || search["novo"] === "1" || search["novo"] === "true",
-  }),
+  validateSearch: (search: Record<string, unknown>): { novo?: boolean } => {
+    const novo = search["novo"] === true || search["novo"] === "1" || search["novo"] === "true";
+    return novo ? { novo: true } : {};
+  },
   head: () => ({
     meta: [
       { title: "Cronograma · SEGEMPAT" },
@@ -20,8 +21,8 @@ function CronogramaGestaoPage() {
 
   return (
     <CronogramaWorkspace
-      autoOpenNew={novo}
-      onAutoOpenHandled={() => navigate({ to: "/cronograma-gestao", search: { novo: false }, replace: true })}
+      autoOpenNew={Boolean(novo)}
+      onAutoOpenHandled={() => navigate({ to: "/cronograma-gestao", search: {}, replace: true })}
     />
   );
 }
