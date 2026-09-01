@@ -176,6 +176,17 @@ function PrimaryHeader({
           <ViewButton active={view === "calendario"} onClick={() => setView("calendario")} icon={CalendarDays} label="Calendário" />
           <ViewButton active={view === "ano"} onClick={() => setView("ano")} icon={BarChart3} label="Ano" />
         </div>
+
+        {actions && (
+          <>
+            <span
+              className="hidden h-8 w-px shrink-0 sm:block"
+              style={{ background: "var(--border)" }}
+              aria-hidden
+            />
+            {actions}
+          </>
+        )}
       </div>
     </section>
   );
