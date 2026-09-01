@@ -18,6 +18,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate migration versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(find supabase/migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort)
+          bad=0
+          versions=()
+          for file in "${files[@]}"; do
+            if [[ ! "$file" =~ ^[0-9]{14}_.+\.sql$ ]]; then
+              echo "::error::Migration com nome inválido: $file"
+              bad=1
+              continue
+            fi
+            versions+=("${file:0:14}")
+          done
+          duplicates=$(printf '%s\n' "${versions[@]}" | sort | uniq -d)
+          if [[ -n "$duplicates" ]]; then
+            echo "::error::Versões duplicadas de migration: $duplicates"
+            bad=1
+          fi
+          if [[ "$bad" -ne 0 ]]; then
+            exit 1
+          fi
+          echo "Migrations verificadas: ${#files[@]} arquivo(s), versões únicas."
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
