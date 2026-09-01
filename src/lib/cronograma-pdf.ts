@@ -105,6 +105,17 @@ export async function exportCronogramaDetailedPdf(entries: CronogramaEntry[], em
     return 33;
   };
 
+  const drawSectorHeader = (sector: string, y: number) => {
+    doc.setFillColor(238, 238, 238);
+    doc.rect(startX, y, 190, 7, "F");
+    doc.setDrawColor(0, 0, 0);
+    doc.rect(startX, y, 190, 7);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.text(`SETOR: ${sector || "N/D"}`, startX + padding, y + 5);
+    return y + 7;
+  };
+
   let y = drawTableHeader(drawPageHeader());
   let rowNumber = 0;
   let lastSector: string | null = null;
@@ -115,20 +126,14 @@ export async function exportCronogramaDetailedPdf(entries: CronogramaEntry[], em
         doc.addPage();
         y = drawTableHeader(drawPageHeader());
       }
-      doc.setFillColor(238, 238, 238);
-      doc.rect(startX, y, 190, 7, "F");
-      doc.setDrawColor(0, 0, 0);
-      doc.rect(startX, y, 190, 7);
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "bold");
-      doc.text(`SETOR: ${row.sector || "N/D"}`, startX + padding, y + 5);
-      y += 7;
+      y = drawSectorHeader(row.sector, y);
       lastSector = row.sector;
     }
     if (y + rowHeight > pageHeight - 14) {
       doc.addPage();
       y = drawTableHeader(drawPageHeader());
-      lastSector = null;
+      y = drawSectorHeader(row.sector, y);
+      lastSector = row.sector;
     }
     rowNumber += 1;
     if (rowNumber % 2 === 0) {
@@ -230,6 +235,16 @@ export async function exportCronogramaAttendancePdf(entries: CronogramaEntry[], 
     doc.line(margin, 44, pageWidth - margin, 44);
     return 47;
   };
+  const drawSectorHeader = (sector: string, y: number) => {
+    doc.setFillColor(238, 238, 238);
+    doc.rect(margin, y, 190, 7, "F");
+    doc.setDrawColor(0, 0, 0);
+    doc.rect(margin, y, 190, 7);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.text(`SETOR: ${sector}`, margin + padding, y + 5);
+    return y + 7;
+  };
 
   let y = drawTableHeader(drawPageHeader());
   let rowIndex = 0;
@@ -241,20 +256,14 @@ export async function exportCronogramaAttendancePdf(entries: CronogramaEntry[], 
         doc.addPage();
         y = drawTableHeader(drawPageHeader());
       }
-      doc.setFillColor(238, 238, 238);
-      doc.rect(margin, y, 190, 7, "F");
-      doc.setDrawColor(0, 0, 0);
-      doc.rect(margin, y, 190, 7);
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "bold");
-      doc.text(`SETOR: ${sector}`, margin + padding, y + 5);
-      y += 7;
+      y = drawSectorHeader(sector, y);
       lastSector = sector;
     }
     if (y + rowHeight > pageHeight - 14) {
       doc.addPage();
       y = drawTableHeader(drawPageHeader());
-      lastSector = null;
+      y = drawSectorHeader(sector, y);
+      lastSector = sector;
     }
     rowIndex += 1;
     if (rowIndex % 2 === 0) {
