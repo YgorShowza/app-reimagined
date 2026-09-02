@@ -17,10 +17,13 @@ export function createSessionToken(userId) {
 export function readSessionToken(token) {
   if (typeof token !== "string" || !token.includes(".")) return null;
   const [payload, signature] = token.split(".");
+  if (!payload || !signature) return null;
+
   const expected = sign(payload);
-  const a = Buffer.from(signature ?? "");
+  const a = Buffer.from(signature);
   const b = Buffer.from(expected);
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+
   try {
     const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
     if (!data?.sub || typeof data.exp !== "number" || data.exp < Date.now()) return null;
@@ -50,23 +53,23 @@ export function clearSessionCookie(res) {
 }
 
 /**
- * Reconstrói o contexto de autorização a cada requisição — equivalente ao que a
- * RLS fazia no banco anterior. Colaborador inativo perde acesso mesmo com
- * cookie de sessão válido.
+ * Reconstrói o contexto de autorização a cada requisição. Conta e colaborador
+ * precisam permanecer ativos mesmo quando o cookie de sessão ainda é válido.
  */
 export async function loadAuthContext(userId) {
   const row = await queryOne(
-    `SELECT u.id, u.matricula, p.nome,
-            e.id AS employee_id, e.full_name, e.sector, e.access_profile, e.status
+    `SELECT u.id, u.matricula, u.status AS account_status, p.nome,
+            e.id AS employee_id, e.full_name, e.sector, e.access_profile,
+            e.status AS employee_status
        FROM app_users u
        LEFT JOIN profiles p ON p.id = u.id
        LEFT JOIN employees e ON LOWER(TRIM(e.matricula)) = LOWER(TRIM(u.matricula))
-      WHERE u.id = ? AND u.disabled_at IS NULL
+      WHERE u.id = ?
       LIMIT 1`,
     [userId],
   );
   if (!row) return null;
-  if (row.status !== "Ativo") return null;
+  if (row.account_status !== "Ativo" || row.employee_status !== "Ativo") return null;
 
   const roles = await query(`SELECT role FROM user_roles WHERE user_id = ?`, [userId]);
   const isAdmin = roles.some((entry) => entry.role === "admin");
