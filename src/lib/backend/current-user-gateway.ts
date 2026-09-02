@@ -11,22 +11,20 @@ async function legacyCurrentUser(): Promise<SessionUser | null> {
     supabase.from("profiles").select("matricula, nome").eq("id", user.id).maybeSingle(),
     supabase.from("user_roles").select("role").eq("user_id", user.id),
   ]);
+  if (!profile?.matricula) return null;
 
-  let setor: string | null = null;
-  if (profile?.matricula) {
-    const { data: employee } = await supabase
-      .from("employees")
-      .select("sector")
-      .eq("matricula", profile.matricula)
-      .maybeSingle();
-    setor = employee?.sector ?? null;
-  }
+  const { data: employee } = await supabase
+    .from("employees")
+    .select("sector,status")
+    .eq("matricula", profile.matricula)
+    .maybeSingle();
+  if (!employee || employee.status !== "Ativo") return null;
 
   return {
     id: user.id,
-    matricula: profile?.matricula ?? "",
-    nome: profile?.nome ?? "",
-    setor,
+    matricula: profile.matricula,
+    nome: profile.nome ?? profile.matricula,
+    setor: employee.sector ?? null,
     isAdmin: (roles ?? []).some((role) => role.role === "admin"),
   };
 }
