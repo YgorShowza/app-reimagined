@@ -3,8 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, BookOpen, ChevronRight, GraduationCap, Search, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { listEmployees } from "@/lib/employees";
 import { listTrainingModules, type TrainingModule } from "@/lib/training-modules";
+import { getCurrentEmployeeByAuth } from "@/lib/insights";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 
 export function TrainingLibrary() {
@@ -13,13 +13,8 @@ export function TrainingLibrary() {
   const [selected, setSelected] = useState<TrainingModule | null>(null);
 
   const modulesQuery = useQuery({ queryKey: ["training-modules"], queryFn: listTrainingModules });
-  const employeesQuery = useQuery({ queryKey: ["employees-current-training"], queryFn: listEmployees });
-
-  const currentEmployee = useMemo(
-    () => (employeesQuery.data ?? []).find((employee) => employee.matricula === user?.matricula),
-    [employeesQuery.data, user?.matricula],
-  );
-  const sector = currentEmployee?.sector || "";
+  const employeeQuery = useQuery({ queryKey: ["current-employee-training"], queryFn: getCurrentEmployeeByAuth, enabled: !user?.isAdmin, staleTime: 60_000 });
+  const sector = user?.isAdmin ? "" : employeeQuery.data?.sector || user?.setor || "";
 
   const modules = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -65,7 +60,7 @@ export function TrainingLibrary() {
 
       <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: "var(--text-4)" }} /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar treinamento..." className="pl-10" /></div>
 
-      {modulesQuery.isLoading ? <div className="flex justify-center py-16"><div className="h-8 w-8 animate-spin rounded-full border-4" style={{ borderColor: "var(--border)", borderTopColor: "#C8102E" }} /></div> : modules.length === 0 ? (
+      {modulesQuery.isLoading || (!user?.isAdmin && employeeQuery.isLoading) ? <div className="flex justify-center py-16"><div className="h-8 w-8 animate-spin rounded-full border-4" style={{ borderColor: "var(--border)", borderTopColor: "#C8102E" }} /></div> : modules.length === 0 ? (
         <section className="rounded-2xl p-12 text-center" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}><GraduationCap className="mx-auto h-10 w-10 opacity-25" /><p className="mt-3 font-bold" style={{ color: "var(--text-1)" }}>Nenhum treinamento disponível.</p></section>
       ) : (
         <div className="space-y-3">
