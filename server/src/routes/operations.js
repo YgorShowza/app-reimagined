@@ -18,6 +18,28 @@ const boolRow = (row) => ({ ...row, active: asBool(row.active) });
 const practicalRow = (row) => ({ ...row, score: Number(row.score || 0), max_score: Number(row.max_score || 10), checklist: jsonValue(row.checklist, []) });
 const templateRow = (row) => ({ ...row, min_approval_score: Number(row.min_approval_score || 7), applications_per_month: Number(row.applications_per_month || 1), tasks: jsonValue(row.tasks, []) });
 
+function mysqlDateTimeOrNull(value, label) {
+  const text = trimOrNull(value);
+  if (!text) return null;
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) throw badRequest(`${label} inválida`);
+  return date;
+}
+
+async function occurrenceEmployeeForCreate(req) {
+  if (!req.user.isAdmin) {
+    const employee = await queryOne(`SELECT id,full_name,matricula,status FROM employees WHERE id = ?`, [req.user.employeeId]);
+    if (!employee || employee.status !== "Ativo") throw badRequest("Colaborador autenticado não está disponível para registro");
+    return employee;
+  }
+
+  const employeeId = trimOrNull(req.body?.employee_id);
+  if (!employeeId) return null;
+  const employee = await queryOne(`SELECT id,full_name,matricula,status FROM employees WHERE id = ?`, [employeeId]);
+  if (!employee) throw notFound("Colaborador relacionado não encontrado");
+  return employee;
+}
+
 operationsRouter.get("/knowledge", requireAuth, asyncHandler(async (req, res) => {
   const rows = req.user.isAdmin
     ? await query(`SELECT * FROM knowledge_items ORDER BY category, title`)
@@ -57,18 +79,51 @@ operationsRouter.get("/occurrences", requireAuth, asyncHandler(async (req,res)=>
 }));
 operationsRouter.post("/occurrences", requireAuth, asyncHandler(async (req,res)=>{
   const id=uuid();
-  const title=requireText(req.body?.title,"Título"); const category=requireText(req.body?.category || "Operacional","Categoria");
-  const severity=requireOneOf(req.body?.severity,SEVERITIES,"Severidade","Baixa"); const description=requireText(req.body?.description,"Descrição");
-  await execute(`INSERT INTO occurrences (id,employee_id,employee_name,employee_matricula,title,category,severity,description,location,status,occurred_at,resolution_notes,resolved_at,created_by,created_by_name,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,'Aberta',COALESCE(?,UTC_TIMESTAMP(3)),NULL,NULL,?,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))`, [id,trimOrNull(req.body?.employee_id),trimOrNull(req.body?.employee_name),trimOrNull(req.body?.employee_matricula),title,category,severity,description,trimOrNull(req.body?.location),trimOrNull(req.body?.occurred_at),req.user.id,trimOrNull(req.body?.created_by_name)||req.user.nome]);
-  await audit(req.user.id,"INSERT","occurrences",id,{title,severity}); res.status(201).json({id});
+  const title=requireText(req.body?.title,"Título");
+  const category=requireText(req.body?.category || "Operacional","Categoria");
+  const severity=requireOneOf(req.body?.severity,SEVERITIES,"Severidade","Baixa");
+  const description=requireText(req.body?.description,"Descrição");
+  const employee = await occurrenceEmployeeForCreate(req);
+  const occurredAt = mysqlDateTimeOrNull(req.body?.occurred_at, "Data/hora da ocorrência");
+  await execute(
+    `INSERT INTO occurrences (id,employee_id,employee_name,employee_matricula,title,category,severity,description,location,status,occurred_at,resolution_notes,resolved_at,created_by,created_by_name,created_at,updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,'Aberta',COALESCE(?,UTC_TIMESTAMP(3)),NULL,NULL,?,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))`,
+    [id,employee?.id ?? null,employee?.full_name ?? null,employee?.matricula ?? null,title,category,severity,description,trimOrNull(req.body?.location),occurredAt,req.user.id,req.user.nome],
+  );
+  await audit(req.user.id,"INSERT","occurrences",id,{title,severity,employee_id:employee?.id ?? null,identity_derived_server_side:true});
+  res.status(201).json({id});
 }));
 operationsRouter.patch("/occurrences/:id", requireAdmin, asyncHandler(async (req,res)=>{
-  const current=await queryOne(`SELECT * FROM occurrences WHERE id = ?`,[req.params.id]); if(!current) throw notFound("Ocorrência não encontrada");
-  const allowed=["employee_id","employee_name","employee_matricula","title","category","severity","description","location","status","occurred_at","resolution_notes","resolved_at","created_by_name"];
+  const current=await queryOne(`SELECT * FROM occurrences WHERE id = ?`,[req.params.id]);
+  if(!current) throw notFound("Ocorrência não encontrada");
+
+  const allowed=["title","category","severity","description","location","status","occurred_at","resolution_notes","resolved_at"];
   const patch=Object.fromEntries(allowed.filter(k=>Object.prototype.hasOwnProperty.call(req.body||{},k)).map(k=>[k,req.body[k]]));
-  if(patch.severity) patch.severity=requireOneOf(patch.severity,SEVERITIES,"Severidade"); if(patch.status) patch.status=requireOneOf(patch.status,OCCURRENCE_STATUS,"Situação");
-  const fields=Object.keys(patch); if(!fields.length) throw badRequest("Nenhum campo para atualizar");
-  await execute(`UPDATE occurrences SET ${fields.map(f=>`${f} = ?`).join(", ")}, updated_at=UTC_TIMESTAMP(3) WHERE id=?`,[...fields.map(f=>patch[f]),req.params.id]); await audit(req.user.id,"UPDATE","occurrences",req.params.id,{changed:fields}); res.status(204).end();
+  if(patch.severity) patch.severity=requireOneOf(patch.severity,SEVERITIES,"Severidade");
+  if(patch.status) patch.status=requireOneOf(patch.status,OCCURRENCE_STATUS,"Situação");
+  if(Object.prototype.hasOwnProperty.call(patch,"occurred_at")) patch.occurred_at=mysqlDateTimeOrNull(patch.occurred_at,"Data/hora da ocorrência");
+  if(Object.prototype.hasOwnProperty.call(patch,"resolved_at")) patch.resolved_at=mysqlDateTimeOrNull(patch.resolved_at,"Data/hora de conclusão");
+
+  if (Object.prototype.hasOwnProperty.call(req.body || {}, "employee_id")) {
+    const employeeId = trimOrNull(req.body?.employee_id);
+    if (!employeeId) {
+      patch.employee_id = null;
+      patch.employee_name = null;
+      patch.employee_matricula = null;
+    } else {
+      const employee = await queryOne(`SELECT id,full_name,matricula FROM employees WHERE id = ?`, [employeeId]);
+      if (!employee) throw notFound("Colaborador relacionado não encontrado");
+      patch.employee_id = employee.id;
+      patch.employee_name = employee.full_name;
+      patch.employee_matricula = employee.matricula;
+    }
+  }
+
+  const fields=Object.keys(patch);
+  if(!fields.length) throw badRequest("Nenhum campo para atualizar");
+  await execute(`UPDATE occurrences SET ${fields.map(f=>`${f} = ?`).join(", ")}, updated_at=UTC_TIMESTAMP(3) WHERE id=?`,[...fields.map(f=>patch[f]),req.params.id]);
+  await audit(req.user.id,"UPDATE","occurrences",req.params.id,{changed:fields,identity_derived_server_side:Object.prototype.hasOwnProperty.call(req.body || {},"employee_id")});
+  res.status(204).end();
 }));
 operationsRouter.delete("/occurrences/:id", requireAdmin, asyncHandler(async(req,res)=>{await execute(`DELETE FROM occurrences WHERE id=?`,[req.params.id]);await audit(req.user.id,"DELETE","occurrences",req.params.id);res.status(204).end();}));
 
