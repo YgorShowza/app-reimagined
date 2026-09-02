@@ -1,26 +1,11 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Award, CheckCircle2, Clock3, ExternalLink, FileSignature, RefreshCw, Search, ShieldCheck } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useCurrentUser } from "@/lib/useCurrentUser";
-import { getSignatureUrl } from "@/lib/exams";
+import { getSignatureUrl, listExamSignatureEvidence, type ExamSignatureEvidence } from "@/lib/exams";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-
-type Row = {
-  id: string;
-  matricula: string | null;
-  score: number;
-  passed: boolean;
-  certificate_code: string | null;
-  signature_path: string | null;
-  signature_name: string | null;
-  signed_at: string | null;
-  finished_at: string;
-  exam_title: string;
-  employee_name: string;
-};
 
 function fmt(value?: string | null) {
   if (!value) return "—";
@@ -34,33 +19,12 @@ function fmt(value?: string | null) {
   });
 }
 
-async function listRows(): Promise<Row[]> {
-  const client = supabase as any;
-  const [{ data: attempts, error: aErr }, { data: exams, error: eErr }, { data: employees, error: empErr }] = await Promise.all([
-    client.from("exam_attempts").select("id, exam_id, matricula, score, passed, certificate_code, signature_path, signature_name, signed_at, finished_at").order("finished_at", { ascending: false }),
-    client.from("exams").select("id, title"),
-    client.from("employees").select("id, matricula, full_name"),
-  ]);
-  if (aErr) throw aErr;
-  if (eErr) throw eErr;
-  if (empErr) throw empErr;
-
-  const examMap = new Map((exams ?? []).map((r: any) => [r.id, r.title]));
-  const employeeByMatricula = new Map((employees ?? []).map((r: any) => [r.matricula, r.full_name]));
-
-  return (attempts ?? []).map((r: any) => ({
-    ...r,
-    exam_title: examMap.get(r.exam_id) ?? "Avaliação",
-    employee_name: employeeByMatricula.get(r.matricula) ?? r.signature_name ?? "Colaborador",
-  }));
-}
-
 export function ExamSignaturesWorkspace() {
   const { data: user, isLoading: userLoading } = useCurrentUser();
   const [search, setSearch] = useState("");
-  const query = useQuery({ queryKey: ["exam-signature-evidence"], queryFn: listRows, enabled: Boolean(user?.isAdmin), staleTime: 60_000 });
+  const query = useQuery({ queryKey: ["exam-signature-evidence"], queryFn: listExamSignatureEvidence, enabled: Boolean(user?.isAdmin), staleTime: 60_000 });
 
-  const rows = query.data ?? [];
+  const rows: ExamSignatureEvidence[] = query.data ?? [];
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return rows;
@@ -70,12 +34,12 @@ export function ExamSignaturesWorkspace() {
   if (userLoading) return <Loading />;
   if (!user?.isAdmin) return <div className="mx-auto max-w-xl rounded-2xl p-8 text-center" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}><ShieldCheck className="mx-auto h-10 w-10" style={{ color: "var(--accent)" }} /><h1 className="mt-3 text-lg font-black" style={{ color: "var(--text-1)" }}>Acesso restrito</h1><p className="mt-1 text-sm" style={{ color: "var(--text-4)" }}>Evidências de assinatura são exclusivas da Inspetoria.</p></div>;
 
-  const openSignature = async (path: string) => {
+  const openSignature = async (signaturePath: string) => {
     try {
-      const url = await getSignatureUrl(path, 300);
+      const url = await getSignatureUrl(signaturePath, 300);
       window.open(url, "_blank", "noopener,noreferrer");
-    } catch (e: any) {
-      toast.error(e?.message || "Não foi possível abrir a assinatura");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Não foi possível abrir a assinatura");
     }
   };
 
