@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { apiRequest, isSegempatApiConfigured } from "@/lib/backend/api-client";
 
 export type CronogramaStatus = "Pendente" | "Realizado" | "Justificado";
 export type CronogramaType = "Planejado" | "Realizado";
@@ -144,6 +145,9 @@ async function authUserId() {
 }
 
 export async function listCronogramaEntries(month: string): Promise<CronogramaEntry[]> {
+  if (isSegempatApiConfigured()) {
+    return apiRequest<CronogramaEntry[]>(`/api/cronograma?month=${encodeURIComponent(month)}`);
+  }
   const { data, error } = await (supabase as any)
     .from("cronograma_entries")
     .select("*")
@@ -155,6 +159,9 @@ export async function listCronogramaEntries(month: string): Promise<CronogramaEn
 }
 
 export async function listCronogramaEntriesByYear(year: number): Promise<CronogramaEntry[]> {
+  if (isSegempatApiConfigured()) {
+    return apiRequest<CronogramaEntry[]>(`/api/cronograma/year/${year}`);
+  }
   const start = `${year}-01`;
   const end = `${year}-12`;
   const { data, error } = await (supabase as any)
@@ -170,6 +177,13 @@ export async function listCronogramaEntriesByYear(year: number): Promise<Cronogr
 
 export async function createCronogramaEntries(entries: CronogramaEntryInput[]) {
   if (!entries.length) return;
+  if (isSegempatApiConfigured()) {
+    await apiRequest<{ ids: string[]; count: number }>("/api/cronograma/bulk", {
+      method: "POST",
+      body: JSON.stringify({ entries }),
+    });
+    return;
+  }
   const createdBy = await authUserId();
   const payload = entries.map((entry) => ({
     ...entry,
@@ -196,16 +210,31 @@ export async function updateCronogramaEntry(id: string, patch: Partial<Cronogram
     ...(patch.completion_date !== undefined ? { completion_date: patch.completion_date || null } : {}),
     ...(patch.notes !== undefined ? { notes: patch.notes || null } : {}),
   };
+  if (isSegempatApiConfigured()) {
+    await apiRequest<void>(`/api/cronograma/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(normalized),
+    });
+    return;
+  }
   const { error } = await (supabase as any).from("cronograma_entries").update(normalized).eq("id", id);
   if (error) throw error;
 }
 
 export async function deleteCronogramaEntry(id: string) {
+  if (isSegempatApiConfigured()) {
+    await apiRequest<void>(`/api/cronograma/${encodeURIComponent(id)}`, { method: "DELETE" });
+    return;
+  }
   const { error } = await (supabase as any).from("cronograma_entries").delete().eq("id", id);
   if (error) throw error;
 }
 
 export async function markCronogramaEntryComplete(id: string, date = new Date().toISOString().slice(0, 10)) {
+  if (isSegempatApiConfigured()) {
+    await updateCronogramaEntry(id, { status: "Realizado", type: "Realizado", completion_date: date, justification: null });
+    return;
+  }
   const { error } = await (supabase as any)
     .from("cronograma_entries")
     .update({ status: "Realizado", type: "Realizado", completion_date: date, justification: null })
@@ -231,6 +260,7 @@ export function annualSummary(entries: CronogramaEntry[], year: number): AnnualM
 }
 
 export async function listRecurringModels(): Promise<RecurringModel[]> {
+  if (isSegempatApiConfigured()) return apiRequest<RecurringModel[]>("/api/cronograma/recurring-models");
   const { data, error } = await (supabase as any)
     .from("cronograma_recurring_models")
     .select("*")
@@ -241,6 +271,10 @@ export async function listRecurringModels(): Promise<RecurringModel[]> {
 }
 
 export async function createRecurringModel(input: RecurringModelInput) {
+  if (isSegempatApiConfigured()) {
+    await apiRequest<{ id: string }>("/api/cronograma/recurring-models", { method: "POST", body: JSON.stringify(input) });
+    return;
+  }
   const createdBy = await authUserId();
   const { error } = await (supabase as any).from("cronograma_recurring_models").insert({
     theme: input.theme.trim(),
@@ -254,11 +288,19 @@ export async function createRecurringModel(input: RecurringModelInput) {
 }
 
 export async function updateRecurringModel(id: string, patch: Partial<RecurringModelInput>) {
+  if (isSegempatApiConfigured()) {
+    await apiRequest<void>(`/api/cronograma/recurring-models/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(patch) });
+    return;
+  }
   const { error } = await (supabase as any).from("cronograma_recurring_models").update(patch).eq("id", id);
   if (error) throw error;
 }
 
 export async function deleteRecurringModel(id: string) {
+  if (isSegempatApiConfigured()) {
+    await apiRequest<void>(`/api/cronograma/recurring-models/${encodeURIComponent(id)}`, { method: "DELETE" });
+    return;
+  }
   const { error } = await (supabase as any).from("cronograma_recurring_models").delete().eq("id", id);
   if (error) throw error;
 }
@@ -299,6 +341,9 @@ export async function applyRecurringModels(params: {
 }
 
 export async function listSuspensions(month: string): Promise<CronogramaSuspension[]> {
+  if (isSegempatApiConfigured()) {
+    return apiRequest<CronogramaSuspension[]>(`/api/cronograma/suspensions?month=${encodeURIComponent(month)}`);
+  }
   const { data, error } = await (supabase as any)
     .from("cronograma_suspensions")
     .select("*")
@@ -310,6 +355,10 @@ export async function listSuspensions(month: string): Promise<CronogramaSuspensi
 }
 
 export async function createSuspension(input: CronogramaSuspensionInput) {
+  if (isSegempatApiConfigured()) {
+    await apiRequest<{ id: string }>("/api/cronograma/suspensions", { method: "POST", body: JSON.stringify(input) });
+    return;
+  }
   const createdBy = await authUserId();
   const { error } = await (supabase as any).from("cronograma_suspensions").insert({
     ...input,
@@ -326,16 +375,31 @@ export async function createSuspension(input: CronogramaSuspensionInput) {
 }
 
 export async function updateSuspension(id: string, patch: Partial<CronogramaSuspensionInput>) {
+  if (isSegempatApiConfigured()) {
+    await apiRequest<void>(`/api/cronograma/suspensions/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(patch) });
+    return;
+  }
   const { error } = await (supabase as any).from("cronograma_suspensions").update(patch).eq("id", id);
   if (error) throw error;
 }
 
 export async function deleteSuspension(id: string) {
+  if (isSegempatApiConfigured()) {
+    await apiRequest<void>(`/api/cronograma/suspensions/${encodeURIComponent(id)}`, { method: "DELETE" });
+    return;
+  }
   const { error } = await (supabase as any).from("cronograma_suspensions").delete().eq("id", id);
   if (error) throw error;
 }
 
 export async function syncCronogramaWithExamAttempts(month?: string) {
+  if (isSegempatApiConfigured()) {
+    const result = await apiRequest<{ changed: number }>("/api/cronograma/sync-exam-attempts", {
+      method: "POST",
+      body: JSON.stringify({ month: month ?? null }),
+    });
+    return result.changed;
+  }
   const entryQuery = (supabase as any)
     .from("cronograma_entries")
     .select("id,employee_matricula,exam_id,status,completion_date")
