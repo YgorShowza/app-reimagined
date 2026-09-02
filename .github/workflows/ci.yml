@@ -18,7 +18,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate migration versions
+      - name: Validate Supabase migration versions
         shell: bash
         run: |
           set -euo pipefail
@@ -27,7 +27,7 @@ jobs:
           versions=()
           for file in "${files[@]}"; do
             if [[ ! "$file" =~ ^[0-9]{14}_.+\.sql$ ]]; then
-              echo "::error::Migration com nome inválido: $file"
+              echo "::error::Migration Supabase com nome inválido: $file"
               bad=1
               continue
             fi
@@ -35,13 +35,53 @@ jobs:
           done
           duplicates=$(printf '%s\n' "${versions[@]}" | sort | uniq -d)
           if [[ -n "$duplicates" ]]; then
-            echo "::error::Versões duplicadas de migration: $duplicates"
+            echo "::error::Versões Supabase duplicadas: $duplicates"
             bad=1
           fi
           if [[ "$bad" -ne 0 ]]; then
             exit 1
           fi
-          echo "Migrations verificadas: ${#files[@]} arquivo(s), versões únicas."
+          echo "Migrations Supabase verificadas: ${#files[@]} arquivo(s), versões únicas."
+
+      - name: Validate MySQL migration versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(find database/mysql -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort)
+          if [[ "${#files[@]}" -eq 0 ]]; then
+            echo "::error::Nenhuma migration MySQL encontrada em database/mysql"
+            exit 1
+          fi
+          bad=0
+          versions=()
+          previous=""
+          for file in "${files[@]}"; do
+            if [[ ! "$file" =~ ^[0-9]{3,}_.+\.sql$ ]]; then
+              echo "::error::Migration MySQL com nome inválido: $file"
+              bad=1
+              continue
+            fi
+            version="${file%%_*}"
+            versions+=("$version")
+            if [[ -n "$previous" && "$version" < "$previous" ]]; then
+              echo "::error::Ordem de migrations MySQL inválida: $previous antes de $version"
+              bad=1
+            fi
+            previous="$version"
+          done
+          duplicates=$(printf '%s\n' "${versions[@]}" | sort | uniq -d)
+          if [[ -n "$duplicates" ]]; then
+            echo "::error::Versões MySQL duplicadas: $duplicates"
+            bad=1
+          fi
+          if [[ "${files[0]}" != 001_* ]]; then
+            echo "::error::A primeira migration MySQL deve ser o baseline 001_*.sql"
+            bad=1
+          fi
+          if [[ "$bad" -ne 0 ]]; then
+            exit 1
+          fi
+          echo "Migrations MySQL verificadas: ${#files[@]} arquivo(s), versões únicas e ordenadas."
 
       - name: Setup Node for MySQL API validation
         uses: actions/setup-node@v4
