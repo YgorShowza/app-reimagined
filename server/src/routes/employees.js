@@ -30,7 +30,6 @@ employeesRouter.get(
   "/",
   requireAuth,
   asyncHandler(async (req, res) => {
-    // Operador enxerga apenas o quadro necessário à operação (sem dados de conta).
     const rows = req.user.isAdmin
       ? await query(`SELECT * FROM employees ORDER BY full_name ASC`)
       : await query(
@@ -96,7 +95,6 @@ employeesRouter.patch(
     const employee = await queryOne(`SELECT * FROM employees WHERE id = ?`, [req.params.id]);
     if (!employee) throw notFound("Colaborador não encontrado");
 
-    // Matrícula é chave de identidade: não pode mudar se houver conta/histórico.
     if (input.matricula && input.matricula.trim().toLowerCase() !== String(employee.matricula).trim().toLowerCase()) {
       if (await hasAccountOrHistory(employee)) {
         throw conflict("Matrícula de colaborador com conta ou histórico não pode ser alterada. Inative o cadastro.");
@@ -109,14 +107,13 @@ employeesRouter.patch(
       [...fields.map((field) => input[field]), employee.id],
     );
 
-    // Sincroniza papel administrativo com o perfil funcional (equivalente ao trigger anterior).
     if (input.access_profile || input.status) {
       const account = await queryOne(`SELECT id FROM app_users WHERE LOWER(TRIM(matricula)) = LOWER(TRIM(?))`, [employee.matricula]);
       if (account) {
         const profile = input.access_profile ?? employee.access_profile;
         const status = input.status ?? employee.status;
         if (profile === "Inspetor" && status === "Ativo") {
-          await execute(`INSERT IGNORE INTO user_roles (id, user_id, role, created_at) VALUES (?, ?, 'admin', UTC_TIMESTAMP(3))`, [uuid(), account.id]);
+          await execute(`INSERT IGNORE INTO user_roles (id, user_id, role) VALUES (?, ?, 'admin')`, [uuid(), account.id]);
         } else {
           await execute(`DELETE FROM user_roles WHERE user_id = ? AND role = 'admin'`, [account.id]);
         }
