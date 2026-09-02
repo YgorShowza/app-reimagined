@@ -4,7 +4,10 @@ import { config } from "./config.js";
 
 function sslOptions() {
   if (!config.db.ssl) return undefined;
-  if (config.db.caPath && fs.existsSync(config.db.caPath)) {
+  if (config.db.caPath) {
+    if (!fs.existsSync(config.db.caPath)) {
+      throw new Error(`[segempat-api] certificado CA do MySQL não encontrado: ${config.db.caPath}`);
+    }
     return { ca: fs.readFileSync(config.db.caPath, "utf8"), rejectUnauthorized: true };
   }
   return { rejectUnauthorized: true };
