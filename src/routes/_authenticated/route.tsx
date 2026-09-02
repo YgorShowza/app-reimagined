@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
-import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/AppLayout";
+import { getCurrentSessionUser } from "@/lib/backend/current-user-gateway";
 
 const ADMIN_ONLY_PATHS = new Set([
   "/admin",
@@ -35,53 +35,14 @@ const ADMIN_ONLY_PATHS = new Set([
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: async ({ location }) => {
-    const { data, error } = await supabase.auth.getUser();
+    const user = await getCurrentSessionUser();
+    if (!user) throw redirect({ to: "/" });
 
-    if (error || !data.user) {
-      await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
-      throw redirect({ to: "/" });
-    }
-
-    const [{ data: roleRow, error: roleError }, { data: profile, error: profileError }] =
-      await Promise.all([
-        supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", data.user.id)
-          .maybeSingle(),
-        supabase
-          .from("profiles")
-          .select("matricula")
-          .eq("id", data.user.id)
-          .maybeSingle(),
-      ]);
-
-    const isAdmin = !roleError && roleRow?.role === "admin";
-
-    if (!isAdmin) {
-      if (profileError || !profile?.matricula) {
-        await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
-        throw redirect({ to: "/" });
-      }
-
-      const { data: activeEmployee, error: employeeError } = await supabase
-        .from("employees")
-        .select("id")
-        .eq("matricula", profile.matricula)
-        .eq("status", "Ativo")
-        .maybeSingle();
-
-      if (employeeError || !activeEmployee) {
-        await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
-        throw redirect({ to: "/" });
-      }
-    }
-
-    if (ADMIN_ONLY_PATHS.has(location.pathname) && !isAdmin) {
+    if (ADMIN_ONLY_PATHS.has(location.pathname) && !user.isAdmin) {
       throw redirect({ to: "/painel" });
     }
 
-    return { user: data.user };
+    return { user };
   },
   component: () => (
     <AppLayout>
