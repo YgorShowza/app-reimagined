@@ -12,6 +12,7 @@ import { examEvidenceRouter } from "./routes/exam-evidence.js";
 import { cronogramaRouter } from "./routes/cronograma.js";
 import { questionBankRouter } from "./routes/question-bank.js";
 import { trainingRouter, adminTrainingRouter, myTrainingRouter } from "./routes/training.js";
+import { operationsRouter } from "./routes/operations.js";
 import { HttpError } from "./util.js";
 
 export function createApp() {
@@ -37,9 +38,7 @@ export function createApp() {
   app.use(cookieParser());
   app.use(attachUser);
 
-  app.get("/health", (_req, res) => {
-    res.json({ ok: true, service: "segempat-api" });
-  });
+  app.get("/health", (_req, res) => res.json({ ok: true, service: "segempat-api" }));
 
   app.use("/api/auth", authRouter);
   app.use("/api/employees", employeesRouter);
@@ -52,20 +51,14 @@ export function createApp() {
   app.use("/api/training", trainingRouter);
   app.use("/api/admin/training", adminTrainingRouter);
   app.use("/api/me/training", myTrainingRouter);
+  app.use("/api/operations", operationsRouter);
 
-  app.use((_req, _res, next) => {
-    next(new HttpError(404, "Rota não encontrada", "NOT_FOUND"));
-  });
-
+  app.use((_req, _res, next) => next(new HttpError(404, "Rota não encontrada", "NOT_FOUND")));
   app.use((error, _req, res, _next) => {
     const status = Number(error?.status) || 500;
     const safeStatus = status >= 400 && status < 600 ? status : 500;
     const isOperational = error instanceof HttpError;
-
-    if (!isOperational) {
-      console.error("[segempat-api] erro não tratado", error);
-    }
-
+    if (!isOperational) console.error("[segempat-api] erro não tratado", error);
     res.status(safeStatus).json({
       error: isOperational ? error.message : "Erro interno do servidor",
       code: isOperational ? error.code || "ERROR" : "INTERNAL_ERROR",
