@@ -16,6 +16,17 @@ dist-ssr
 .nitro
 *.local
 
+# Environment / secrets
+.env
+.env.*
+!.env.example
+!.env.mysql.example
+*.pem
+*.key
+*.crt
+mysql-client.cnf
+my.cnf
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars
