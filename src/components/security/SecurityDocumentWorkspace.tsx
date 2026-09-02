@@ -9,10 +9,10 @@ const SECTIONS = [
     status: "Implementado",
     tone: "ok",
     items: [
-      "Autenticação centralizada pelo Supabase Auth.",
+      "Autenticação centralizada pela API SEGEMPAT, com matrícula e senha validadas no backend.",
       "Rotas internas validam a sessão antes de montar o ambiente autenticado.",
-      "Sessões inválidas são limpas localmente e redirecionadas para a tela de acesso.",
-      "Logout cancela consultas em andamento, limpa o cache da aplicação e encerra a sessão no Supabase.",
+      "A sessão é mantida por cookie HTTP-only, evitando expor credenciais ao JavaScript do navegador.",
+      "O logout encerra a sessão na API, cancela consultas em andamento e limpa o cache da aplicação.",
     ],
   },
   {
@@ -21,22 +21,22 @@ const SECTIONS = [
     status: "Implementado",
     tone: "ok",
     items: [
-      "Perfis administrativos são controlados pela tabela user_roles.",
-      "A função de autorização do banco diferencia Inspetoria e usuário operacional.",
-      "Menus e telas administrativas são condicionados ao perfil do usuário.",
-      "A autorização de dados não depende apenas da interface: as políticas RLS também restringem leitura e escrita.",
+      "Perfis administrativos e operacionais são resolvidos no backend a partir do cadastro interno.",
+      "A API diferencia Inspetoria e Operador antes de executar ações administrativas ou consultar dados restritos.",
+      "Menus e telas administrativas continuam condicionados ao perfil do usuário.",
+      "A autorização de dados não depende apenas da interface: os endpoints aplicam regras de acesso no servidor.",
     ],
   },
   {
     icon: Database,
-    title: "Row Level Security (RLS)",
+    title: "Isolamento de dados no MySQL",
     status: "Implementado",
     tone: "ok",
     items: [
-      "Dados pessoais e operacionais são isolados por políticas no PostgreSQL/Supabase.",
-      "Tentativas de prova podem ser lidas pelo próprio usuário ou pela Inspetoria.",
-      "Módulos de treinamento ativos podem ser consumidos pelos operadores, enquanto a gestão é administrativa.",
-      "Ciclos de treinamento permitem leitura do próprio colaborador e gestão pela Inspetoria.",
+      "O frontend não se conecta diretamente ao MySQL; toda operação passa pela API SEGEMPAT.",
+      "Consultas de Operador são filtradas pela sessão e matrícula do usuário autenticado.",
+      "Operações administrativas são protegidas por middleware de autorização da Inspetoria.",
+      "Módulos como provas, cronograma, treinamento, ocorrências e certificados seguem essa fronteira de acesso.",
     ],
   },
   {
@@ -45,9 +45,9 @@ const SECTIONS = [
     status: "Implementado",
     tone: "ok",
     items: [
-      "A aplicação possui trilha de auditoria persistida em audit_logs.",
+      "A aplicação mantém trilha de auditoria persistida em audit_logs no MySQL.",
       "A tela de Auditoria é restrita ao ambiente administrativo.",
-      "Alterações operacionais relevantes podem ser rastreadas sem depender apenas do histórico do navegador.",
+      "Alterações operacionais relevantes registram usuário, ação, entidade e contexto no backend.",
     ],
   },
   {
@@ -56,10 +56,10 @@ const SECTIONS = [
     status: "Implementado",
     tone: "ok",
     items: [
-      "Cada aprovação recebe certificate_code único gerado no banco.",
-      "A geração também cobre aprovações antigas por processo de backfill.",
+      "Cada aprovação pode receber certificate_code único persistido no MySQL.",
+      "A emissão formal exige aprovação e assinatura eletrônica registrada.",
       "O código é exibido ao Operador e incluído no certificado impresso.",
-      "A Inspetoria possui tela própria para validar o código diretamente contra os registros do SEGEMPAT.",
+      "A Inspetoria possui consulta própria contra os registros mantidos pela API SEGEMPAT.",
     ],
   },
   {
@@ -69,19 +69,19 @@ const SECTIONS = [
     tone: "ok",
     items: [
       "O fluxo operacional trabalha principalmente com nome, matrícula, setor, perfil e dados de desempenho.",
-      "Consultas do Operador são limitadas ao próprio contexto sempre que a política de dados permite.",
-      "A administração concentra operações de cadastro, avaliação, cronograma e auditoria.",
+      "O Operador recebe somente os dados necessários ao próprio contexto operacional.",
+      "A administração concentra operações de cadastro, avaliação, cronograma, treinamento e auditoria.",
     ],
   },
   {
     icon: Network,
-    title: "Restrição por IP/VPN",
-    status: "Não implementado",
+    title: "Rede corporativa, IP e VPN",
+    status: "Requer infraestrutura",
     tone: "warn",
     items: [
-      "A versão atual não possui security_settings nem enforcement de rede no backend.",
-      "Não existe bloqueio por IP, wildcard ou CIDR no Supabase atual.",
-      "A implementação futura deve ocorrer na camada de infraestrutura/backend; uma simples tela de configuração não seria suficiente.",
+      "A API SEGEMPAT deverá ser hospedada em ambiente definido pela empresa e conectada ao MySQL pela rede interna.",
+      "Restrições por IP, VPN, firewall, proxy reverso ou WAF devem ser aplicadas na infraestrutura de publicação.",
+      "A configuração final depende das regras de rede e segurança definidas pela TI responsável pela implantação.",
     ],
   },
   {
@@ -90,10 +90,10 @@ const SECTIONS = [
     status: "Requer validação",
     tone: "warn",
     items: [
-      "Executar homologação com usuários Inspetor e Operador em ambiente separado de produção.",
-      "Validar políticas RLS após qualquer nova tabela ou migration.",
-      "Revisar requisitos de retenção, backup, recuperação e logs com a TI responsável pela implantação.",
-      "Definir se haverá requisito corporativo de VPN, IP permitido, SSO ou MFA antes da publicação definitiva.",
+      "Homologar login, primeiro acesso, logout e recuperação de sessão com Inspetor e Operador.",
+      "Validar a API publicada contra o MySQL da empresa antes do corte definitivo do fallback legado.",
+      "Revisar retenção, backup, recuperação, logs e política de armazenamento das assinaturas com a TI.",
+      "Definir requisitos corporativos adicionais, como VPN, IP permitido, SSO ou MFA, antes da publicação definitiva.",
     ],
   },
 ] as const;
@@ -124,20 +124,20 @@ export function SecurityDocumentWorkspace() {
               <ShieldCheck className="h-4 w-4" /> Arquitetura de segurança
             </div>
             <h1 className="mt-1 text-2xl font-black" style={{ color: "var(--text-1)" }}>Documento de Segurança da Informação</h1>
-            <p className="mt-1 text-sm" style={{ color: "var(--text-4)" }}>SEGEMPAT · arquitetura atual baseada em Supabase Auth, PostgreSQL e Row Level Security.</p>
+            <p className="mt-1 text-sm" style={{ color: "var(--text-4)" }}>SEGEMPAT · arquitetura alvo baseada em API própria, sessão no backend e MySQL corporativo.</p>
           </div>
         </div>
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Stat label="Controles ativos" value={String(implemented)} />
           <Stat label="Pendências" value={String(pending)} warn />
-          <Stat label="Autenticação" value="Supabase" />
-          <Stat label="Isolamento" value="RLS" />
+          <Stat label="Autenticação" value="API própria" />
+          <Stat label="Banco" value="MySQL" />
         </div>
       </header>
 
       <section className="rounded-2xl p-5" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}>
         <p className="text-sm leading-6" style={{ color: "var(--text-2)" }}>
-          Este documento registra os mecanismos efetivamente presentes na versão atual do SEGEMPAT. Ele substitui descrições legadas ligadas à infraestrutura Base44 e evita declarar como implementado qualquer controle que ainda não exista no ambiente Supabase atual.
+          Este documento acompanha a migração do SEGEMPAT para a arquitetura corporativa MySQL. O navegador se comunica com a API SEGEMPAT, e somente essa API acessa o banco interno. O fallback legado permanece apenas como mecanismo temporário de transição até a publicação e homologação da infraestrutura definitiva.
         </p>
       </section>
 
