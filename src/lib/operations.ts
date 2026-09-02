@@ -12,10 +12,42 @@ async function authId() { const { data } = await supabase.auth.getUser(); return
 function normalizePracticalEvaluation(row: any): PracticalEvaluation {
   return {
     ...row,
-    score: Number(row.score || 0),
-    max_score: Number(row.max_score || 10),
+    score: Number(row.score ?? 0),
+    max_score: Number(row.max_score ?? 10),
     checklist: Array.isArray(row.checklist) ? row.checklist : [],
   } as PracticalEvaluation;
+}
+
+function occurrenceApiCreatePayload(input: { employee_id?: string | null; title: string; category: string; severity: string; description: string; location?: string | null; occurred_at?: string; }) {
+  return {
+    employee_id: input.employee_id ?? null,
+    title: input.title,
+    category: input.category,
+    severity: input.severity,
+    description: input.description,
+    location: input.location ?? null,
+    ...(input.occurred_at !== undefined ? { occurred_at: input.occurred_at } : {}),
+  };
+}
+
+function occurrenceApiPatchPayload(patch: Partial<Occurrence>) {
+  const allowed = ["employee_id", "title", "category", "severity", "description", "location", "status", "occurred_at", "resolution_notes", "resolved_at"] as const;
+  return Object.fromEntries(allowed.filter((key) => Object.prototype.hasOwnProperty.call(patch, key)).map((key) => [key, patch[key]]));
+}
+
+function practicalApiCreatePayload(input: { employee_id: string; title: string; evaluation_date?: string | null; checklist?: Array<{id:string;label:string;done:boolean}>; notes?: string | null; }) {
+  return {
+    employee_id: input.employee_id,
+    title: input.title,
+    evaluation_date: input.evaluation_date ?? null,
+    checklist: input.checklist ?? [],
+    notes: input.notes ?? null,
+  };
+}
+
+function practicalApiPatchPayload(patch: Partial<PracticalEvaluation>) {
+  const allowed = ["title", "status", "score", "max_score", "checklist", "notes", "evaluation_date"] as const;
+  return Object.fromEntries(allowed.filter((key) => Object.prototype.hasOwnProperty.call(patch, key)).map((key) => [key, patch[key]]));
 }
 
 export async function listKnowledgeItems(): Promise<KnowledgeItem[]> { if (isSegempatApiConfigured()) return apiRequest<KnowledgeItem[]>("/api/operations/knowledge"); const { data, error } = await (supabase as any).from("knowledge_items").select("*").order("category").order("title"); if (error) throw error; return (data ?? []) as KnowledgeItem[]; }
@@ -24,8 +56,8 @@ export async function updateKnowledgeItem(id: string, patch: Partial<Pick<Knowle
 export async function deleteKnowledgeItem(id: string) { if (isSegempatApiConfigured()) { await apiRequest(`/api/operations/knowledge/${encodeURIComponent(id)}`, { method:"DELETE" }); return; } const { error } = await (supabase as any).from("knowledge_items").delete().eq("id", id); if (error) throw error; }
 
 export async function listOccurrences(): Promise<Occurrence[]> { if (isSegempatApiConfigured()) return apiRequest<Occurrence[]>("/api/operations/occurrences"); const { data, error } = await (supabase as any).from("occurrences").select("*").order("occurred_at", { ascending: false }); if (error) throw error; return (data ?? []) as Occurrence[]; }
-export async function createOccurrence(input: { employee_id?: string | null; employee_name?: string | null; employee_matricula?: string | null; title: string; category: string; severity: string; description: string; location?: string | null; occurred_at?: string; created_by_name?: string | null; }) { if (isSegempatApiConfigured()) { await apiRequest("/api/operations/occurrences", { method:"POST", body:JSON.stringify(input) }); return; } const { error } = await (supabase as any).from("occurrences").insert({ ...input, created_by: await authId(), occurred_at: input.occurred_at || new Date().toISOString() }); if (error) throw error; }
-export async function updateOccurrence(id: string, patch: Partial<Occurrence>) { if (isSegempatApiConfigured()) { await apiRequest(`/api/operations/occurrences/${encodeURIComponent(id)}`, { method:"PATCH", body:JSON.stringify(patch) }); return; } const normalized: any = { ...patch }; delete normalized.id; delete normalized.created_at; delete normalized.updated_at; const { error } = await (supabase as any).from("occurrences").update(normalized).eq("id", id); if (error) throw error; }
+export async function createOccurrence(input: { employee_id?: string | null; employee_name?: string | null; employee_matricula?: string | null; title: string; category: string; severity: string; description: string; location?: string | null; occurred_at?: string; created_by_name?: string | null; }) { if (isSegempatApiConfigured()) { await apiRequest("/api/operations/occurrences", { method:"POST", body:JSON.stringify(occurrenceApiCreatePayload(input)) }); return; } const { error } = await (supabase as any).from("occurrences").insert({ ...input, created_by: await authId(), occurred_at: input.occurred_at || new Date().toISOString() }); if (error) throw error; }
+export async function updateOccurrence(id: string, patch: Partial<Occurrence>) { if (isSegempatApiConfigured()) { await apiRequest(`/api/operations/occurrences/${encodeURIComponent(id)}`, { method:"PATCH", body:JSON.stringify(occurrenceApiPatchPayload(patch)) }); return; } const normalized: any = { ...patch }; delete normalized.id; delete normalized.created_at; delete normalized.updated_at; const { error } = await (supabase as any).from("occurrences").update(normalized).eq("id", id); if (error) throw error; }
 export async function deleteOccurrence(id: string) { if (isSegempatApiConfigured()) { await apiRequest(`/api/operations/occurrences/${encodeURIComponent(id)}`, { method:"DELETE" }); return; } const { error } = await (supabase as any).from("occurrences").delete().eq("id", id); if (error) throw error; }
 
 export async function listPracticalEvaluations(): Promise<PracticalEvaluation[]> {
@@ -39,8 +71,8 @@ export async function listPracticalEvaluations(): Promise<PracticalEvaluation[]>
   if (error) throw error;
   return (data ?? []).map(normalizePracticalEvaluation);
 }
-export async function createPracticalEvaluation(input: { employee_id: string; employee_name: string; employee_matricula: string; employee_sector: string; title: string; evaluator_name?: string | null; evaluation_date?: string | null; checklist?: Array<{id:string;label:string;done:boolean}>; notes?: string | null; }) { if (isSegempatApiConfigured()) { await apiRequest("/api/operations/practical-evaluations", { method:"POST", body:JSON.stringify(input) }); return; } const { error } = await (supabase as any).from("practical_evaluations").insert({ ...input, evaluator_id: await authId(), status: "Planejada", score: 0, max_score: 10, checklist: input.checklist ?? [] }); if (error) throw error; }
-export async function updatePracticalEvaluation(id: string, patch: Partial<PracticalEvaluation>) { if (isSegempatApiConfigured()) { await apiRequest(`/api/operations/practical-evaluations/${encodeURIComponent(id)}`, { method:"PATCH", body:JSON.stringify(patch) }); return; } const normalized: any = { ...patch }; delete normalized.id; delete normalized.created_at; delete normalized.updated_at; const { error } = await (supabase as any).from("practical_evaluations").update(normalized).eq("id", id); if (error) throw error; }
+export async function createPracticalEvaluation(input: { employee_id: string; employee_name: string; employee_matricula: string; employee_sector: string; title: string; evaluator_name?: string | null; evaluation_date?: string | null; checklist?: Array<{id:string;label:string;done:boolean}>; notes?: string | null; }) { if (isSegempatApiConfigured()) { await apiRequest("/api/operations/practical-evaluations", { method:"POST", body:JSON.stringify(practicalApiCreatePayload(input)) }); return; } const { error } = await (supabase as any).from("practical_evaluations").insert({ ...input, evaluator_id: await authId(), status: "Planejada", score: 0, max_score: 10, checklist: input.checklist ?? [] }); if (error) throw error; }
+export async function updatePracticalEvaluation(id: string, patch: Partial<PracticalEvaluation>) { if (isSegempatApiConfigured()) { await apiRequest(`/api/operations/practical-evaluations/${encodeURIComponent(id)}`, { method:"PATCH", body:JSON.stringify(practicalApiPatchPayload(patch)) }); return; } const normalized: any = { ...patch }; delete normalized.id; delete normalized.created_at; delete normalized.updated_at; const { error } = await (supabase as any).from("practical_evaluations").update(normalized).eq("id", id); if (error) throw error; }
 export async function deletePracticalEvaluation(id: string) { if (isSegempatApiConfigured()) { await apiRequest(`/api/operations/practical-evaluations/${encodeURIComponent(id)}`, { method:"DELETE" }); return; } const { error } = await (supabase as any).from("practical_evaluations").delete().eq("id", id); if (error) throw error; }
 
 export async function listAuditLogs(limit = 200): Promise<AuditLog[]> { if (isSegempatApiConfigured()) return apiRequest<AuditLog[]>(`/api/operations/audit?limit=${limit}`); const { data, error } = await (supabase as any).from("audit_logs").select("*").order("created_at", { ascending: false }).limit(limit); if (error) throw error; return (data ?? []) as AuditLog[]; }
