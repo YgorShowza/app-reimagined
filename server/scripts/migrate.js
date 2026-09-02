@@ -17,6 +17,17 @@ function checksum(content) {
   return crypto.createHash("sha256").update(content, "utf8").digest("hex");
 }
 
+async function migrationSslOptions() {
+  if (!config.db.ssl) return undefined;
+  if (!config.db.caPath) return { rejectUnauthorized: true };
+  try {
+    const ca = await fs.readFile(config.db.caPath, "utf8");
+    return { ca, rejectUnauthorized: true };
+  } catch (error) {
+    throw new Error(`Certificado CA do MySQL não pôde ser lido em ${config.db.caPath}: ${error?.message || error}`);
+  }
+}
+
 async function ensureMigrationTable(connection) {
   await connection.query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -67,7 +78,7 @@ async function main() {
     user: config.db.user,
     password: config.db.password,
     database: config.db.database,
-    ssl: config.db.ssl ? { rejectUnauthorized: true } : undefined,
+    ssl: await migrationSslOptions(),
     multipleStatements: true,
     charset: "utf8mb4",
     timezone: "Z",
