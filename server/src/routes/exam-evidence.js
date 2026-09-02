@@ -11,7 +11,17 @@ export const examEvidenceRouter = Router();
 examEvidenceRouter.get(
   "/exam-attempts",
   requireAdmin,
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
+    const yearRaw = req.query["year"];
+    let where = "";
+    let params = [];
+    if (yearRaw !== undefined) {
+      const year = Number(yearRaw);
+      if (!Number.isInteger(year) || year < 2000 || year > 2200) throw badRequest("Ano inválido");
+      where = "WHERE a.finished_at >= ? AND a.finished_at < ?";
+      params = [`${year}-01-01 00:00:00`, `${year + 1}-01-01 00:00:00`];
+    }
+
     const rows = await query(
       `SELECT a.id, a.exam_id, a.user_id, a.matricula, a.score, a.passed, a.certificate_code,
               a.signature_path, a.signature_name, a.signature_agreed, a.signed_at, a.finished_at, a.created_at,
@@ -21,7 +31,9 @@ examEvidenceRouter.get(
          FROM exam_attempts a
          JOIN exams e ON e.id = a.exam_id
          LEFT JOIN employees emp ON LOWER(TRIM(emp.matricula)) = LOWER(TRIM(a.matricula))
+         ${where}
         ORDER BY a.finished_at DESC`,
+      params,
     );
     res.json(
       rows.map((row) => ({
