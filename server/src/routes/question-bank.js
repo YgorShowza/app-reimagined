@@ -1,0 +1,134 @@
+import { Router } from "express";
+import { execute, query, queryOne } from "../db.js";
+import { audit } from "../audit.js";
+import { requireAdmin, requireAuth } from "../session.js";
+import { asBool, asyncHandler, badRequest, notFound, parseJson, requireOneOf, requireText, trimOrNull, uuid } from "../util.js";
+
+export const questionBankRouter = Router();
+
+const TARGET_SECTORS = ["Todos", "CFTV", "Vigilância", "Portaria", "Ronda", "Administrativo"];
+const DIFFICULTIES = ["Básico", "Intermediário", "Avançado"];
+
+function mapAdmin(row) {
+  return {
+    ...row,
+    options: parseJson(row.options, []),
+    correct_index: row.correct_index === null ? null : Number(row.correct_index),
+    active: asBool(row.active),
+  };
+}
+
+function mapOperational(row) {
+  return {
+    id: row.id,
+    bank_type: row.bank_type,
+    question_text: row.question_text,
+    options: parseJson(row.options, []),
+    target_sector: row.target_sector,
+    difficulty: row.difficulty,
+    theme: row.theme ?? "",
+    active: asBool(row.active),
+    created_at: row.created_at,
+  };
+}
+
+function readInput(body, { partial = false } = {}) {
+  const input = {};
+  const has = (key) => Object.prototype.hasOwnProperty.call(body ?? {}, key);
+  if (!partial || has("bank_type")) input.bank_type = requireText(body?.bank_type, "Tipo de banco");
+  if (!partial || has("question_text")) input.question_text = requireText(body?.question_text, "Pergunta");
+  if (!partial || has("options")) {
+    const options = Array.isArray(body?.options) ? body.options.map((value) => String(value ?? "").trim()) : [];
+    if (options.length && options.some((value) => !value)) throw badRequest("As alternativas não podem ficar vazias");
+    input.options = options;
+  }
+  if (!partial || has("correct_index")) {
+    if (body?.correct_index === null || body?.correct_index === undefined || body?.correct_index === "") input.correct_index = null;
+    else {
+      const index = Number(body.correct_index);
+      if (!Number.isInteger(index) || index < 0) throw badRequest("Índice da resposta correta inválido");
+      input.correct_index = index;
+    }
+  }
+  if (!partial || has("correct_answer")) input.correct_answer = trimOrNull(body?.correct_answer);
+  if (!partial || has("explanation")) input.explanation = trimOrNull(body?.explanation);
+  if (!partial || has("target_sector")) input.target_sector = requireOneOf(body?.target_sector, TARGET_SECTORS, "Setor alvo", "Todos");
+  if (!partial || has("difficulty")) input.difficulty = requireOneOf(body?.difficulty, DIFFICULTIES, "Dificuldade", "Básico");
+  if (!partial || has("theme")) input.theme = trimOrNull(body?.theme);
+  if (!partial || has("active")) input.active = body?.active === false ? 0 : 1;
+  if (partial && Object.keys(input).length === 0) throw badRequest("Nenhum campo para atualizar");
+  return input;
+}
+
+questionBankRouter.get(
+  "/",
+  requireAdmin,
+  asyncHandler(async (_req, res) => {
+    const rows = await query(`SELECT * FROM question_bank ORDER BY active DESC, created_at DESC`);
+    res.json(rows.map(mapAdmin));
+  }),
+);
+
+questionBankRouter.get(
+  "/operational",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const rows = await query(
+      `SELECT id, bank_type, question_text, options, target_sector, difficulty, theme, active, created_at
+         FROM question_bank
+        WHERE active = 1 AND (target_sector = 'Todos' OR target_sector = ?)
+        ORDER BY created_at DESC`,
+      [req.user.setor ?? ""],
+    );
+    res.json(rows.map(mapOperational));
+  }),
+);
+
+questionBankRouter.post(
+  "/",
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const input = readInput(req.body);
+    if (input.correct_index !== null && input.correct_index >= input.options.length) throw badRequest("Alternativa correta fora do intervalo");
+    const id = uuid();
+    await execute(
+      `INSERT INTO question_bank
+       (id, bank_type, question_text, options, correct_index, correct_answer, explanation, target_sector, difficulty, theme, active, created_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
+      [id, input.bank_type, input.question_text, JSON.stringify(input.options), input.correct_index, input.correct_answer, input.explanation,
+        input.target_sector, input.difficulty, input.theme, input.active, req.user.id],
+    );
+    await audit(req.user.id, "INSERT", "question_bank", id, { bank_type: input.bank_type });
+    res.status(201).json({ id });
+  }),
+);
+
+questionBankRouter.patch(
+  "/:id",
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const existing = await queryOne(`SELECT * FROM question_bank WHERE id = ?`, [req.params.id]);
+    if (!existing) throw notFound("Questão não encontrada");
+    const input = readInput(req.body, { partial: true });
+    const options = input.options ?? parseJson(existing.options, []);
+    const correctIndex = Object.prototype.hasOwnProperty.call(input, "correct_index") ? input.correct_index : existing.correct_index;
+    if (correctIndex !== null && Number(correctIndex) >= options.length) throw badRequest("Alternativa correta fora do intervalo");
+    const fields = Object.keys(input);
+    const values = fields.map((field) => field === "options" ? JSON.stringify(input[field]) : input[field]);
+    await execute(`UPDATE question_bank SET ${fields.map((field) => `${field} = ?`).join(", ")}, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`, [...values, req.params.id]);
+    await audit(req.user.id, "UPDATE", "question_bank", req.params.id, { changed: fields });
+    res.status(204).end();
+  }),
+);
+
+questionBankRouter.delete(
+  "/:id",
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const existing = await queryOne(`SELECT id FROM question_bank WHERE id = ?`, [req.params.id]);
+    if (!existing) throw notFound("Questão não encontrada");
+    await execute(`DELETE FROM question_bank WHERE id = ?`, [req.params.id]);
+    await audit(req.user.id, "DELETE", "question_bank", req.params.id);
+    res.status(204).end();
+  }),
+);
