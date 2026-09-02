@@ -11,7 +11,6 @@ export const myTrainingRouter = Router();
 const MODULE_STATUS = ["Ativo", "Inativo"];
 const TARGET_SECTORS = ["Todos", "CFTV", "Vigilância", "Portaria", "Ronda", "Administrativo"];
 const ACTIVITY_TYPES = ["Simulador", "Stress Test", "Desafio Diário", "Teste Rápido"];
-const CYCLE_STATUS = ["Em dia", "Próximo ao vencimento", "Vencido"];
 const SIMULATOR_DIFFICULTIES = ["Básico", "Intermediário", "Avançado"];
 
 function mapModule(row) {
@@ -59,24 +58,64 @@ function readScheduleInput(body, { partial = false } = {}) {
   const input = {};
   const has = (key) => Object.prototype.hasOwnProperty.call(body ?? {}, key);
   if (!partial || has("employee_id")) input.employee_id = requireText(body?.employee_id, "Colaborador");
-  if (!partial || has("employee_name")) input.employee_name = requireText(body?.employee_name, "Nome do colaborador");
-  if (!partial || has("employee_matricula")) input.employee_matricula = requireText(body?.employee_matricula, "Matrícula");
   if (!partial || has("cycle_days")) {
     const value = Number(body?.cycle_days ?? 90);
     if (!Number.isInteger(value) || value < 1 || value > 3650) throw badRequest("Ciclo de treinamento inválido");
     input.cycle_days = value;
   }
-  for (const field of ["last_training_date", "window_start", "window_end"]) {
-    if (!partial || has(field)) {
-      const value = trimOrNull(body?.[field]);
-      if (value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw badRequest(`${field} inválida`);
-      input[field] = value;
-    }
+  if (!partial || has("last_training_date")) {
+    const value = trimOrNull(body?.last_training_date);
+    if (value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw badRequest("Data do último treinamento inválida");
+    input.last_training_date = value;
   }
   if (!partial || has("observations")) input.observations = trimOrNull(body?.observations);
-  if (!partial || has("status")) input.status = requireOneOf(body?.status, CYCLE_STATUS, "Situação", "Em dia");
   if (partial && Object.keys(input).length === 0) throw badRequest("Nenhum campo para atualizar");
   return input;
+}
+
+function isoDateUtc(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function calculateTrainingWindow(lastTrainingDate, cycleDays) {
+  if (!lastTrainingDate) return { window_start: null, window_end: null };
+  const last = new Date(`${lastTrainingDate}T12:00:00Z`);
+  if (Number.isNaN(last.getTime())) throw badRequest("Data do último treinamento inválida");
+  const end = new Date(last);
+  end.setUTCDate(end.getUTCDate() + Math.max(1, cycleDays));
+  const start = new Date(end);
+  start.setUTCDate(start.getUTCDate() - Math.min(15, Math.max(7, Math.round(cycleDays * 0.2))));
+  return { window_start: isoDateUtc(start), window_end: isoDateUtc(end) };
+}
+
+function deriveTrainingStatus(lastTrainingDate, cycleDays, window) {
+  if (!window.window_end) return "Vencido";
+  const today = activityDayMaceio();
+  if (today > window.window_end) return "Vencido";
+  if (window.window_start && today >= window.window_start) return "Próximo ao vencimento";
+  return "Em dia";
+}
+
+function serverScheduleValues({ employee, current = null, input }) {
+  const cycleDays = input.cycle_days ?? Number(current?.cycle_days ?? 90);
+  const lastTrainingDate = Object.prototype.hasOwnProperty.call(input, "last_training_date")
+    ? input.last_training_date
+    : current?.last_training_date ?? null;
+  const observations = Object.prototype.hasOwnProperty.call(input, "observations")
+    ? input.observations
+    : current?.observations ?? null;
+  const window = calculateTrainingWindow(lastTrainingDate, cycleDays);
+  return {
+    employee_id: employee.id,
+    employee_name: employee.full_name,
+    employee_matricula: employee.matricula,
+    cycle_days: cycleDays,
+    last_training_date: lastTrainingDate,
+    window_start: window.window_start,
+    window_end: window.window_end,
+    observations,
+    status: deriveTrainingStatus(lastTrainingDate, cycleDays, window),
+  };
 }
 
 function activityQuestionId(item) {
@@ -183,15 +222,20 @@ adminTrainingRouter.post(
   requireAdmin,
   asyncHandler(async (req, res) => {
     const input = readScheduleInput(req.body);
-    const employee = await queryOne(`SELECT id FROM employees WHERE id = ?`, [input.employee_id]);
+    const employee = await queryOne(`SELECT id,full_name,matricula,status,access_profile FROM employees WHERE id = ?`, [input.employee_id]);
     if (!employee) throw notFound("Colaborador não encontrado");
+    if (employee.status !== "Ativo") throw badRequest("O ciclo só pode ser criado para colaborador ativo");
+    if (employee.access_profile === "Inspetor") throw badRequest("Ciclo operacional não pode ser criado para Inspetor");
+    const duplicate = await queryOne(`SELECT id FROM training_schedules WHERE employee_id = ?`, [employee.id]);
+    if (duplicate) throw conflict("Este colaborador já possui um ciclo de treinamento");
+    const values = serverScheduleValues({ employee, input });
     const id = uuid();
     await execute(
       `INSERT INTO training_schedules (id,employee_id,employee_name,employee_matricula,cycle_days,last_training_date,window_start,window_end,observations,status,created_by,created_at,updated_at)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))`,
-      [id,input.employee_id,input.employee_name,input.employee_matricula,input.cycle_days,input.last_training_date,input.window_start,input.window_end,input.observations,input.status,req.user.id],
+      [id,values.employee_id,values.employee_name,values.employee_matricula,values.cycle_days,values.last_training_date,values.window_start,values.window_end,values.observations,values.status,req.user.id],
     );
-    await audit(req.user.id, "INSERT", "training_schedules", id, { employee_id: input.employee_id });
+    await audit(req.user.id, "INSERT", "training_schedules", id, { employee_id: values.employee_id, server_derived: true });
     res.status(201).json({ id });
   }),
 );
@@ -203,9 +247,15 @@ adminTrainingRouter.patch(
     const current = await queryOne(`SELECT * FROM training_schedules WHERE id = ?`, [req.params.id]);
     if (!current) throw notFound("Ciclo não encontrado");
     const input = readScheduleInput(req.body, { partial: true });
-    const fields = Object.keys(input);
-    await execute(`UPDATE training_schedules SET ${fields.map((field) => `${field} = ?`).join(", ")}, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`, [...fields.map((field) => input[field]), current.id]);
-    await audit(req.user.id, "UPDATE", "training_schedules", current.id, { changed: fields });
+    if (input.employee_id && input.employee_id !== current.employee_id) throw badRequest("Não é permitido trocar o colaborador de um ciclo existente");
+    const employee = await queryOne(`SELECT id,full_name,matricula,status,access_profile FROM employees WHERE id = ?`, [current.employee_id]);
+    if (!employee) throw notFound("Colaborador vinculado ao ciclo não encontrado");
+    const values = serverScheduleValues({ employee, current, input });
+    await execute(
+      `UPDATE training_schedules SET employee_name = ?, employee_matricula = ?, cycle_days = ?, last_training_date = ?, window_start = ?, window_end = ?, observations = ?, status = ?, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`,
+      [values.employee_name,values.employee_matricula,values.cycle_days,values.last_training_date,values.window_start,values.window_end,values.observations,values.status,current.id],
+    );
+    await audit(req.user.id, "UPDATE", "training_schedules", current.id, { changed: Object.keys(input), server_derived: ["employee_name","employee_matricula","window_start","window_end","status"] });
     res.status(204).end();
   }),
 );
