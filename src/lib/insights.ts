@@ -1,5 +1,6 @@
 import { getCurrentSessionUser } from "@/lib/backend/current-user-gateway";
 import { listAdminAttemptsByYear } from "@/lib/backend/admin-attempts";
+import { apiRequest, isSegempatApiConfigured } from "@/lib/backend/api-client";
 import { listEmployees, type Employee } from "@/lib/employees";
 import { listExams, type Exam, type ExamAttempt } from "@/lib/exams";
 import { listCronogramaEntriesByYear, type CronogramaEntry } from "@/lib/cronograma";
@@ -72,6 +73,8 @@ export function employeeRisk(data: OperationalSnapshot) {
 }
 
 export async function getCurrentEmployeeByAuth() {
+  if (isSegempatApiConfigured()) return apiRequest<Employee>("/api/employees/me");
+
   const user = await getCurrentSessionUser();
   if (!user?.matricula) return null;
   const employees = await listEmployees();
