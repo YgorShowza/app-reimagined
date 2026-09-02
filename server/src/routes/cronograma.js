@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { execute, query, queryOne } from "../db.js";
+import { execute, query, queryOne, withTransaction } from "../db.js";
 import { audit } from "../audit.js";
 import { requireAdmin, requireAuth } from "../session.js";
 import {
@@ -116,22 +116,36 @@ cronogramaRouter.post(
     const entries = Array.isArray(req.body?.entries) ? req.body.entries : [];
     if (!entries.length) return res.status(204).end();
     if (entries.length > 1000) throw badRequest("Limite de 1000 lançamentos por operação");
-    const created = [];
+
+    // Valida todo o lote antes de abrir a transação. Assim um item inválido não
+    // deixa os anteriores gravados e não prolonga locks durante consultas de identidade.
+    const prepared = [];
     for (const raw of entries) {
-      const input = await deriveEntryIdentity(readEntryInput(raw));
-      const id = uuid();
-      await execute(
-        `INSERT INTO cronograma_entries
-         (id, month, employee_id, employee_name, employee_matricula, employee_sector, theme, exam_id, exam_title, type, status,
-          justification, planned_date, completion_date, notes, question_bank_ids, created_by, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
-        [id, input.month, input.employee_id, input.employee_name, input.employee_matricula, input.employee_sector, input.theme,
-          input.exam_id, input.exam_title, input.type, input.status, input.justification, input.planned_date, input.completion_date,
-          input.notes, JSON.stringify(input.question_bank_ids), req.user.id],
-      );
-      created.push(id);
+      prepared.push({ id: uuid(), input: await deriveEntryIdentity(readEntryInput(raw)) });
     }
-    await audit(req.user.id, "BULK_INSERT", "cronograma_entries", created[0] ?? "", { count: created.length, identity_derived_server_side: true });
+
+    const created = await withTransaction(async (connection) => {
+      const ids = [];
+      for (const { id, input } of prepared) {
+        await connection.execute(
+          `INSERT INTO cronograma_entries
+           (id, month, employee_id, employee_name, employee_matricula, employee_sector, theme, exam_id, exam_title, type, status,
+            justification, planned_date, completion_date, notes, question_bank_ids, created_by, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
+          [id, input.month, input.employee_id, input.employee_name, input.employee_matricula, input.employee_sector, input.theme,
+            input.exam_id, input.exam_title, input.type, input.status, input.justification, input.planned_date, input.completion_date,
+            input.notes, JSON.stringify(input.question_bank_ids), req.user.id],
+        );
+        ids.push(id);
+      }
+      await audit(req.user.id, "BULK_INSERT", "cronograma_entries", ids[0] ?? "", {
+        count: ids.length,
+        identity_derived_server_side: true,
+        atomic: true,
+      }, connection);
+      return ids;
+    });
+
     res.status(201).json({ ids: created, count: created.length });
   }),
 );
