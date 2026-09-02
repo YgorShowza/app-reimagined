@@ -51,6 +51,44 @@ function normalizeChecklist(value) {
   }));
 }
 
+function normalizePracticalTasks(value) {
+  if (!Array.isArray(value)) throw badRequest("Procedimentos do modelo inválidos");
+  if (value.length < 1) throw badRequest("Adicione ao menos um procedimento ao modelo");
+  if (value.length > 100) throw badRequest("O modelo excede o limite de procedimentos");
+  const ids = new Set();
+  return value.map((item, index) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) throw badRequest(`Procedimento ${index + 1} inválido`);
+    const id = String(item.id ?? `task_${index + 1}`).trim().slice(0, 80);
+    const title = requireText(item.title, `Procedimento ${index + 1}`).slice(0, 500);
+    const category = String(item.category ?? "").trim().slice(0, 120);
+    const description = String(item.description ?? "").trim().slice(0, 1000);
+    if (!id) throw badRequest(`Identificador do procedimento ${index + 1} inválido`);
+    if (ids.has(id)) throw badRequest("O modelo contém procedimentos duplicados");
+    ids.add(id);
+    return { id, category, title, description };
+  });
+}
+
+function practicalTemplateInput(body, { partial = false } = {}) {
+  const patch = {};
+  const has = (key) => Object.prototype.hasOwnProperty.call(body || {}, key);
+  if (!partial || has("title")) patch.title = requireText(body?.title, "Título").slice(0, 255);
+  if (!partial || has("platform")) patch.platform = trimOrNull(body?.platform)?.slice(0, 120) ?? null;
+  if (!partial || has("description")) patch.description = trimOrNull(body?.description);
+  if (!partial || has("target_sector")) patch.target_sector = requireOneOf(body?.target_sector, TARGET_SECTORS, "Setor alvo", "CFTV");
+  if (!partial || has("min_approval_score")) patch.min_approval_score = finiteNumber(body?.min_approval_score ?? 7, "Nota mínima", { min: 0, max: 10 });
+  if (!partial || has("recurrence")) patch.recurrence = requireOneOf(body?.recurrence, RECURRENCES, "Recorrência", "monthly");
+  if (!partial || has("applications_per_month")) {
+    const apps = Number(body?.applications_per_month ?? 1);
+    if (!Number.isInteger(apps) || apps < 1 || apps > 31) throw badRequest("Aplicações por mês inválidas");
+    patch.applications_per_month = apps;
+  }
+  if (!partial || has("tasks")) patch.tasks = JSON.stringify(normalizePracticalTasks(body?.tasks));
+  if (!partial || has("status")) patch.status = requireOneOf(body?.status, TEMPLATE_STATUS, "Situação", "Ativo");
+  if (partial && Object.keys(patch).length === 0) throw badRequest("Nenhum campo para atualizar");
+  return patch;
+}
+
 async function occurrenceEmployeeForCreate(req) {
   if (!req.user.isAdmin) {
     const employee = await queryOne(`SELECT id,full_name,matricula,status FROM employees WHERE id = ?`, [req.user.employeeId]);
@@ -206,8 +244,28 @@ operationsRouter.patch("/practical-evaluations/:id", requireAdmin, asyncHandler(
 operationsRouter.delete("/practical-evaluations/:id", requireAdmin, asyncHandler(async(req,res)=>{await execute(`DELETE FROM practical_evaluations WHERE id=?`,[req.params.id]);await audit(req.user.id,"DELETE","practical_evaluations",req.params.id);res.status(204).end();}));
 
 operationsRouter.get("/practical-templates", requireAdmin, asyncHandler(async(_req,res)=>{const rows=await query(`SELECT * FROM practical_eval_templates ORDER BY title`);res.json(rows.map(templateRow));}));
-operationsRouter.post("/practical-templates", requireAdmin, asyncHandler(async(req,res)=>{const id=uuid();const title=requireText(req.body?.title,"Título");const target=requireOneOf(req.body?.target_sector,TARGET_SECTORS,"Setor alvo","CFTV");const recurrence=requireOneOf(req.body?.recurrence,RECURRENCES,"Recorrência","monthly");const status=requireOneOf(req.body?.status,TEMPLATE_STATUS,"Situação","Ativo");const min=Number(req.body?.min_approval_score??7);const apps=Number(req.body?.applications_per_month??1);const tasks=Array.isArray(req.body?.tasks)?req.body.tasks:[];await execute(`INSERT INTO practical_eval_templates (id,title,platform,description,target_sector,min_approval_score,recurrence,applications_per_month,tasks,status,created_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))`,[id,title,trimOrNull(req.body?.platform),trimOrNull(req.body?.description),target,min,recurrence,apps,JSON.stringify(tasks),status,req.user.id]);const row=await queryOne(`SELECT * FROM practical_eval_templates WHERE id=?`,[id]);await audit(req.user.id,"INSERT","practical_eval_templates",id,{title});res.status(201).json(templateRow(row));}));
-operationsRouter.patch("/practical-templates/:id", requireAdmin, asyncHandler(async(req,res)=>{const current=await queryOne(`SELECT * FROM practical_eval_templates WHERE id=?`,[req.params.id]);if(!current) throw notFound("Modelo não encontrado");const allowed=["title","platform","description","target_sector","min_approval_score","recurrence","applications_per_month","tasks","status"];const patch=Object.fromEntries(allowed.filter(k=>Object.prototype.hasOwnProperty.call(req.body||{},k)).map(k=>[k,k==="tasks"?JSON.stringify(req.body[k]||[]):req.body[k]]));if(patch.recurrence)patch.recurrence=requireOneOf(patch.recurrence,RECURRENCES,"Recorrência");if(patch.status)patch.status=requireOneOf(patch.status,TEMPLATE_STATUS,"Situação");const fields=Object.keys(patch);if(!fields.length)throw badRequest("Nenhum campo para atualizar");await execute(`UPDATE practical_eval_templates SET ${fields.map(f=>`${f} = ?`).join(", ")}, updated_at=UTC_TIMESTAMP(3) WHERE id=?`,[...fields.map(f=>patch[f]),req.params.id]);const row=await queryOne(`SELECT * FROM practical_eval_templates WHERE id=?`,[req.params.id]);await audit(req.user.id,"UPDATE","practical_eval_templates",req.params.id,{changed:fields});res.json(templateRow(row));}));
+operationsRouter.post("/practical-templates", requireAdmin, asyncHandler(async(req,res)=>{
+  const input=practicalTemplateInput(req.body);
+  const id=uuid();
+  await execute(
+    `INSERT INTO practical_eval_templates (id,title,platform,description,target_sector,min_approval_score,recurrence,applications_per_month,tasks,status,created_by,created_at,updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))`,
+    [id,input.title,input.platform,input.description,input.target_sector,input.min_approval_score,input.recurrence,input.applications_per_month,input.tasks,input.status,req.user.id],
+  );
+  const row=await queryOne(`SELECT * FROM practical_eval_templates WHERE id=?`,[id]);
+  await audit(req.user.id,"INSERT","practical_eval_templates",id,{title:input.title,target_sector:input.target_sector,recurrence:input.recurrence});
+  res.status(201).json(templateRow(row));
+}));
+operationsRouter.patch("/practical-templates/:id", requireAdmin, asyncHandler(async(req,res)=>{
+  const current=await queryOne(`SELECT * FROM practical_eval_templates WHERE id=?`,[req.params.id]);
+  if(!current) throw notFound("Modelo não encontrado");
+  const patch=practicalTemplateInput(req.body,{partial:true});
+  const fields=Object.keys(patch);
+  await execute(`UPDATE practical_eval_templates SET ${fields.map(f=>`${f} = ?`).join(", ")}, updated_at=UTC_TIMESTAMP(3) WHERE id=?`,[...fields.map(f=>patch[f]),req.params.id]);
+  const row=await queryOne(`SELECT * FROM practical_eval_templates WHERE id=?`,[req.params.id]);
+  await audit(req.user.id,"UPDATE","practical_eval_templates",req.params.id,{changed:fields});
+  res.json(templateRow(row));
+}));
 operationsRouter.delete("/practical-templates/:id", requireAdmin, asyncHandler(async(req,res)=>{await execute(`DELETE FROM practical_eval_templates WHERE id=?`,[req.params.id]);await audit(req.user.id,"DELETE","practical_eval_templates",req.params.id);res.status(204).end();}));
 
 operationsRouter.get("/audit", requireAdmin, asyncHandler(async(req,res)=>{const limit=Math.min(Math.max(Number(req.query.limit||200),1),500);const rows=await query(`SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT ${limit}`);res.json(rows.map(row=>({...row,details:jsonValue(row.details,{})})));}));
