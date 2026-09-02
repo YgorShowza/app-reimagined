@@ -3,10 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Award, CalendarClock, CheckCircle2, FileText, Flame, Shield, TrendingUp, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { listEmployees } from "@/lib/employees";
-import { fmtDate, listExams, listMyAttempts } from "@/lib/exams";
-import { listTrainingSchedules } from "@/lib/training-schedules";
+import { fmtDate, listAvailableExams, listMyAttempts } from "@/lib/exams";
+import { getMyTrainingSchedule } from "@/lib/training-schedules";
 import { listMyTrainingActivities } from "@/lib/training-activities";
+import { getCurrentEmployeeByAuth } from "@/lib/insights";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 
 const LEVEL_NAMES = ["Recruta", "Patrulheiro", "Sentinela", "Especialista", "Elite"];
@@ -14,24 +14,21 @@ const LEVEL_ICONS = ["🎯", "🛡️", "⚡", "🔥", "👑"];
 
 export function MyProfileWorkspace() {
   const { data: user } = useCurrentUser();
-  const employees = useQuery({ queryKey: ["employees-profile"], queryFn: listEmployees });
+  const employee = useQuery({ queryKey: ["current-employee-profile"], queryFn: getCurrentEmployeeByAuth, staleTime: 60_000 });
   const attempts = useQuery({ queryKey: ["exam-attempts-my"], queryFn: listMyAttempts });
   const activities = useQuery({ queryKey: ["training-activities-my"], queryFn: listMyTrainingActivities });
-  const exams = useQuery({ queryKey: ["exams"], queryFn: listExams });
-  const cycles = useQuery({ queryKey: ["training-schedules"], queryFn: listTrainingSchedules });
+  const exams = useQuery({ queryKey: ["exams-available-profile"], queryFn: listAvailableExams });
+  const cycle = useQuery({ queryKey: ["training-schedule-my"], queryFn: getMyTrainingSchedule });
 
-  const employee = useMemo(
-    () => (employees.data ?? []).find((item) => item.matricula === user?.matricula),
-    [employees.data, user?.matricula],
-  );
   const examMap = useMemo(() => new Map((exams.data ?? []).map((exam) => [exam.id, exam.title])), [exams.data]);
   const rows = attempts.data ?? [];
   const activityRows = activities.data ?? [];
   const passed = rows.filter((row) => row.passed).length;
   const average = rows.length ? rows.reduce((sum, row) => sum + Number(row.score || 0), 0) / rows.length : 0;
-  const cycle = (cycles.data ?? []).find((item) => item.employee_id === employee?.id);
-  const level = Math.min(5, Math.max(1, Number(employee?.level || 1)));
-  const loading = employees.isLoading || attempts.isLoading || activities.isLoading;
+  const currentEmployee = employee.data;
+  const currentCycle = cycle.data;
+  const level = Math.min(5, Math.max(1, Number(currentEmployee?.level || 1)));
+  const loading = employee.isLoading || attempts.isLoading || activities.isLoading || cycle.isLoading;
 
   if (loading) {
     return <div className="flex justify-center py-20"><div className="h-9 w-9 animate-spin rounded-full border-4" style={{ borderColor: "var(--border)", borderTopColor: "#C8102E" }} /></div>;
@@ -43,10 +40,10 @@ export function MyProfileWorkspace() {
         <div className="absolute -right-14 -top-20 h-56 w-56 rounded-full" style={{ background: "radial-gradient(circle,rgba(200,16,46,.22),transparent 70%)" }} />
         <div className="relative flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-2xl font-black text-white" style={{ background: "linear-gradient(135deg,#C8102E,#f7931e)", boxShadow: "0 6px 18px rgba(200,16,46,.3)" }}>{employee?.full_name?.charAt(0) || user?.nome?.charAt(0) || "U"}</div>
-            <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[.2em] text-white/35">Meu perfil</p><h1 className="mt-1 truncate text-2xl font-black text-white md:text-3xl">{employee?.full_name || user?.nome || "Operador"}</h1><p className="mt-1 text-sm text-white/50">Mat. {employee?.matricula || user?.matricula || "—"}{employee?.sector ? ` · ${employee.sector}` : ""}</p></div>
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-2xl font-black text-white" style={{ background: "linear-gradient(135deg,#C8102E,#f7931e)", boxShadow: "0 6px 18px rgba(200,16,46,.3)" }}>{currentEmployee?.full_name?.charAt(0) || user?.nome?.charAt(0) || "U"}</div>
+            <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[.2em] text-white/35">Meu perfil</p><h1 className="mt-1 truncate text-2xl font-black text-white md:text-3xl">{currentEmployee?.full_name || user?.nome || "Operador"}</h1><p className="mt-1 text-sm text-white/50">Mat. {currentEmployee?.matricula || user?.matricula || "—"}{currentEmployee?.sector ? ` · ${currentEmployee.sector}` : ""}</p></div>
           </div>
-          <div className="rounded-2xl px-4 py-3 text-right" style={{ background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.08)" }}><p className="text-[10px] font-black uppercase tracking-widest text-white/35">Nível</p><p className="mt-1 text-lg font-black text-white">{LEVEL_ICONS[level - 1]} {LEVEL_NAMES[level - 1]}</p><p className="text-xs text-white/45">{Number(employee?.points || 0).toLocaleString("pt-BR")} pontos</p></div>
+          <div className="rounded-2xl px-4 py-3 text-right" style={{ background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.08)" }}><p className="text-[10px] font-black uppercase tracking-widest text-white/35">Nível</p><p className="mt-1 text-lg font-black text-white">{LEVEL_ICONS[level - 1]} {LEVEL_NAMES[level - 1]}</p><p className="text-xs text-white/45">{Number(currentEmployee?.points || 0).toLocaleString("pt-BR")} pontos</p></div>
         </div>
       </section>
 
@@ -54,7 +51,7 @@ export function MyProfileWorkspace() {
         <Metric label="Atividades" value={rows.length + activityRows.length} icon={FileText} color="#60a5fa" />
         <Metric label="Aprovações" value={passed} icon={CheckCircle2} color="#10b981" />
         <Metric label="Média provas" value={average.toFixed(1)} icon={TrendingUp} color="#f59e0b" />
-        <Metric label="Ciclo" value={cycle?.status || "—"} icon={CalendarClock} color={cycle?.status === "Vencido" ? "#ef4444" : cycle?.status === "Próximo ao vencimento" ? "#f59e0b" : "#10b981"} compact />
+        <Metric label="Ciclo" value={currentCycle?.status || "—"} icon={CalendarClock} color={currentCycle?.status === "Vencido" ? "#ef4444" : currentCycle?.status === "Próximo ao vencimento" ? "#f59e0b" : "#10b981"} compact />
       </div>
 
       <section className="rounded-2xl p-4" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", boxShadow: "var(--shadow-card, var(--shadow-md))" }}>
