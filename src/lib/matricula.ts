@@ -12,7 +12,7 @@ export const matriculaSchema = z
 
 export const passwordSchema = z
   .string()
-  .min(6, "A senha deve ter pelo menos 6 caracteres")
+  .min(8, "A senha deve ter pelo menos 8 caracteres")
   .max(72, "A senha deve ter no máximo 72 caracteres");
 
 export const nomeSchema = z
