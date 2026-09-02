@@ -2,7 +2,7 @@ import { Router } from "express";
 import { execute, query, queryOne } from "../db.js";
 import { audit } from "../audit.js";
 import { requireAdmin, requireAuth } from "../session.js";
-import { asBool, asyncHandler, badRequest, notFound, parseJson, requireOneOf, requireText, trimOrNull, uuid } from "../util.js";
+import { asBool, asyncHandler, badRequest, notFound, parseJson, requireBoolean, requireOneOf, requireText, trimOrNull, uuid } from "../util.js";
 
 export const questionBankRouter = Router();
 
@@ -51,11 +51,13 @@ function mapOperational(row) {
 function readInput(body, { partial = false } = {}) {
   const input = {};
   const has = (key) => Object.prototype.hasOwnProperty.call(body ?? {}, key);
-  if (!partial || has("bank_type")) input.bank_type = requireText(body?.bank_type, "Tipo de banco");
-  if (!partial || has("question_text")) input.question_text = requireText(body?.question_text, "Pergunta");
+  if (!partial || has("bank_type")) input.bank_type = requireText(body?.bank_type, "Tipo de banco").slice(0, 80);
+  if (!partial || has("question_text")) input.question_text = requireText(body?.question_text, "Pergunta").slice(0, 4000);
   if (!partial || has("options")) {
     const options = Array.isArray(body?.options) ? body.options.map((value) => String(value ?? "").trim()) : [];
-    if (options.length && options.some((value) => !value)) throw badRequest("As alternativas não podem ficar vazias");
+    if (options.length > 20) throw badRequest("Limite de 20 alternativas por questão");
+    if (options.some((value) => !value)) throw badRequest("As alternativas não podem ficar vazias");
+    if (options.some((value) => value.length > 1000)) throw badRequest("Alternativa excede o limite de caracteres");
     input.options = options;
   }
   if (!partial || has("correct_index")) {
@@ -66,14 +68,21 @@ function readInput(body, { partial = false } = {}) {
       input.correct_index = index;
     }
   }
-  if (!partial || has("correct_answer")) input.correct_answer = trimOrNull(body?.correct_answer);
-  if (!partial || has("explanation")) input.explanation = trimOrNull(body?.explanation);
+  if (!partial || has("correct_answer")) input.correct_answer = trimOrNull(body?.correct_answer)?.slice(0, 4000) ?? null;
+  if (!partial || has("explanation")) input.explanation = trimOrNull(body?.explanation)?.slice(0, 8000) ?? null;
   if (!partial || has("target_sector")) input.target_sector = requireOneOf(body?.target_sector, TARGET_SECTORS, "Setor alvo", "Todos");
   if (!partial || has("difficulty")) input.difficulty = requireOneOf(normalizeDifficultyInput(body?.difficulty), DIFFICULTIES, "Dificuldade", "Básico");
-  if (!partial || has("theme")) input.theme = trimOrNull(body?.theme);
-  if (!partial || has("active")) input.active = body?.active === false ? 0 : 1;
+  if (!partial || has("theme")) input.theme = trimOrNull(body?.theme)?.slice(0, 255) ?? null;
+  if (!partial || has("active")) input.active = has("active") ? requireBoolean(body.active, "Situação ativa", { asInteger: true }) : 1;
   if (partial && Object.keys(input).length === 0) throw badRequest("Nenhum campo para atualizar");
   return input;
+}
+
+function validateAnswerShape(input, existing = null) {
+  const options = input.options ?? parseJson(existing?.options, []);
+  const correctIndex = Object.prototype.hasOwnProperty.call(input, "correct_index") ? input.correct_index : existing?.correct_index ?? null;
+  if (correctIndex !== null && Number(correctIndex) >= options.length) throw badRequest("Alternativa correta fora do intervalo");
+  if (correctIndex !== null && options.length < 2) throw badRequest("Questão objetiva precisa de ao menos duas alternativas");
 }
 
 questionBankRouter.get(
@@ -105,7 +114,7 @@ questionBankRouter.post(
   requireAdmin,
   asyncHandler(async (req, res) => {
     const input = readInput(req.body);
-    if (input.correct_index !== null && input.correct_index >= input.options.length) throw badRequest("Alternativa correta fora do intervalo");
+    validateAnswerShape(input);
     const id = uuid();
     await execute(
       `INSERT INTO question_bank
@@ -126,9 +135,7 @@ questionBankRouter.patch(
     const existing = await queryOne(`SELECT * FROM question_bank WHERE id = ?`, [req.params.id]);
     if (!existing) throw notFound("Questão não encontrada");
     const input = readInput(req.body, { partial: true });
-    const options = input.options ?? parseJson(existing.options, []);
-    const correctIndex = Object.prototype.hasOwnProperty.call(input, "correct_index") ? input.correct_index : existing.correct_index;
-    if (correctIndex !== null && Number(correctIndex) >= options.length) throw badRequest("Alternativa correta fora do intervalo");
+    validateAnswerShape(input, existing);
     const fields = Object.keys(input);
     const values = fields.map((field) => field === "options" ? JSON.stringify(input[field]) : input[field]);
     await execute(`UPDATE question_bank SET ${fields.map((field) => `${field} = ?`).join(", ")}, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`, [...values, req.params.id]);
