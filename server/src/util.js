@@ -66,6 +66,10 @@ export function optionalDate(value, label) {
   const text = trimOrNull(value);
   if (!text) return null;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) throw badRequest(`${label} inválida (use YYYY-MM-DD)`);
+  const date = new Date(`${text}T12:00:00Z`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== text) {
+    throw badRequest(`${label} inválida`);
+  }
   return text;
 }
 
