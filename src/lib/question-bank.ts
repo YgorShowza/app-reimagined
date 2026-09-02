@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { apiRequest, isSegempatApiConfigured } from "@/lib/backend/api-client";
 
 export interface QuestionBankItem {
   id: string;
@@ -59,28 +60,42 @@ function normalizeOperational(row: any): OperationalQuestionBankItem {
 }
 
 export async function listQuestionBank(): Promise<QuestionBankItem[]> {
+  if (isSegempatApiConfigured()) return apiRequest<QuestionBankItem[]>("/api/question-bank");
   const { data, error } = await (supabase as any).rpc("list_question_bank_admin");
   if (error) throw error;
   return (data ?? []).map(normalize);
 }
 
 export async function listActiveQuestionBank(): Promise<OperationalQuestionBankItem[]> {
+  if (isSegempatApiConfigured()) return apiRequest<OperationalQuestionBankItem[]>("/api/question-bank/operational");
   const { data, error } = await (supabase as any).rpc("list_operational_questions");
   if (error) throw error;
   return (data ?? []).map(normalizeOperational);
 }
 
 export async function createQuestionBankItem(input: QuestionBankInput) {
+  if (isSegempatApiConfigured()) {
+    await apiRequest<{ id: string }>("/api/question-bank", { method: "POST", body: JSON.stringify(input) });
+    return;
+  }
   const { error } = await (supabase as any).rpc("create_question_bank_admin", { p_input: input });
   if (error) throw error;
 }
 
 export async function updateQuestionBankItem(id: string, input: Partial<QuestionBankInput>) {
+  if (isSegempatApiConfigured()) {
+    await apiRequest<void>(`/api/question-bank/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) });
+    return;
+  }
   const { error } = await (supabase as any).rpc("update_question_bank_admin", { p_id: id, p_patch: input });
   if (error) throw error;
 }
 
 export async function deleteQuestionBankItem(id: string) {
+  if (isSegempatApiConfigured()) {
+    await apiRequest<void>(`/api/question-bank/${encodeURIComponent(id)}`, { method: "DELETE" });
+    return;
+  }
   const { error } = await (supabase as any).rpc("delete_question_bank_admin", { p_id: id });
   if (error) throw error;
 }
