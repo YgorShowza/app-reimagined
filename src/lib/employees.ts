@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { employeesGateway } from "@/lib/backend/employees-gateway";
 
 export interface Employee {
   id: string;
@@ -11,6 +11,7 @@ export interface Employee {
   points: number;
   first_access: boolean;
   created_at: string;
+  updated_at?: string;
 }
 
 export type EmployeeForm = Pick<
@@ -31,25 +32,17 @@ export const emptyEmployeeForm: EmployeeForm = {
 };
 
 export async function listEmployees(): Promise<Employee[]> {
-  const { data, error } = await supabase
-    .from("employees")
-    .select("*")
-    .order("full_name", { ascending: true });
-  if (error) throw error;
-  return (data ?? []) as Employee[];
+  return employeesGateway.list();
 }
 
 export async function createEmployee(form: EmployeeForm) {
-  const { error } = await supabase.from("employees").insert(form);
-  if (error) throw error;
+  return employeesGateway.create(form);
 }
 
 export async function updateEmployee(id: string, form: Partial<EmployeeForm>) {
-  const { error } = await supabase.from("employees").update(form).eq("id", id);
-  if (error) throw error;
+  return employeesGateway.update(id, form);
 }
 
 export async function deleteEmployee(id: string) {
-  const { error } = await supabase.from("employees").delete().eq("id", id);
-  if (error) throw error;
+  return employeesGateway.remove(id);
 }
