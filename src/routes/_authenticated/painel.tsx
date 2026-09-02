@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { LayoutDashboard, ClipboardList, TrendingUp, Award, ClipboardCheck, FileText, AlertTriangle, CheckCircle2, Target, ShieldCheck, CalendarClock } from "lucide-react";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { listCronogramaEntriesByYear } from "@/lib/cronograma";
-import { listExams, listMyAttempts } from "@/lib/exams";
+import { listAvailableExams, listMyAttempts } from "@/lib/exams";
 
 export const Route = createFileRoute("/_authenticated/painel")({ head:()=>({meta:[{title:"Início · SEGEMPAT"}]}), component:PanelPage });
 
@@ -14,7 +14,7 @@ function PanelPage(){
   const {data:user}=useCurrentUser();
   const year=new Date().getFullYear();
   const cron=useQuery({queryKey:["panel-cron",year],queryFn:()=>listCronogramaEntriesByYear(year)});
-  const exams=useQuery({queryKey:["exams"],queryFn:listExams});
+  const exams=useQuery({queryKey:["panel-available-exams"],queryFn:listAvailableExams});
   const attempts=useQuery({queryKey:["panel-attempts"],queryFn:listMyAttempts});
 
   const loading=cron.isLoading||exams.isLoading||attempts.isLoading;
@@ -27,7 +27,7 @@ function PanelPage(){
   const pending=rows.filter(e=>e.status==="Pendente").sort((a,b)=>(a.planned_date||"9999-12-31").localeCompare(b.planned_date||"9999-12-31"));
   const done=rows.filter(e=>e.status==="Realizado").length;
   const justified=rows.filter(e=>e.status==="Justificado").length;
-  const available=(exams.data??[]).filter(e=>e.status==="Publicada");
+  const available=exams.data??[];
   const myAttempts=attempts.data??[];
   const passed=myAttempts.filter(a=>a.passed).length;
   const execution=rows.length?Math.round(done/rows.length*100):0;
