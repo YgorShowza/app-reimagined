@@ -242,28 +242,47 @@ cronogramaRouter.post(
   asyncHandler(async (req, res) => {
     const month = req.body?.month ? requireMonth(req.body.month) : null;
     const rows = await query(
-      `SELECT c.id, c.employee_matricula, c.exam_id
+      `SELECT c.id, MAX(a.finished_at) AS finished_at
          FROM cronograma_entries c
-        WHERE c.exam_id IS NOT NULL AND c.status <> 'Realizado' ${month ? "AND c.month = ?" : ""}`,
+         JOIN exam_attempts a
+           ON a.exam_id = c.exam_id
+          AND LOWER(TRIM(a.matricula)) = LOWER(TRIM(c.employee_matricula))
+          AND a.passed = 1
+        WHERE c.exam_id IS NOT NULL
+          AND c.status <> 'Realizado'
+          ${month ? "AND c.month = ?" : ""}
+        GROUP BY c.id`,
       month ? [month] : [],
     );
-    let changed = 0;
-    for (const row of rows) {
-      const attempt = await queryOne(
-        `SELECT finished_at FROM exam_attempts
-          WHERE exam_id = ? AND LOWER(TRIM(matricula)) = LOWER(TRIM(?)) AND passed = 1
-          ORDER BY finished_at DESC LIMIT 1`,
-        [row.exam_id, row.employee_matricula],
-      );
-      if (!attempt) continue;
-      const completion = new Date(attempt.finished_at).toISOString().slice(0, 10);
-      await execute(
-        `UPDATE cronograma_entries SET status = 'Realizado', type = 'Realizado', completion_date = ?, justification = NULL, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`,
-        [completion, row.id],
-      );
-      changed += 1;
-    }
-    if (changed) await audit(req.user.id, "SYNC_EXAMS", "cronograma_entries", month ?? "all", { changed });
+
+    const updates = rows.map((row) => {
+      const finishedAt = new Date(row.finished_at);
+      if (Number.isNaN(finishedAt.getTime())) throw badRequest("Tentativa de prova possui data de conclusão inválida");
+      return { id: row.id, completionDate: finishedAt.toISOString().slice(0, 10) };
+    });
+
+    if (!updates.length) return res.json({ changed: 0 });
+
+    const changed = await withTransaction(async (connection) => {
+      let count = 0;
+      for (const update of updates) {
+        const [result] = await connection.execute(
+          `UPDATE cronograma_entries
+              SET status = 'Realizado', type = 'Realizado', completion_date = ?, justification = NULL, updated_at = UTC_TIMESTAMP(3)
+            WHERE id = ? AND status <> 'Realizado'`,
+          [update.completionDate, update.id],
+        );
+        count += Number(result.affectedRows || 0);
+      }
+      await audit(req.user.id, "SYNC_EXAMS", "cronograma_entries", month ?? "all", {
+        changed: count,
+        candidates: updates.length,
+        atomic: true,
+        set_based_lookup: true,
+      }, connection);
+      return count;
+    });
+
     res.json({ changed });
   }),
 );
