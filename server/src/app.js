@@ -7,6 +7,7 @@ import { attachUser } from "./session.js";
 import { authRouter } from "./routes/auth.js";
 import { employeesRouter } from "./routes/employees.js";
 import { accessRouter } from "./routes/access.js";
+import { examsRouter, myExamsRouter } from "./routes/exams.js";
 import { HttpError } from "./util.js";
 
 export function createApp() {
@@ -39,6 +40,8 @@ export function createApp() {
   app.use("/api/auth", authRouter);
   app.use("/api/employees", employeesRouter);
   app.use("/api/access", accessRouter);
+  app.use("/api/exams", examsRouter);
+  app.use("/api/me", myExamsRouter);
 
   app.use((_req, _res, next) => {
     next(new HttpError(404, "Rota não encontrada", "NOT_FOUND"));
