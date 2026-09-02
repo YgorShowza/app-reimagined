@@ -8,7 +8,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { SignaturePad } from "@/components/exams/SignaturePad";
 import { getExamForAttempt, saveAttempt, signAttempt, type ExamAttempt } from "@/lib/exams";
 import { useCurrentUser } from "@/lib/useCurrentUser";
-import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/prova-realizar")({
   validateSearch: (search: Record<string, unknown>) => ({ id: typeof search["id"] === "string" ? search["id"] : "" }),
@@ -70,9 +69,8 @@ function TakeExamPage() {
     if (!finished || signed) return;
     setSigning(true);
     try {
-      const { data: auth } = await supabase.auth.getUser();
-      if (!auth.user) throw new Error("Sessão inválida");
-      const attempt = await signAttempt({ attemptId: finished.attempt.id, userId: auth.user.id, signerName: user?.nome || user?.matricula || "Operador", pngBlob: blob });
+      if (!user?.id) throw new Error("Sessão inválida");
+      const attempt = await signAttempt({ attemptId: finished.attempt.id, userId: user.id, signerName: user.nome || user.matricula || "Operador", pngBlob: blob });
       setFinished((current) => current ? { ...current, attempt } : current);
       setSigned(true);
       await Promise.all([
