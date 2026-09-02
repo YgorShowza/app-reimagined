@@ -948,11 +948,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_cronograma_entries_atomic: {
+        Args: { p_rows: Json }
+        Returns: Json
+      }
+      create_exam_admin: { Args: { p_input: Json }; Returns: string }
+      create_question_bank_admin: { Args: { p_input: Json }; Returns: string }
+      cronograma_import_norm: { Args: { p_value: string }; Returns: string }
       current_employee_sector: { Args: never; Returns: string }
+      delete_exam_admin: { Args: { p_id: string }; Returns: undefined }
+      delete_question_bank_admin: { Args: { p_id: string }; Returns: undefined }
       generate_registration_code: {
         Args: { p_employee_id: string }
         Returns: Json
       }
+      get_exam_admin: { Args: { p_exam_id: string }; Returns: Json }
+      get_exam_for_attempt: { Args: { p_exam_id: string }; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -960,8 +971,86 @@ export type Database = {
         }
         Returns: boolean
       }
+      import_cronograma_results: { Args: { p_rows: Json }; Returns: Json }
       is_active_employee_user: { Args: never; Returns: boolean }
       is_current_employee: { Args: { _employee_id: string }; Returns: boolean }
+      list_available_exams: {
+        Args: never
+        Returns: {
+          created_at: string
+          description: string
+          exam_type: string
+          id: string
+          min_approval_pct: number
+          question_count: number
+          scheduled_date: string
+          status: string
+          target_sector: string
+          title: string
+        }[]
+      }
+      list_exams_admin: {
+        Args: never
+        Returns: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          exam_type: string
+          id: string
+          min_approval_pct: number
+          questions: Json
+          scheduled_date: string | null
+          status: string
+          target_sector: string
+          title: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "exams"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      list_operational_questions: {
+        Args: never
+        Returns: {
+          active: boolean
+          bank_type: string
+          created_at: string
+          difficulty: string
+          id: string
+          options: Json
+          question_text: string
+          target_sector: string
+          theme: string
+        }[]
+      }
+      list_question_bank_admin: {
+        Args: never
+        Returns: {
+          active: boolean
+          bank_type: string
+          correct_answer: string | null
+          correct_index: number | null
+          created_at: string
+          created_by: string | null
+          difficulty: string
+          explanation: string | null
+          id: string
+          options: Json
+          question_text: string
+          target_sector: string
+          theme: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "question_bank"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       make_certificate_code: { Args: never; Returns: string }
       revoke_registration_code: {
         Args: { p_employee_id: string }
@@ -997,6 +1086,32 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      submit_exam_attempt: {
+        Args: { p_answers?: Json; p_exam_id: string }
+        Returns: {
+          answers: Json
+          certificate_code: string | null
+          created_at: string
+          exam_id: string
+          finished_at: string
+          id: string
+          matricula: string | null
+          passed: boolean
+          score: number
+          signature_agreed: boolean
+          signature_name: string | null
+          signature_path: string | null
+          signed_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "exam_attempts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       submit_training_activity: {
         Args: {
           p_activity_title: string
@@ -1005,6 +1120,14 @@ export type Database = {
           p_score?: number
         }
         Returns: Json
+      }
+      update_exam_admin: {
+        Args: { p_id: string; p_patch: Json }
+        Returns: undefined
+      }
+      update_question_bank_admin: {
+        Args: { p_id: string; p_patch: Json }
+        Returns: undefined
       }
       validate_certificate: {
         Args: { p_code: string }
@@ -1035,12 +1158,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1064,11 +1187,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1089,11 +1212,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1114,11 +1237,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1131,11 +1254,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
