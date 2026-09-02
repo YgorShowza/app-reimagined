@@ -2,7 +2,7 @@ import { Router } from "express";
 import { execute, query, queryOne, withTransaction } from "../db.js";
 import { audit } from "../audit.js";
 import { requireAdmin, requireAuth } from "../session.js";
-import { asBool, asyncHandler, badRequest, notFound, parseJson, requireOneOf, requireText, trimOrNull, uuid } from "../util.js";
+import { asBool, asyncHandler, badRequest, conflict, notFound, parseJson, requireOneOf, requireText, trimOrNull, uuid } from "../util.js";
 
 export const trainingRouter = Router();
 export const adminTrainingRouter = Router();
@@ -12,6 +12,7 @@ const MODULE_STATUS = ["Ativo", "Inativo"];
 const TARGET_SECTORS = ["Todos", "CFTV", "Vigilância", "Portaria", "Ronda", "Administrativo"];
 const ACTIVITY_TYPES = ["Simulador", "Stress Test", "Desafio Diário", "Teste Rápido"];
 const CYCLE_STATUS = ["Em dia", "Próximo ao vencimento", "Vencido"];
+const SIMULATOR_DIFFICULTIES = ["Básico", "Intermediário", "Avançado"];
 
 function mapModule(row) {
   return { ...row, display_order: Number(row.display_order), min_score: Number(row.min_score) };
@@ -76,6 +77,40 @@ function readScheduleInput(body, { partial = false } = {}) {
   if (!partial || has("status")) input.status = requireOneOf(body?.status, CYCLE_STATUS, "Situação", "Em dia");
   if (partial && Object.keys(input).length === 0) throw badRequest("Nenhum campo para atualizar");
   return input;
+}
+
+function activityQuestionId(item) {
+  return String(item?.question_id || item?.scenario_id || item?.scenarioId || "").trim();
+}
+
+function activitySelectedIndex(item) {
+  const raw = item?.selected_index ?? item?.selectedIndex;
+  const value = Number(raw);
+  if (!Number.isInteger(value)) throw badRequest("Resposta inválida na atividade");
+  return value;
+}
+
+function simulatorDifficulty(activityTitle) {
+  const value = String(activityTitle || "").replace(/^Simulador\s*/i, "").trim();
+  if (!SIMULATOR_DIFFICULTIES.includes(value)) throw badRequest("Dificuldade do simulador inválida");
+  return value;
+}
+
+function activityDayMaceio() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Maceio",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+function levelForPoints(points) {
+  if (points >= 2000) return 5;
+  if (points >= 1000) return 4;
+  if (points >= 500) return 3;
+  if (points >= 200) return 2;
+  return 1;
 }
 
 trainingRouter.get(
@@ -214,29 +249,59 @@ myTrainingRouter.post(
     const submittedAnswers = Array.isArray(req.body?.answers) ? req.body.answers : [];
     if (!submittedAnswers.length) throw badRequest("Nenhuma resposta enviada");
 
-    const ids = [...new Set(submittedAnswers.map((item) => String(item?.question_id || "")).filter(Boolean))];
-    if (!ids.length) throw badRequest("Questões inválidas");
+    const normalizedAnswers = submittedAnswers.map((item) => ({
+      ...item,
+      question_id: activityQuestionId(item),
+      selected_index: activitySelectedIndex(item),
+    }));
+    if (normalizedAnswers.some((item) => !item.question_id)) throw badRequest("Questões inválidas");
+
+    const ids = normalizedAnswers.map((item) => item.question_id);
+    if (new Set(ids).size !== ids.length) throw badRequest("Questão duplicada na atividade");
+
+    const difficulty = activityType === "Simulador" ? simulatorDifficulty(activityTitle) : null;
+    let expectedCount;
+    if (activityType === "Teste Rápido") expectedCount = 5;
+    else if (activityType === "Desafio Diário") expectedCount = 3;
+    else {
+      const countParams = [req.user.setor ?? ""];
+      let countSql = `SELECT COUNT(*) AS total FROM question_bank WHERE active = 1 AND bank_type = 'simulacoes' AND (target_sector = 'Todos' OR target_sector = ?)`;
+      if (activityType === "Simulador") {
+        countSql += ` AND difficulty = ?`;
+        countParams.push(difficulty);
+      }
+      const available = await queryOne(countSql, countParams);
+      expectedCount = Math.min(activityType === "Simulador" ? 4 : 5, Number(available?.total || 0));
+    }
+    if (expectedCount <= 0) throw badRequest("Não há questões ativas suficientes para esta atividade");
+    if (normalizedAnswers.length !== expectedCount) {
+      throw badRequest(`Quantidade de respostas inválida: esperado ${expectedCount}, recebido ${normalizedAnswers.length}`);
+    }
+
     const placeholders = ids.map(() => "?").join(",");
     const questions = await query(
-      `SELECT id, correct_index, target_sector, active FROM question_bank WHERE id IN (${placeholders})`,
+      `SELECT id, correct_index, target_sector, active, bank_type, difficulty FROM question_bank WHERE id IN (${placeholders})`,
       ids,
     );
     if (questions.length !== ids.length) throw badRequest("Uma ou mais questões não existem");
 
     const byId = new Map(questions.map((row) => [row.id, row]));
     let correct = 0;
-    for (const answer of submittedAnswers) {
-      const question = byId.get(String(answer?.question_id || ""));
+    for (const answer of normalizedAnswers) {
+      const question = byId.get(answer.question_id);
       if (!question || !asBool(question.active)) throw badRequest("Questão inativa ou inválida");
       if (question.target_sector !== "Todos" && question.target_sector !== req.user.setor) throw badRequest("Questão incompatível com o setor do usuário");
-      if (Number(answer?.selected_index) === Number(question.correct_index)) correct += 1;
+      if (activityType === "Desafio Diário" && question.bank_type !== "treinamento_dinamico") throw badRequest("Questão não autorizada para o Desafio Diário");
+      if ((activityType === "Simulador" || activityType === "Stress Test") && question.bank_type !== "simulacoes") throw badRequest("Cenário não autorizado para esta atividade");
+      if (activityType === "Simulador" && question.difficulty !== difficulty) throw badRequest("Cenário incompatível com a dificuldade do simulador");
+      if (answer.selected_index === Number(question.correct_index)) correct += 1;
     }
 
-    const questionCount = submittedAnswers.length;
-    const score = Math.round((correct / questionCount) * 10 * 100) / 100;
+    const questionCount = normalizedAnswers.length;
+    const score = Math.round((correct / questionCount) * 10 * 10) / 10;
     const passed = score >= 7;
-    const today = new Date().toISOString().slice(0, 10);
-    const rewardBase = activityType === "Teste Rápido" ? 10 : activityType === "Desafio Diário" ? 15 : activityType === "Stress Test" ? 20 : 12;
+    const today = activityDayMaceio();
+    const rewardBase = activityType === "Teste Rápido" ? 10 : activityType === "Desafio Diário" ? 15 : activityType === "Stress Test" ? 25 : 20;
 
     const result = await withTransaction(async (connection) => {
       const [employees] = await connection.execute(`SELECT * FROM employees WHERE id = ? FOR UPDATE`, [req.user.employeeId]);
@@ -247,24 +312,27 @@ myTrainingRouter.post(
         `SELECT COUNT(*) AS total FROM training_activity_attempts WHERE user_id = ? AND activity_type = ? AND activity_day = ?`,
         [req.user.id, activityType, today],
       );
-      const alreadyRewardedToday = Number(rewardedRows[0]?.total || 0) > 0;
-      const pointsEarned = passed && !alreadyRewardedToday ? rewardBase : 0;
+      const alreadyCompletedToday = Number(rewardedRows[0]?.total || 0) > 0;
+      if (activityType === "Desafio Diário" && alreadyCompletedToday) throw conflict("Desafio Diário já realizado hoje");
+      const alreadyRewardedToday = alreadyCompletedToday && activityType !== "Desafio Diário";
+      const pointsEarned = alreadyRewardedToday ? 0 : rewardBase;
       const attemptId = uuid();
 
       await connection.execute(
         `INSERT INTO training_activity_attempts
          (id,user_id,employee_id,employee_name,employee_matricula,employee_sector,activity_type,activity_title,answers,score,max_score,passed,points_earned,created_at,activity_day)
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(3),?)`,
-        [attemptId,req.user.id,employee.id,employee.full_name,employee.matricula,employee.sector,activityType,activityTitle,JSON.stringify(submittedAnswers),score,10,passed ? 1 : 0,pointsEarned,today],
+        [attemptId,req.user.id,employee.id,employee.full_name,employee.matricula,employee.sector,activityType,activityTitle,JSON.stringify(normalizedAnswers),score,10,passed ? 1 : 0,pointsEarned,today],
       );
 
-      if (pointsEarned > 0) {
-        await connection.execute(`UPDATE employees SET points = points + ?, level = GREATEST(1, FLOOR((points + ?) / 100) + 1), updated_at = UTC_TIMESTAMP(3) WHERE id = ?`, [pointsEarned, pointsEarned, employee.id]);
+      const newPoints = Number(employee.points || 0) + pointsEarned;
+      const level = levelForPoints(newPoints);
+      if (pointsEarned > 0 || Number(employee.level || 1) !== level) {
+        await connection.execute(`UPDATE employees SET points = ?, level = ?, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`, [newPoints, level, employee.id]);
       }
 
-      const [updated] = await connection.execute(`SELECT points, level FROM employees WHERE id = ?`, [employee.id]);
       await audit(req.user.id, "TRAINING_ACTIVITY", "training_activity_attempts", attemptId, { activity_type: activityType, score, passed, points_earned: pointsEarned }, connection);
-      return { attemptId, pointsEarned, alreadyRewardedToday, newPoints: Number(updated[0]?.points || 0), level: Number(updated[0]?.level || 1) };
+      return { attemptId, pointsEarned, alreadyRewardedToday, newPoints, level };
     });
 
     res.status(201).json({
