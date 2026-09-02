@@ -8,12 +8,28 @@ export const questionBankRouter = Router();
 
 const TARGET_SECTORS = ["Todos", "CFTV", "Vigilância", "Portaria", "Ronda", "Administrativo"];
 const DIFFICULTIES = ["Básico", "Intermediário", "Avançado"];
+const ADMIN_DIFFICULTY_TO_CANONICAL = {
+  "Fácil": "Básico",
+  "Médio": "Intermediário",
+  "Difícil": "Avançado",
+};
+const CANONICAL_DIFFICULTY_TO_ADMIN = {
+  "Básico": "Fácil",
+  "Intermediário": "Médio",
+  "Avançado": "Difícil",
+};
+
+function normalizeDifficultyInput(value) {
+  const raw = String(value ?? "").trim();
+  return ADMIN_DIFFICULTY_TO_CANONICAL[raw] ?? raw;
+}
 
 function mapAdmin(row) {
   return {
     ...row,
     options: parseJson(row.options, []),
     correct_index: row.correct_index === null ? null : Number(row.correct_index),
+    difficulty: CANONICAL_DIFFICULTY_TO_ADMIN[row.difficulty] ?? row.difficulty,
     active: asBool(row.active),
   };
 }
@@ -53,7 +69,7 @@ function readInput(body, { partial = false } = {}) {
   if (!partial || has("correct_answer")) input.correct_answer = trimOrNull(body?.correct_answer);
   if (!partial || has("explanation")) input.explanation = trimOrNull(body?.explanation);
   if (!partial || has("target_sector")) input.target_sector = requireOneOf(body?.target_sector, TARGET_SECTORS, "Setor alvo", "Todos");
-  if (!partial || has("difficulty")) input.difficulty = requireOneOf(body?.difficulty, DIFFICULTIES, "Dificuldade", "Básico");
+  if (!partial || has("difficulty")) input.difficulty = requireOneOf(normalizeDifficultyInput(body?.difficulty), DIFFICULTIES, "Dificuldade", "Básico");
   if (!partial || has("theme")) input.theme = trimOrNull(body?.theme);
   if (!partial || has("active")) input.active = body?.active === false ? 0 : 1;
   if (partial && Object.keys(input).length === 0) throw badRequest("Nenhum campo para atualizar");
@@ -98,7 +114,7 @@ questionBankRouter.post(
       [id, input.bank_type, input.question_text, JSON.stringify(input.options), input.correct_index, input.correct_answer, input.explanation,
         input.target_sector, input.difficulty, input.theme, input.active, req.user.id],
     );
-    await audit(req.user.id, "INSERT", "question_bank", id, { bank_type: input.bank_type });
+    await audit(req.user.id, "INSERT", "question_bank", id, { bank_type: input.bank_type, difficulty: input.difficulty });
     res.status(201).json({ id });
   }),
 );
