@@ -9,9 +9,9 @@ import {
   LogOut, Target, FileBarChart, History, AlertTriangle,
   FileSpreadsheet, PlusCircle, Menu, CalendarDays, Layers3, CalendarClock, GraduationCap, type LucideIcon,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useTheme } from "@/components/ThemeProvider";
 import { useCurrentUser } from "@/lib/useCurrentUser";
+import { logoutSession } from "@/lib/backend/auth-gateway";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 const LOGO_URL =
@@ -178,8 +178,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
     if (loggingOut) return;
     setLoggingOut(true);
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      await logoutSession();
       await queryClient.cancelQueries();
       queryClient.clear();
       navigate({ to: "/", replace: true });
