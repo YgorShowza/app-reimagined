@@ -2,7 +2,7 @@ import { Router } from "express";
 import { execute, query, queryOne, withTransaction } from "../db.js";
 import { audit } from "../audit.js";
 import { requireAdmin, requireAuth } from "../session.js";
-import { asBool, asyncHandler, badRequest, conflict, notFound, parseJson, requireOneOf, requireText, trimOrNull, uuid } from "../util.js";
+import { asBool, asyncHandler, badRequest, conflict, notFound, optionalDate, parseJson, requireOneOf, requireText, trimOrNull, uuid } from "../util.js";
 
 export const trainingRouter = Router();
 export const adminTrainingRouter = Router();
@@ -18,7 +18,15 @@ function mapModule(row) {
 }
 
 function mapSchedule(row) {
-  return { ...row, cycle_days: Number(row.cycle_days) };
+  const cycleDays = Number(row.cycle_days);
+  const window = calculateTrainingWindow(row.last_training_date, cycleDays);
+  return {
+    ...row,
+    cycle_days: cycleDays,
+    window_start: window.window_start,
+    window_end: window.window_end,
+    status: deriveTrainingStatus(window),
+  };
 }
 
 function mapAttempt(row) {
@@ -63,11 +71,7 @@ function readScheduleInput(body, { partial = false } = {}) {
     if (!Number.isInteger(value) || value < 1 || value > 3650) throw badRequest("Ciclo de treinamento inválido");
     input.cycle_days = value;
   }
-  if (!partial || has("last_training_date")) {
-    const value = trimOrNull(body?.last_training_date);
-    if (value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw badRequest("Data do último treinamento inválida");
-    input.last_training_date = value;
-  }
+  if (!partial || has("last_training_date")) input.last_training_date = optionalDate(body?.last_training_date, "Data do último treinamento");
   if (!partial || has("observations")) input.observations = trimOrNull(body?.observations);
   if (partial && Object.keys(input).length === 0) throw badRequest("Nenhum campo para atualizar");
   return input;
@@ -80,7 +84,7 @@ function isoDateUtc(date) {
 function calculateTrainingWindow(lastTrainingDate, cycleDays) {
   if (!lastTrainingDate) return { window_start: null, window_end: null };
   const last = new Date(`${lastTrainingDate}T12:00:00Z`);
-  if (Number.isNaN(last.getTime())) throw badRequest("Data do último treinamento inválida");
+  if (Number.isNaN(last.getTime()) || isoDateUtc(last) !== String(lastTrainingDate).slice(0, 10)) throw badRequest("Data do último treinamento inválida");
   const end = new Date(last);
   end.setUTCDate(end.getUTCDate() + Math.max(1, cycleDays));
   const start = new Date(end);
@@ -88,7 +92,7 @@ function calculateTrainingWindow(lastTrainingDate, cycleDays) {
   return { window_start: isoDateUtc(start), window_end: isoDateUtc(end) };
 }
 
-function deriveTrainingStatus(lastTrainingDate, cycleDays, window) {
+function deriveTrainingStatus(window) {
   if (!window.window_end) return "Vencido";
   const today = activityDayMaceio();
   if (today > window.window_end) return "Vencido";
@@ -114,7 +118,7 @@ function serverScheduleValues({ employee, current = null, input }) {
     window_start: window.window_start,
     window_end: window.window_end,
     observations,
-    status: deriveTrainingStatus(lastTrainingDate, cycleDays, window),
+    status: deriveTrainingStatus(window),
   };
 }
 
