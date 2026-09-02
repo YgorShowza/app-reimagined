@@ -3,13 +3,10 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Lock, User, Eye, EyeOff, ChevronRight, KeyRound, Loader2 } from "lucide-react";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
-import { supabase } from "@/integrations/supabase/client";
-import {
-  matriculaSchema,
-  matriculaToEmail,
-  normalizeMatricula,
-  passwordSchema,
-} from "@/lib/matricula";
+import { activateWithCode, loginWithMatricula } from "@/lib/backend/auth-gateway";
+import { getCurrentSessionUser } from "@/lib/backend/current-user-gateway";
+import { matriculaSchema, passwordSchema } from "@/lib/matricula";
+import type { SessionUser } from "@/lib/backend/contracts";
 
 const LOGO_URL =
   "https://media.base44.com/images/public/6a1117d573bbf85981b1abee/8271ac857_IMG_9226.png";
@@ -58,20 +55,8 @@ const labelClass = "text-xs font-semibold uppercase tracking-wider";
 type Step = "matricula" | "password" | "signup";
 type Navigate = ReturnType<typeof useNavigate>;
 
-async function navigateHome(navigate: Navigate) {
-  const { data: userData } = await supabase.auth.getUser();
-  const uid = userData.user?.id;
-  if (uid) {
-    const { data: roles } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", uid);
-    if ((roles ?? []).some((r) => r.role === "admin")) {
-      navigate({ to: "/admin", replace: true });
-      return;
-    }
-  }
-  navigate({ to: "/painel", replace: true });
+function navigateHome(navigate: Navigate, user: SessionUser) {
+  navigate({ to: user.isAdmin ? "/admin" : "/painel", replace: true });
 }
 
 function AuthScreen() {
@@ -86,9 +71,11 @@ function AuthScreen() {
 
   useEffect(() => {
     let active = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (active && data.session) void navigateHome(navigate);
-    });
+    getCurrentSessionUser()
+      .then((user) => {
+        if (active && user) navigateHome(navigate, user);
+      })
+      .catch(() => undefined);
     return () => {
       active = false;
     };
@@ -117,17 +104,15 @@ function AuthScreen() {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
-      email: matriculaToEmail(matricula),
-      password,
-    });
-    setLoading(false);
-    if (error) {
+    try {
+      const user = await loginWithMatricula(matricula, password);
+      toast.success("Bem-vindo ao SEGEMPAT");
+      navigateHome(navigate, user);
+    } catch {
       toast.error("Matrícula ou senha incorretos");
-      return;
+    } finally {
+      setLoading(false);
     }
-    toast.success("Bem-vindo ao SEGEMPAT");
-    void navigateHome(navigate);
   };
 
   const handleSignup = async () => {
@@ -146,30 +131,21 @@ function AuthScreen() {
     }
 
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
-      email: matriculaToEmail(matricula),
-      password,
-      options: {
-        data: {
-          matricula: normalizeMatricula(matricula),
-          activation_code: activationCode,
-        },
-      },
-    });
-    setLoading(false);
-
-    if (error) {
+    try {
+      const user = await activateWithCode({ matricula, activationCode, password });
+      toast.success("Acesso criado com sucesso");
+      setActivationCode("");
+      navigateHome(navigate, user);
+    } catch (error) {
+      const message = error instanceof Error ? error.message.toLowerCase() : "";
       toast.error(
-        error.message.toLowerCase().includes("already")
+        message.includes("já possui") || message.includes("already")
           ? "Já existe uma senha cadastrada para esta matrícula"
           : "Não foi possível criar o acesso. Verifique matrícula e código de ativação.",
       );
-      return;
+    } finally {
+      setLoading(false);
     }
-
-    toast.success("Acesso criado com sucesso");
-    setActivationCode("");
-    void navigateHome(navigate);
   };
 
   return (
@@ -329,7 +305,7 @@ function AuthScreen() {
                       onKeyDown={(e) =>
                         e.key === "Enter" && (step === "signup" ? handleSignup() : handleLogin())
                       }
-                      placeholder={step === "signup" ? "Mínimo 6 caracteres" : "Sua senha"}
+                      placeholder={step === "signup" ? "Mínimo 8 caracteres" : "Sua senha"}
                       autoComplete={step === "signup" ? "new-password" : "current-password"}
                       style={{ ...inputStyle, paddingLeft: "2.5rem", paddingRight: "3rem" }}
                       onFocus={focusAccent}
