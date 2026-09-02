@@ -43,6 +43,26 @@ async function operationalEmployee(employeeId) {
   return employee;
 }
 
+async function validateQuestionLinks(questionIds, employeeSector) {
+  const ids = Array.isArray(questionIds) ? questionIds.map((value) => String(value).trim()).filter(Boolean) : [];
+  if (!ids.length) return [];
+  if (new Set(ids).size !== ids.length) throw badRequest("Existem questões duplicadas vinculadas ao lançamento");
+  if (ids.length > 100) throw badRequest("Limite de 100 questões vinculadas por lançamento");
+
+  const placeholders = ids.map(() => "?").join(",");
+  const rows = await query(
+    `SELECT id FROM question_bank
+      WHERE id IN (${placeholders})
+        AND active = 1
+        AND (target_sector = 'Todos' OR target_sector = ?)`,
+    [...ids, employeeSector],
+  );
+  if (rows.length !== ids.length) {
+    throw badRequest(`Uma ou mais questões vinculadas estão inativas, inexistentes ou incompatíveis com o setor ${employeeSector}`);
+  }
+  return ids;
+}
+
 function readEntryInput(body, { partial = false } = {}) {
   const input = {};
   const has = (key) => Object.prototype.hasOwnProperty.call(body ?? {}, key);
@@ -64,12 +84,14 @@ function readEntryInput(body, { partial = false } = {}) {
 
 async function deriveEntryIdentity(input) {
   const employee = await operationalEmployee(input.employee_id);
+  const employeeSector = requireOneOf(employee.sector, TARGET_SECTORS.filter((value) => value !== "Todos"), "Setor");
   return {
     ...input,
     employee_id: employee.id,
     employee_name: employee.full_name,
     employee_matricula: employee.matricula,
-    employee_sector: requireOneOf(employee.sector, TARGET_SECTORS.filter((value) => value !== "Todos"), "Setor"),
+    employee_sector: employeeSector,
+    question_bank_ids: await validateQuestionLinks(input.question_bank_ids, employeeSector),
   };
 }
 
@@ -117,8 +139,6 @@ cronogramaRouter.post(
     if (!entries.length) return res.status(204).end();
     if (entries.length > 1000) throw badRequest("Limite de 1000 lançamentos por operação");
 
-    // Valida todo o lote antes de abrir a transação. Assim um item inválido não
-    // deixa os anteriores gravados e não prolonga locks durante consultas de identidade.
     const prepared = [];
     for (const raw of entries) {
       prepared.push({ id: uuid(), input: await deriveEntryIdentity(readEntryInput(raw)) });
@@ -141,6 +161,7 @@ cronogramaRouter.post(
       await audit(req.user.id, "BULK_INSERT", "cronograma_entries", ids[0] ?? "", {
         count: ids.length,
         identity_derived_server_side: true,
+        question_links_validated_server_side: true,
         atomic: true,
       }, connection);
       return ids;
@@ -165,7 +186,7 @@ cronogramaRouter.post(
         input.exam_id, input.exam_title, input.type, input.status, input.justification, input.planned_date, input.completion_date,
         input.notes, JSON.stringify(input.question_bank_ids), req.user.id],
     );
-    await audit(req.user.id, "INSERT", "cronograma_entries", id, { month: input.month, employee_id: input.employee_id, identity_derived_server_side: true });
+    await audit(req.user.id, "INSERT", "cronograma_entries", id, { month: input.month, employee_id: input.employee_id, identity_derived_server_side: true, question_links_validated_server_side: true });
     res.status(201).json({ id });
   }),
 );
@@ -174,7 +195,7 @@ cronogramaRouter.patch(
   "/:id",
   requireAdmin,
   asyncHandler(async (req, res) => {
-    const existing = await queryOne(`SELECT id FROM cronograma_entries WHERE id = ?`, [req.params.id]);
+    const existing = await queryOne(`SELECT * FROM cronograma_entries WHERE id = ?`, [req.params.id]);
     if (!existing) throw notFound("Registro do cronograma não encontrado");
     const input = readEntryInput(req.body, { partial: true });
     if (Object.prototype.hasOwnProperty.call(input, "employee_id")) {
@@ -184,10 +205,21 @@ cronogramaRouter.patch(
       input.employee_matricula = employee.matricula;
       input.employee_sector = requireOneOf(employee.sector, TARGET_SECTORS.filter((value) => value !== "Todos"), "Setor");
     }
+    if (Object.prototype.hasOwnProperty.call(input, "question_bank_ids") || Object.prototype.hasOwnProperty.call(input, "employee_id")) {
+      const effectiveSector = input.employee_sector ?? existing.employee_sector;
+      const effectiveQuestionIds = Object.prototype.hasOwnProperty.call(input, "question_bank_ids")
+        ? input.question_bank_ids
+        : parseJson(existing.question_bank_ids, []);
+      input.question_bank_ids = await validateQuestionLinks(effectiveQuestionIds, effectiveSector);
+    }
     const fields = Object.keys(input);
     const values = fields.map((field) => field === "question_bank_ids" ? JSON.stringify(input[field]) : input[field]);
     await execute(`UPDATE cronograma_entries SET ${fields.map((f) => `${f} = ?`).join(", ")}, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`, [...values, req.params.id]);
-    await audit(req.user.id, "UPDATE", "cronograma_entries", req.params.id, { changed: fields, identity_derived_server_side: Object.prototype.hasOwnProperty.call(input, "employee_id") });
+    await audit(req.user.id, "UPDATE", "cronograma_entries", req.params.id, {
+      changed: fields,
+      identity_derived_server_side: Object.prototype.hasOwnProperty.call(input, "employee_id"),
+      question_links_validated_server_side: fields.includes("question_bank_ids"),
+    });
     res.status(204).end();
   }),
 );
