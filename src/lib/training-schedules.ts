@@ -53,6 +53,15 @@ export function deriveTrainingStatus(schedule: Pick<TrainingSchedule, "window_st
 
 function normalize(row: TrainingSchedule): TrainingSchedule { return { ...row, status: deriveTrainingStatus(row) }; }
 
+function apiSchedulePayload(input: Partial<TrainingScheduleInput>) {
+  const payload: Record<string, unknown> = {};
+  if (input.employee_id !== undefined) payload.employee_id = input.employee_id;
+  if (input.cycle_days !== undefined) payload.cycle_days = input.cycle_days;
+  if (input.last_training_date !== undefined) payload.last_training_date = input.last_training_date;
+  if (input.observations !== undefined) payload.observations = input.observations;
+  return payload;
+}
+
 export async function listTrainingSchedules(): Promise<TrainingSchedule[]> {
   if (isSegempatApiConfigured()) return (await apiRequest<TrainingSchedule[]>("/api/admin/training/schedules")).map(normalize);
   const { data, error } = await (supabase as any).from("training_schedules").select("*").order("employee_name", { ascending: true });
@@ -62,7 +71,7 @@ export async function listTrainingSchedules(): Promise<TrainingSchedule[]> {
 
 export async function createTrainingSchedule(input: TrainingScheduleInput) {
   if (isSegempatApiConfigured()) {
-    await apiRequest<{ id: string }>("/api/admin/training/schedules", { method: "POST", body: JSON.stringify(input) });
+    await apiRequest<{ id: string }>("/api/admin/training/schedules", { method: "POST", body: JSON.stringify(apiSchedulePayload(input)) });
     return;
   }
   const { error } = await (supabase as any).from("training_schedules").insert(input);
@@ -71,7 +80,7 @@ export async function createTrainingSchedule(input: TrainingScheduleInput) {
 
 export async function updateTrainingSchedule(id: string, input: Partial<TrainingScheduleInput>) {
   if (isSegempatApiConfigured()) {
-    await apiRequest<void>(`/api/admin/training/schedules/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) });
+    await apiRequest<void>(`/api/admin/training/schedules/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(apiSchedulePayload(input)) });
     return;
   }
   const { error } = await (supabase as any).from("training_schedules").update(input).eq("id", id);
