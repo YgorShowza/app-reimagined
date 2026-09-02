@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Award, CheckCircle2, Clock3, Copy, Printer, RefreshCw, ShieldCheck, FileBadge2, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { listExams, listMyAttempts } from "@/lib/exams";
+import { listAvailableExams, listMyAttempts } from "@/lib/exams";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { toast } from "sonner";
 
@@ -13,7 +13,7 @@ function Metric({label,value,icon:Icon,accent,sub}:{label:string;value:number;ic
 
 function CertificatesPage(){
   const {data:user}=useCurrentUser();
-  const exams=useQuery({queryKey:["exams"],queryFn:listExams});
+  const exams=useQuery({queryKey:["available-exams-certificates"],queryFn:listAvailableExams});
   const attempts=useQuery({queryKey:["my-cert-attempts"],queryFn:listMyAttempts});
 
   if(exams.isLoading||attempts.isLoading)return <Loading/>;
