@@ -26,6 +26,15 @@ const EXAM_TYPES = ["Múltipla escolha", "Discursiva", "Mista"];
 const EXAM_STATUS = ["Rascunho", "Publicada"];
 const TARGET_SECTORS = ["Todos", "CFTV", "Vigilância", "Portaria", "Ronda", "Administrativo"];
 
+function localDate() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: config.timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
 function mapAttempt(row) {
   if (!row) return null;
   return {
@@ -62,46 +71,47 @@ function mapExam(row, { sanitize = false, metadataOnly = false } = {}) {
 
 function validateQuestions(value) {
   if (!Array.isArray(value) || value.length === 0) throw badRequest("A prova precisa ter ao menos uma questão");
-  return value.map((raw, index) => {
+  if (value.length > 200) throw badRequest("A prova excede o limite de 200 questões");
+  const ids = new Set();
+  const questions = value.map((raw, index) => {
     const type = requireOneOf(raw?.type, ["Múltipla escolha", "Discursiva"], `Tipo da questão ${index + 1}`);
-    const statement = requireText(raw?.statement, `Enunciado da questão ${index + 1}`);
+    const statement = requireText(raw?.statement, `Enunciado da questão ${index + 1}`).slice(0, 5000);
     const points = Number(raw?.points ?? 1);
     if (!Number.isFinite(points) || points <= 0 || points > 100) throw badRequest(`Pontuação inválida na questão ${index + 1}`);
+    const id = String(raw?.id || uuid()).trim().slice(0, 100);
+    if (!id || ids.has(id)) throw badRequest(`Identificador duplicado ou inválido na questão ${index + 1}`);
+    ids.add(id);
 
     if (type === "Múltipla escolha") {
-      const options = Array.isArray(raw?.options) ? raw.options.map((item) => String(item ?? "").trim()) : [];
-      if (options.length < 2 || options.some((item) => !item)) throw badRequest(`A questão ${index + 1} precisa de ao menos duas alternativas preenchidas`);
+      const options = Array.isArray(raw?.options) ? raw.options.map((item) => String(item ?? "").trim().slice(0, 2000)) : [];
+      if (options.length < 2 || options.length > 20 || options.some((item) => !item)) {
+        throw badRequest(`A questão ${index + 1} precisa de 2 a 20 alternativas preenchidas`);
+      }
       const correctIndex = Number(raw?.correct_index);
       if (!Number.isInteger(correctIndex) || correctIndex < 0 || correctIndex >= options.length) {
         throw badRequest(`Alternativa correta inválida na questão ${index + 1}`);
       }
-      return {
-        id: String(raw?.id || uuid()),
-        type,
-        statement,
-        options,
-        correct_index: correctIndex,
-        points,
-      };
+      return { id, type, statement, options, correct_index: correctIndex, points };
     }
 
     return {
-      id: String(raw?.id || uuid()),
+      id,
       type,
       statement,
       options: [],
       correct_index: 0,
-      model_answer: trimOrNull(raw?.model_answer) ?? "",
+      model_answer: (trimOrNull(raw?.model_answer) ?? "").slice(0, 5000),
       points,
     };
   });
+  return questions;
 }
 
 function readExamInput(body, { partial = false } = {}) {
   const input = {};
   const has = (key) => Object.prototype.hasOwnProperty.call(body ?? {}, key);
 
-  if (!partial || has("title")) input.title = requireText(body?.title, "Título");
+  if (!partial || has("title")) input.title = requireText(body?.title, "Título").slice(0, 255);
   if (!partial || has("description")) input.description = trimOrNull(body?.description);
   if (!partial || has("exam_type")) input.exam_type = requireOneOf(body?.exam_type, EXAM_TYPES, "Tipo de prova", "Múltipla escolha");
   if (!partial || has("target_sector")) input.target_sector = requireOneOf(body?.target_sector, TARGET_SECTORS, "Setor alvo", "Todos");
@@ -131,13 +141,32 @@ function normalizeText(value) {
     .replace(/\s+/g, " ");
 }
 
+function normalizeAnswers(questions, value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw badRequest("Respostas inválidas");
+  const questionById = new Map(questions.map((question) => [String(question.id), question]));
+  const entries = Object.entries(value);
+  if (entries.length > questions.length) throw badRequest("Foram enviadas respostas para questões desconhecidas");
+  const normalized = {};
+  for (const [id, answer] of entries) {
+    const question = questionById.get(id);
+    if (!question) throw badRequest("Foi enviada resposta para uma questão que não pertence à prova");
+    if (question.type === "Múltipla escolha") {
+      const selected = Number(answer);
+      if (!Number.isInteger(selected) || selected < 0 || selected >= question.options.length) throw badRequest("Alternativa selecionada inválida");
+      normalized[id] = selected;
+    } else {
+      normalized[id] = String(answer ?? "").slice(0, 10000);
+    }
+  }
+  return normalized;
+}
+
 function calculateResult(questions, answers, minApprovalPct) {
-  const answerMap = answers && typeof answers === "object" && !Array.isArray(answers) ? answers : {};
   const maxPoints = questions.reduce((sum, question) => sum + Number(question.points || 1), 0);
   let earned = 0;
 
   for (const question of questions) {
-    const answer = answerMap[question.id];
+    const answer = answers[question.id];
     if (question.type === "Múltipla escolha") {
       if (Number(answer) === Number(question.correct_index)) earned += Number(question.points || 1);
       continue;
@@ -152,152 +181,102 @@ function calculateResult(questions, answers, minApprovalPct) {
 }
 
 function certificateCode() {
-  const stamp = new Date().toISOString().slice(0, 10).replaceAll("-", "");
+  const stamp = localDate().replaceAll("-", "");
   return `SEG-${stamp}-${uuid().replaceAll("-", "").slice(0, 12).toUpperCase()}`;
 }
 
-examsRouter.get(
-  "/",
-  requireAdmin,
-  asyncHandler(async (_req, res) => {
-    const rows = await query(`SELECT * FROM exams ORDER BY created_at DESC`);
-    res.json(rows.map((row) => mapExam(row)));
-  }),
-);
+examsRouter.get("/", requireAdmin, asyncHandler(async (_req, res) => {
+  const rows = await query(`SELECT * FROM exams ORDER BY created_at DESC`);
+  res.json(rows.map((row) => mapExam(row)));
+}));
 
-examsRouter.get(
-  "/:id",
-  requireAdmin,
-  asyncHandler(async (req, res) => {
-    const row = await queryOne(`SELECT * FROM exams WHERE id = ?`, [req.params.id]);
-    if (!row) throw notFound("Prova não encontrada");
-    res.json(mapExam(row));
-  }),
-);
+examsRouter.get("/:id", requireAdmin, asyncHandler(async (req, res) => {
+  const row = await queryOne(`SELECT * FROM exams WHERE id = ?`, [req.params.id]);
+  if (!row) throw notFound("Prova não encontrada");
+  res.json(mapExam(row));
+}));
 
-examsRouter.post(
-  "/",
-  requireAdmin,
-  asyncHandler(async (req, res) => {
-    const input = readExamInput(req.body);
-    const id = uuid();
-    await execute(
-      `INSERT INTO exams
-       (id, title, description, exam_type, target_sector, min_approval_pct, scheduled_date, status, questions, created_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
-      [
-        id,
-        input.title,
-        input.description,
-        input.exam_type,
-        input.target_sector,
-        input.min_approval_pct,
-        input.scheduled_date,
-        input.status,
-        JSON.stringify(input.questions),
-        req.user.id,
-      ],
-    );
-    await audit(req.user.id, "INSERT", "exams", id, { title: input.title });
-    res.status(201).json({ id });
-  }),
-);
+examsRouter.post("/", requireAdmin, asyncHandler(async (req, res) => {
+  const input = readExamInput(req.body);
+  const id = uuid();
+  await execute(
+    `INSERT INTO exams
+     (id, title, description, exam_type, target_sector, min_approval_pct, scheduled_date, status, questions, created_by, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
+    [id,input.title,input.description,input.exam_type,input.target_sector,input.min_approval_pct,input.scheduled_date,input.status,JSON.stringify(input.questions),req.user.id],
+  );
+  await audit(req.user.id, "INSERT", "exams", id, { title: input.title });
+  res.status(201).json({ id });
+}));
 
-examsRouter.patch(
-  "/:id",
-  requireAdmin,
-  asyncHandler(async (req, res) => {
-    const existing = await queryOne(`SELECT * FROM exams WHERE id = ?`, [req.params.id]);
-    if (!existing) throw notFound("Prova não encontrada");
-    const input = readExamInput(req.body, { partial: true });
-    const fields = Object.keys(input);
-    const values = fields.map((field) => (field === "questions" ? JSON.stringify(input[field]) : input[field]));
-    await execute(
-      `UPDATE exams SET ${fields.map((field) => `${field} = ?`).join(", ")}, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`,
-      [...values, existing.id],
-    );
-    await audit(req.user.id, "UPDATE", "exams", existing.id, { changed: fields });
-    res.status(204).end();
-  }),
-);
+examsRouter.patch("/:id", requireAdmin, asyncHandler(async (req, res) => {
+  const existing = await queryOne(`SELECT * FROM exams WHERE id = ?`, [req.params.id]);
+  if (!existing) throw notFound("Prova não encontrada");
+  const input = readExamInput(req.body, { partial: true });
+  const fields = Object.keys(input);
+  const values = fields.map((field) => (field === "questions" ? JSON.stringify(input[field]) : input[field]));
+  await execute(`UPDATE exams SET ${fields.map((field) => `${field} = ?`).join(", ")}, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`, [...values, existing.id]);
+  await audit(req.user.id, "UPDATE", "exams", existing.id, { changed: fields });
+  res.status(204).end();
+}));
 
-examsRouter.delete(
-  "/:id",
-  requireAdmin,
-  asyncHandler(async (req, res) => {
-    const existing = await queryOne(`SELECT id, title FROM exams WHERE id = ?`, [req.params.id]);
-    if (!existing) throw notFound("Prova não encontrada");
-    await execute(`DELETE FROM exams WHERE id = ?`, [existing.id]);
-    await audit(req.user.id, "DELETE", "exams", existing.id, { title: existing.title });
-    res.status(204).end();
-  }),
-);
+examsRouter.delete("/:id", requireAdmin, asyncHandler(async (req, res) => {
+  const existing = await queryOne(`SELECT id, title FROM exams WHERE id = ?`, [req.params.id]);
+  if (!existing) throw notFound("Prova não encontrada");
+  await execute(`DELETE FROM exams WHERE id = ?`, [existing.id]);
+  await audit(req.user.id, "DELETE", "exams", existing.id, { title: existing.title });
+  res.status(204).end();
+}));
 
-myExamsRouter.get(
-  "/exams",
-  requireAuth,
-  asyncHandler(async (req, res) => {
-    const rows = await query(
-      `SELECT * FROM exams
-        WHERE status = 'Publicada'
-          AND (target_sector = 'Todos' OR target_sector = ?)
-          AND (scheduled_date IS NULL OR scheduled_date <= UTC_DATE())
-        ORDER BY scheduled_date DESC, created_at DESC`,
-      [req.user.setor ?? ""],
-    );
-    res.json(rows.map((row) => mapExam(row, { metadataOnly: true })));
-  }),
-);
+myExamsRouter.get("/exams", requireAuth, asyncHandler(async (req, res) => {
+  const today = localDate();
+  const rows = await query(
+    `SELECT * FROM exams
+      WHERE status = 'Publicada'
+        AND (target_sector = 'Todos' OR target_sector = ?)
+        AND (scheduled_date IS NULL OR scheduled_date <= ?)
+      ORDER BY scheduled_date DESC, created_at DESC`,
+    [req.user.setor ?? "", today],
+  );
+  res.json(rows.map((row) => mapExam(row, { metadataOnly: true })));
+}));
 
-myExamsRouter.get(
-  "/exams/:id",
-  requireAuth,
-  asyncHandler(async (req, res) => {
-    const row = await queryOne(`SELECT * FROM exams WHERE id = ? AND status = 'Publicada'`, [req.params.id]);
-    if (!row || !sectorAllowed(row, req.user)) throw notFound("Prova indisponível");
-    if (row.scheduled_date && String(row.scheduled_date) > new Date().toISOString().slice(0, 10)) throw forbidden("Prova ainda não liberada");
-    res.json(mapExam(row, { sanitize: true }));
-  }),
-);
+myExamsRouter.get("/exams/:id", requireAuth, asyncHandler(async (req, res) => {
+  const row = await queryOne(`SELECT * FROM exams WHERE id = ? AND status = 'Publicada'`, [req.params.id]);
+  if (!row || !sectorAllowed(row, req.user)) throw notFound("Prova indisponível");
+  if (row.scheduled_date && String(row.scheduled_date) > localDate()) throw forbidden("Prova ainda não liberada");
+  res.json(mapExam(row, { sanitize: true }));
+}));
 
-myExamsRouter.get(
-  "/exam-attempts",
-  requireAuth,
-  asyncHandler(async (req, res) => {
-    const rows = await query(`SELECT * FROM exam_attempts WHERE user_id = ? ORDER BY finished_at DESC`, [req.user.id]);
-    res.json(rows.map(mapAttempt));
-  }),
-);
+myExamsRouter.get("/exam-attempts", requireAuth, asyncHandler(async (req, res) => {
+  const rows = await query(`SELECT * FROM exam_attempts WHERE user_id = ? ORDER BY finished_at DESC`, [req.user.id]);
+  res.json(rows.map(mapAttempt));
+}));
 
-myExamsRouter.get(
-  "/exam-attempts/year/:year",
-  requireAuth,
-  asyncHandler(async (req, res) => {
-    const year = Number(req.params.year);
-    if (!Number.isInteger(year) || year < 2000 || year > 2200) throw badRequest("Ano inválido");
-    const rows = await query(
-      `SELECT * FROM exam_attempts WHERE user_id = ? AND finished_at >= ? AND finished_at < ? ORDER BY finished_at DESC`,
-      [req.user.id, `${year}-01-01 00:00:00`, `${year + 1}-01-01 00:00:00`],
-    );
-    res.json(rows.map(mapAttempt));
-  }),
-);
+myExamsRouter.get("/exam-attempts/year/:year", requireAuth, asyncHandler(async (req, res) => {
+  const year = Number(req.params.year);
+  if (!Number.isInteger(year) || year < 2000 || year > 2200) throw badRequest("Ano inválido");
+  const rows = await query(
+    `SELECT * FROM exam_attempts WHERE user_id = ? AND finished_at >= ? AND finished_at < ? ORDER BY finished_at DESC`,
+    [req.user.id, `${year}-01-01 03:00:00`, `${year + 1}-01-01 03:00:00`],
+  );
+  res.json(rows.map(mapAttempt));
+}));
 
-myExamsRouter.post(
-  "/exams/:id/attempts",
-  requireAuth,
-  asyncHandler(async (req, res) => {
-    const exam = await queryOne(`SELECT * FROM exams WHERE id = ? AND status = 'Publicada'`, [req.params.id]);
-    if (!exam || !sectorAllowed(exam, req.user)) throw notFound("Prova indisponível");
-    if (exam.scheduled_date && String(exam.scheduled_date) > new Date().toISOString().slice(0, 10)) throw forbidden("Prova ainda não liberada");
+myExamsRouter.post("/exams/:id/attempts", requireAuth, asyncHandler(async (req, res) => {
+  const exam = await queryOne(`SELECT * FROM exams WHERE id = ? AND status = 'Publicada'`, [req.params.id]);
+  if (!exam || !sectorAllowed(exam, req.user)) throw notFound("Prova indisponível");
+  if (exam.scheduled_date && String(exam.scheduled_date) > localDate()) throw forbidden("Prova ainda não liberada");
 
-    const questions = parseJson(exam.questions, []);
-    const answers = req.body?.answers && typeof req.body.answers === "object" ? req.body.answers : {};
-    const result = calculateResult(questions, answers, exam.min_approval_pct);
-    const attemptId = uuid();
-    const code = result.passed ? certificateCode() : null;
+  const questions = parseJson(exam.questions, []);
+  if (!Array.isArray(questions) || !questions.length) throw badRequest("Prova sem questões válidas");
+  const answers = normalizeAnswers(questions, req.body?.answers ?? {});
+  const result = calculateResult(questions, answers, exam.min_approval_pct);
+  const attemptId = uuid();
+  const code = result.passed ? certificateCode() : null;
 
-    await execute(
+  await withTransaction(async (connection) => {
+    await connection.execute(
       `INSERT INTO exam_attempts
        (id, exam_id, user_id, matricula, score, passed, answers, finished_at, created_at, updated_at, certificate_code, signature_agreed)
        VALUES (?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3), UTC_TIMESTAMP(3), ?, 0)`,
@@ -307,36 +286,39 @@ myExamsRouter.post(
       exam_id: exam.id,
       score: result.score,
       passed: result.passed,
-    });
+      answers_validated_server_side: true,
+    }, connection);
+  });
 
-    const row = await queryOne(`SELECT * FROM exam_attempts WHERE id = ?`, [attemptId]);
-    res.status(201).json(mapAttempt(row));
-  }),
-);
+  const row = await queryOne(`SELECT * FROM exam_attempts WHERE id = ?`, [attemptId]);
+  res.status(201).json(mapAttempt(row));
+}));
 
-myExamsRouter.post(
-  "/exam-attempts/:attemptId/signature",
-  requireAuth,
-  asyncHandler(async (req, res) => {
-    if (config.storage.driver !== "filesystem") throw badRequest("Driver de armazenamento ainda não suportado nesta API");
-    const attempt = await queryOne(
-      `SELECT a.*, e.title AS exam_title FROM exam_attempts a JOIN exams e ON e.id = a.exam_id WHERE a.id = ? AND a.user_id = ?`,
-      [req.params.attemptId, req.user.id],
-    );
-    if (!attempt) throw notFound("Tentativa não encontrada");
+myExamsRouter.post("/exam-attempts/:attemptId/signature", requireAuth, asyncHandler(async (req, res) => {
+  if (config.storage.driver !== "filesystem") throw badRequest("Driver de armazenamento ainda não suportado nesta API");
+  const attempt = await queryOne(
+    `SELECT a.*, e.title AS exam_title FROM exam_attempts a JOIN exams e ON e.id = a.exam_id WHERE a.id = ? AND a.user_id = ?`,
+    [req.params.attemptId, req.user.id],
+  );
+  if (!attempt) throw notFound("Tentativa não encontrada");
 
-    const signerName = requireText(req.body?.signerName, "Nome do assinante");
-    const dataUrl = requireText(req.body?.pngDataUrl, "Assinatura");
-    const match = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
-    if (!match) throw badRequest("Formato de assinatura inválido");
-    const bytes = Buffer.from(match[1], "base64");
-    if (bytes.length < 100 || bytes.length > 1_500_000) throw badRequest("Tamanho de assinatura inválido");
+  const signerName = requireText(req.user.nome, "Nome do usuário autenticado").slice(0, 255);
+  const dataUrl = requireText(req.body?.pngDataUrl, "Assinatura");
+  const match = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
+  if (!match) throw badRequest("Formato de assinatura inválido");
+  const bytes = Buffer.from(match[1], "base64");
+  if (bytes.length < 100 || bytes.length > 1_500_000) throw badRequest("Tamanho de assinatura inválido");
+  if (bytes[0] !== 0x89 || bytes[1] !== 0x50 || bytes[2] !== 0x4e || bytes[3] !== 0x47) throw badRequest("Conteúdo da assinatura não é PNG válido");
 
-    const relativePath = path.posix.join("exam-signatures", req.user.id, `${attempt.id}.png`);
-    const absolutePath = path.resolve(config.storage.path, relativePath);
-    await fs.mkdir(path.dirname(absolutePath), { recursive: true });
-    await fs.writeFile(absolutePath, bytes, { mode: 0o600 });
+  const fileName = `${attempt.id}-${Date.now()}-${uuid().slice(0, 8)}.png`;
+  const relativePath = path.posix.join("exam-signatures", req.user.id, fileName);
+  const absolutePath = path.resolve(config.storage.path, relativePath);
+  const storageRoot = path.resolve(config.storage.path);
+  if (!absolutePath.startsWith(`${storageRoot}${path.sep}`)) throw badRequest("Caminho de assinatura inválido");
+  await fs.mkdir(path.dirname(absolutePath), { recursive: true });
+  await fs.writeFile(absolutePath, bytes, { mode: 0o600, flag: "wx" });
 
+  try {
     await withTransaction(async (connection) => {
       await connection.execute(
         `UPDATE exam_attempts
@@ -356,10 +338,21 @@ myExamsRouter.post(
           );
         }
       }
-      await audit(req.user.id, "SIGN_EXAM_ATTEMPT", "exam_attempts", attempt.id, { signature_path: relativePath }, connection);
+      await audit(req.user.id, "SIGN_EXAM_ATTEMPT", "exam_attempts", attempt.id, {
+        signature_path: relativePath,
+        signer_derived_server_side: true,
+      }, connection);
     });
+  } catch (error) {
+    await fs.unlink(absolutePath).catch(() => {});
+    throw error;
+  }
 
-    const row = await queryOne(`SELECT * FROM exam_attempts WHERE id = ?`, [attempt.id]);
-    res.json(mapAttempt(row));
-  }),
-);
+  if (attempt.signature_path && attempt.signature_path !== relativePath) {
+    const oldPath = path.resolve(config.storage.path, attempt.signature_path);
+    if (oldPath.startsWith(`${storageRoot}${path.sep}`)) await fs.unlink(oldPath).catch(() => {});
+  }
+
+  const row = await queryOne(`SELECT * FROM exam_attempts WHERE id = ?`, [attempt.id]);
+  res.json(mapAttempt(row));
+}));
