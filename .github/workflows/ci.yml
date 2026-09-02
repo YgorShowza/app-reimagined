@@ -43,6 +43,20 @@ jobs:
           fi
           echo "Migrations verificadas: ${#files[@]} arquivo(s), versões únicas."
 
+      - name: Setup Node for MySQL API validation
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Validate MySQL API syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r file; do
+            echo "Checking $file"
+            node --check "$file"
+          done < <(find server/src server/scripts -type f -name '*.js' | sort)
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
