@@ -1,6 +1,6 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import { query, queryOne, withTransaction } from "../db.js";
+import { execute, queryOne, withTransaction } from "../db.js";
 import { audit } from "../audit.js";
 import { clearSessionCookie, loadAuthContext, requireAuth, setSessionCookie, toSessionUser } from "../session.js";
 import { asyncHandler, badRequest, forbidden, requireText, unauthorized, uuid } from "../util.js";
@@ -10,7 +10,7 @@ export const authRouter = Router();
 const MIN_PASSWORD = 8;
 
 function normalizeMatricula(value) {
-  return requireText(value, "Matrícula").toLowerCase();
+  return requireText(value, "Matrícula").trim().toLowerCase();
 }
 
 function assertStrongPassword(password) {
@@ -27,11 +27,10 @@ authRouter.post(
 
     const account = await queryOne(
       `SELECT id, password_hash FROM app_users
-        WHERE LOWER(TRIM(matricula)) = ? AND disabled_at IS NULL LIMIT 1`,
+        WHERE LOWER(TRIM(matricula)) = ? AND status = 'Ativo' LIMIT 1`,
       [matricula],
     );
 
-    // Mensagem genérica: não revela se a matrícula existe.
     const genericFailure = unauthorized("Matrícula ou senha inválida");
     if (!account) throw genericFailure;
     if (!(await bcrypt.compare(password, account.password_hash))) throw genericFailure;
@@ -39,6 +38,7 @@ authRouter.post(
     const context = await loadAuthContext(account.id);
     if (!context) throw forbidden("Cadastro funcional inativo. Procure a Inspetoria.");
 
+    await execute(`UPDATE app_users SET last_login_at = UTC_TIMESTAMP(3) WHERE id = ?`, [context.id]);
     setSessionCookie(res, context.id);
     await audit(context.id, "LOGIN", "app_users", context.id);
     res.json(toSessionUser(context));
@@ -84,8 +84,8 @@ authRouter.post(
       const passwordHash = await bcrypt.hash(password, 12);
 
       await connection.execute(
-        `INSERT INTO app_users (id, matricula, password_hash, created_at, updated_at)
-         VALUES (?, ?, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
+        `INSERT INTO app_users (id, matricula, password_hash, status, created_at, updated_at)
+         VALUES (?, ?, ?, 'Ativo', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
         [id, employee.matricula, passwordHash],
       );
       await connection.execute(
@@ -95,7 +95,7 @@ authRouter.post(
       );
       if (employee.access_profile === "Inspetor") {
         await connection.execute(
-          `INSERT IGNORE INTO user_roles (id, user_id, role, created_at) VALUES (?, ?, 'admin', UTC_TIMESTAMP(3))`,
+          `INSERT IGNORE INTO user_roles (id, user_id, role) VALUES (?, ?, 'admin')`,
           [uuid(), id],
         );
       }
@@ -134,7 +134,7 @@ authRouter.post(
       throw badRequest("Senha atual incorreta");
     }
 
-    await query(`UPDATE app_users SET password_hash = ?, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`, [
+    await execute(`UPDATE app_users SET password_hash = ?, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`, [
       await bcrypt.hash(next, 12),
       req.user.id,
     ]);
