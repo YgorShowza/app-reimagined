@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { apiRequest, isSegempatApiConfigured } from "@/lib/backend/api-client";
+import { apiRequest, buildSegempatApiUrl, isSegempatApiConfigured } from "@/lib/backend/api-client";
 
 export type QuestionType = "Múltipla escolha" | "Discursiva";
 
@@ -62,6 +62,21 @@ export interface ExamAttempt {
   signature_agreed: boolean;
   finished_at: string;
   created_at: string;
+}
+
+export interface ExamSignatureEvidence {
+  id: string;
+  exam_id: string;
+  matricula: string | null;
+  score: number;
+  passed: boolean;
+  certificate_code: string | null;
+  signature_path: string | null;
+  signature_name: string | null;
+  signed_at: string | null;
+  finished_at: string;
+  exam_title: string;
+  employee_name: string;
 }
 
 export const EXAM_TYPES = ["Múltipla escolha", "Discursiva", "Mista"];
@@ -169,6 +184,22 @@ export async function listAttemptsByYear(year: number): Promise<ExamAttempt[]> {
   return (data ?? []) as ExamAttempt[];
 }
 
+export async function listExamSignatureEvidence(): Promise<ExamSignatureEvidence[]> {
+  if (isSegempatApiConfigured()) return apiRequest<ExamSignatureEvidence[]>("/api/admin/exam-attempts");
+  const client = supabase as any;
+  const [{ data: attempts, error: aErr }, { data: exams, error: eErr }, { data: employees, error: empErr }] = await Promise.all([
+    client.from("exam_attempts").select("id, exam_id, matricula, score, passed, certificate_code, signature_path, signature_name, signed_at, finished_at").order("finished_at", { ascending: false }),
+    client.from("exams").select("id, title"),
+    client.from("employees").select("id, matricula, full_name"),
+  ]);
+  if (aErr) throw aErr;
+  if (eErr) throw eErr;
+  if (empErr) throw empErr;
+  const examMap = new Map((exams ?? []).map((r: any) => [r.id, r.title]));
+  const employeeByMatricula = new Map((employees ?? []).map((r: any) => [r.matricula, r.full_name]));
+  return (attempts ?? []).map((r: any) => ({ ...r, exam_title: examMap.get(r.exam_id) ?? "Avaliação", employee_name: employeeByMatricula.get(r.matricula) ?? r.signature_name ?? "Colaborador" }));
+}
+
 type SaveAttemptInput = { exam_id: string; answers: unknown; user_id?: string; matricula?: string | null; score?: number; passed?: boolean };
 
 export async function saveAttempt(input: SaveAttemptInput): Promise<ExamAttempt> {
@@ -210,7 +241,7 @@ export async function signAttempt(input: { attemptId: string; userId: string; si
 
 export async function getSignatureUrl(path: string, expiresIn = 300) {
   if (isSegempatApiConfigured()) {
-    throw new Error("Visualização de assinatura será atendida pelo endpoint privado da API MySQL na etapa de evidências.");
+    return buildSegempatApiUrl(`/api/admin/exam-signatures?path=${encodeURIComponent(path)}`);
   }
   const { data, error } = await supabase.storage.from("exam-signatures").createSignedUrl(path, expiresIn);
   if (error) throw error;
