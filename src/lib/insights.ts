@@ -1,6 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
 import { getCurrentSessionUser } from "@/lib/backend/current-user-gateway";
-import { isSegempatApiConfigured } from "@/lib/backend/api-client";
 import { listEmployees, type Employee } from "@/lib/employees";
 import { listExams, listAttemptsByYear, type Exam, type ExamAttempt } from "@/lib/exams";
 import { listCronogramaEntriesByYear, type CronogramaEntry } from "@/lib/cronograma";
@@ -68,17 +66,8 @@ export function employeeRisk(data: OperationalSnapshot) {
 }
 
 export async function getCurrentEmployeeByAuth() {
-  if (isSegempatApiConfigured()) {
-    const user = await getCurrentSessionUser();
-    if (!user?.matricula) return null;
-    const employees = await listEmployees();
-    return employees.find((employee) => employee.matricula.trim().toLowerCase() === user.matricula.trim().toLowerCase()) ?? null;
-  }
-
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) return null;
-  const { data: profile } = await (supabase as any).from("profiles").select("matricula,nome").eq("id", auth.user.id).maybeSingle();
-  if (!profile?.matricula) return null;
-  const { data: employee } = await (supabase as any).from("employees").select("*").eq("matricula", profile.matricula).maybeSingle();
-  return employee as Employee | null;
+  const user = await getCurrentSessionUser();
+  if (!user?.matricula) return null;
+  const employees = await listEmployees();
+  return employees.find((employee) => employee.matricula.trim().toLowerCase() === user.matricula.trim().toLowerCase()) ?? null;
 }
