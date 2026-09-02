@@ -13,6 +13,7 @@ import { cronogramaRouter } from "./routes/cronograma.js";
 import { questionBankRouter } from "./routes/question-bank.js";
 import { trainingRouter, adminTrainingRouter, myTrainingRouter } from "./routes/training.js";
 import { operationsRouter } from "./routes/operations.js";
+import { myPracticalRouter } from "./routes/practical-self.js";
 import { HttpError } from "./util.js";
 
 export function createApp() {
@@ -45,6 +46,7 @@ export function createApp() {
   app.use("/api/access", accessRouter);
   app.use("/api/exams", examsRouter);
   app.use("/api/me", myExamsRouter);
+  app.use("/api/me", myPracticalRouter);
   app.use("/api/admin", examEvidenceRouter);
   app.use("/api/cronograma", cronogramaRouter);
   app.use("/api/question-bank", questionBankRouter);
