@@ -1,6 +1,7 @@
 import { getCurrentSessionUser } from "@/lib/backend/current-user-gateway";
+import { listAdminAttemptsByYear } from "@/lib/backend/admin-attempts";
 import { listEmployees, type Employee } from "@/lib/employees";
-import { listExams, listAttemptsByYear, type Exam, type ExamAttempt } from "@/lib/exams";
+import { listExams, type Exam, type ExamAttempt } from "@/lib/exams";
 import { listCronogramaEntriesByYear, type CronogramaEntry } from "@/lib/cronograma";
 import { operationalDate, operationalMonth, operationalYear } from "@/lib/operational-time";
 
@@ -12,7 +13,12 @@ export interface OperationalSnapshot {
 }
 
 export async function getOperationalSnapshot(year = operationalYear()): Promise<OperationalSnapshot> {
-  const [employees, exams, attempts, cronograma] = await Promise.all([listEmployees(), listExams(), listAttemptsByYear(year), listCronogramaEntriesByYear(year)]);
+  const [employees, exams, attempts, cronograma] = await Promise.all([
+    listEmployees(),
+    listExams(),
+    listAdminAttemptsByYear(year),
+    listCronogramaEntriesByYear(year),
+  ]);
   return { employees, exams, attempts, cronograma };
 }
 
