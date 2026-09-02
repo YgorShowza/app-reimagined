@@ -26,6 +26,31 @@ function mysqlDateTimeOrNull(value, label) {
   return date;
 }
 
+function mysqlDateOrNull(value, label) {
+  const text = trimOrNull(value);
+  if (!text) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) throw badRequest(`${label} inválida`);
+  const date = new Date(`${text}T12:00:00Z`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== text) throw badRequest(`${label} inválida`);
+  return text;
+}
+
+function finiteNumber(value, label, { min = 0, max = 100 } = {}) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < min || number > max) throw badRequest(`${label} inválido`);
+  return number;
+}
+
+function normalizeChecklist(value) {
+  if (!Array.isArray(value)) throw badRequest("Checklist inválido");
+  if (value.length > 100) throw badRequest("Checklist excede o limite permitido");
+  return value.map((item, index) => ({
+    id: String(item?.id ?? index + 1).slice(0, 80),
+    label: requireText(item?.label, `Item ${index + 1} do checklist`).slice(0, 500),
+    done: Boolean(item?.done),
+  }));
+}
+
 async function occurrenceEmployeeForCreate(req) {
   if (!req.user.isAdmin) {
     const employee = await queryOne(`SELECT id,full_name,matricula,status FROM employees WHERE id = ?`, [req.user.employeeId]);
@@ -61,8 +86,12 @@ operationsRouter.post("/knowledge", requireAdmin, asyncHandler(async (req, res) 
 operationsRouter.patch("/knowledge/:id", requireAdmin, asyncHandler(async (req,res) => {
   const current = await queryOne(`SELECT id FROM knowledge_items WHERE id = ?`, [req.params.id]);
   if (!current) throw notFound("Conteúdo não encontrado");
-  const allowed = ["title","category","content","target_sector","active"];
-  const patch = Object.fromEntries(allowed.filter(k => Object.prototype.hasOwnProperty.call(req.body || {},k)).map(k => [k, k === "active" ? (req.body[k] ? 1 : 0) : req.body[k]]));
+  const patch = {};
+  if (Object.prototype.hasOwnProperty.call(req.body || {}, "title")) patch.title = requireText(req.body.title, "Título");
+  if (Object.prototype.hasOwnProperty.call(req.body || {}, "category")) patch.category = requireText(req.body.category, "Categoria");
+  if (Object.prototype.hasOwnProperty.call(req.body || {}, "content")) patch.content = requireText(req.body.content, "Conteúdo");
+  if (Object.prototype.hasOwnProperty.call(req.body || {}, "target_sector")) patch.target_sector = requireOneOf(req.body.target_sector, TARGET_SECTORS, "Setor alvo");
+  if (Object.prototype.hasOwnProperty.call(req.body || {}, "active")) patch.active = req.body.active ? 1 : 0;
   if (!Object.keys(patch).length) throw badRequest("Nenhum campo para atualizar");
   const fields = Object.keys(patch);
   await execute(`UPDATE knowledge_items SET ${fields.map(f=>`${f} = ?`).join(", ")}, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`, [...fields.map(f=>patch[f]),req.params.id]);
@@ -128,8 +157,52 @@ operationsRouter.patch("/occurrences/:id", requireAdmin, asyncHandler(async (req
 operationsRouter.delete("/occurrences/:id", requireAdmin, asyncHandler(async(req,res)=>{await execute(`DELETE FROM occurrences WHERE id=?`,[req.params.id]);await audit(req.user.id,"DELETE","occurrences",req.params.id);res.status(204).end();}));
 
 operationsRouter.get("/practical-evaluations", requireAdmin, asyncHandler(async(_req,res)=>{const rows=await query(`SELECT * FROM practical_evaluations ORDER BY evaluation_date DESC, created_at DESC`);res.json(rows.map(practicalRow));}));
-operationsRouter.post("/practical-evaluations", requireAdmin, asyncHandler(async(req,res)=>{const id=uuid(); const employeeId=requireText(req.body?.employee_id,"Colaborador"); const employee=await queryOne(`SELECT * FROM employees WHERE id=?`,[employeeId]); if(!employee) throw notFound("Colaborador não encontrado"); const title=requireText(req.body?.title,"Título"); const checklist=Array.isArray(req.body?.checklist)?req.body.checklist:[]; await execute(`INSERT INTO practical_evaluations (id,employee_id,employee_name,employee_matricula,employee_sector,title,evaluator_id,evaluator_name,status,score,max_score,checklist,notes,evaluation_date,completed_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?, 'Planejada',0,10,?,?,?,NULL,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))`,[id,employee.id,employee.full_name,employee.matricula,employee.sector,title,req.user.id,trimOrNull(req.body?.evaluator_name)||req.user.nome,JSON.stringify(checklist),trimOrNull(req.body?.notes),trimOrNull(req.body?.evaluation_date)]); await audit(req.user.id,"INSERT","practical_evaluations",id,{employee_id:employee.id,title}); res.status(201).json({id});}));
-operationsRouter.patch("/practical-evaluations/:id", requireAdmin, asyncHandler(async(req,res)=>{const current=await queryOne(`SELECT * FROM practical_evaluations WHERE id=?`,[req.params.id]);if(!current) throw notFound("Avaliação não encontrada"); const allowed=["title","status","score","max_score","checklist","notes","evaluation_date","completed_at","evaluator_name"]; const patch=Object.fromEntries(allowed.filter(k=>Object.prototype.hasOwnProperty.call(req.body||{},k)).map(k=>[k,k==="checklist"?JSON.stringify(req.body[k]||[]):req.body[k]])); if(patch.status) patch.status=requireOneOf(patch.status,PRACTICAL_STATUS,"Situação"); const fields=Object.keys(patch);if(!fields.length) throw badRequest("Nenhum campo para atualizar");await execute(`UPDATE practical_evaluations SET ${fields.map(f=>`${f} = ?`).join(", ")}, updated_at=UTC_TIMESTAMP(3) WHERE id=?`,[...fields.map(f=>patch[f]),req.params.id]);await audit(req.user.id,"UPDATE","practical_evaluations",req.params.id,{changed:fields});res.status(204).end();}));
+operationsRouter.post("/practical-evaluations", requireAdmin, asyncHandler(async(req,res)=>{
+  const id=uuid();
+  const employeeId=requireText(req.body?.employee_id,"Colaborador");
+  const employee=await queryOne(`SELECT id,full_name,matricula,sector,status,access_profile FROM employees WHERE id=?`,[employeeId]);
+  if(!employee) throw notFound("Colaborador não encontrado");
+  if(employee.status!=="Ativo") throw badRequest("A avaliação só pode ser planejada para colaborador ativo");
+  if(employee.access_profile==="Inspetor") throw badRequest("Avaliação prática operacional não pode ser criada para Inspetor");
+  const title=requireText(req.body?.title,"Título");
+  const checklist=normalizeChecklist(req.body?.checklist ?? []);
+  const evaluationDate=mysqlDateOrNull(req.body?.evaluation_date,"Data da avaliação");
+  await execute(
+    `INSERT INTO practical_evaluations (id,employee_id,employee_name,employee_matricula,employee_sector,title,evaluator_id,evaluator_name,status,score,max_score,checklist,notes,evaluation_date,completed_at,created_at,updated_at)
+     VALUES (?,?,?,?,?,?,?,?, 'Planejada',0,10,?,?,?,NULL,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))`,
+    [id,employee.id,employee.full_name,employee.matricula,employee.sector,title,req.user.id,req.user.nome,JSON.stringify(checklist),trimOrNull(req.body?.notes),evaluationDate],
+  );
+  await audit(req.user.id,"INSERT","practical_evaluations",id,{employee_id:employee.id,title,identity_derived_server_side:true});
+  res.status(201).json({id});
+}));
+operationsRouter.patch("/practical-evaluations/:id", requireAdmin, asyncHandler(async(req,res)=>{
+  const current=await queryOne(`SELECT * FROM practical_evaluations WHERE id=?`,[req.params.id]);
+  if(!current) throw notFound("Avaliação não encontrada");
+  const patch={};
+  if(Object.prototype.hasOwnProperty.call(req.body||{},"title")) patch.title=requireText(req.body.title,"Título");
+  if(Object.prototype.hasOwnProperty.call(req.body||{},"status")) patch.status=requireOneOf(req.body.status,PRACTICAL_STATUS,"Situação");
+  if(Object.prototype.hasOwnProperty.call(req.body||{},"score")) patch.score=finiteNumber(req.body.score,"Nota",{min:0,max:100});
+  if(Object.prototype.hasOwnProperty.call(req.body||{},"max_score")) patch.max_score=finiteNumber(req.body.max_score,"Nota máxima",{min:0.01,max:100});
+  if(Object.prototype.hasOwnProperty.call(req.body||{},"checklist")) patch.checklist=JSON.stringify(normalizeChecklist(req.body.checklist));
+  if(Object.prototype.hasOwnProperty.call(req.body||{},"notes")) patch.notes=trimOrNull(req.body.notes);
+  if(Object.prototype.hasOwnProperty.call(req.body||{},"evaluation_date")) patch.evaluation_date=mysqlDateOrNull(req.body.evaluation_date,"Data da avaliação");
+
+  const effectiveMax=Number(patch.max_score ?? current.max_score ?? 10);
+  const effectiveScore=Number(patch.score ?? current.score ?? 0);
+  if(effectiveScore>effectiveMax) throw badRequest("A nota não pode ser maior que a nota máxima");
+
+  if(Object.prototype.hasOwnProperty.call(patch,"status")) {
+    patch.completed_at = patch.status === "Concluída" ? (current.completed_at || new Date()) : null;
+  }
+  patch.evaluator_id=req.user.id;
+  patch.evaluator_name=req.user.nome;
+
+  const fields=Object.keys(patch);
+  if(!fields.length) throw badRequest("Nenhum campo para atualizar");
+  await execute(`UPDATE practical_evaluations SET ${fields.map(f=>`${f} = ?`).join(", ")}, updated_at=UTC_TIMESTAMP(3) WHERE id=?`,[...fields.map(f=>patch[f]),req.params.id]);
+  await audit(req.user.id,"UPDATE","practical_evaluations",req.params.id,{changed:fields,evaluator_derived_server_side:true});
+  res.status(204).end();
+}));
 operationsRouter.delete("/practical-evaluations/:id", requireAdmin, asyncHandler(async(req,res)=>{await execute(`DELETE FROM practical_evaluations WHERE id=?`,[req.params.id]);await audit(req.user.id,"DELETE","practical_evaluations",req.params.id);res.status(204).end();}));
 
 operationsRouter.get("/practical-templates", requireAdmin, asyncHandler(async(_req,res)=>{const rows=await query(`SELECT * FROM practical_eval_templates ORDER BY title`);res.json(rows.map(templateRow));}));
