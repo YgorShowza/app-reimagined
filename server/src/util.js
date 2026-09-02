@@ -44,6 +44,18 @@ export function parseJson(value, fallback) {
 
 export const asBool = (value) => value === 1 || value === true || value === "1";
 
+/**
+ * Valida booleanos recebidos pela API sem usar truthiness de JavaScript.
+ * Evita casos como "false" virar verdadeiro. Por padrão aceita boolean e 0/1.
+ */
+export function requireBoolean(value, label = "Valor booleano", { asInteger = false } = {}) {
+  let parsed;
+  if (value === true || value === 1 || value === "1") parsed = true;
+  else if (value === false || value === 0 || value === "0") parsed = false;
+  else throw badRequest(`${label} inválido`);
+  return asInteger ? (parsed ? 1 : 0) : parsed;
+}
+
 export function trimOrNull(value) {
   if (value === null || value === undefined) return null;
   const text = String(value).trim();
