@@ -40,6 +40,19 @@ employeesRouter.get(
   }),
 );
 
+employeesRouter.get(
+  "/me",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const employee = await queryOne(
+      `SELECT * FROM employees WHERE id = ? AND status = 'Ativo' LIMIT 1`,
+      [req.user.employeeId],
+    );
+    if (!employee) throw notFound("Colaborador não encontrado");
+    res.json(mapEmployee(employee));
+  }),
+);
+
 function readEmployeeInput(body, { partial = false } = {}) {
   const input = {};
   const has = (key) => Object.prototype.hasOwnProperty.call(body ?? {}, key);
