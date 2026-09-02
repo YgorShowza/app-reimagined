@@ -1,38 +1,11 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Award, CheckCircle2, Clock3, Copy, FileCheck2, RefreshCw, Search, ShieldCheck, UserRound, XCircle } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { listCertificateRecords, type CertificateRecord } from "@/lib/certificate-records";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-
-type AttemptRow = {
-  id: string;
-  exam_id: string;
-  user_id: string;
-  matricula: string | null;
-  score: number;
-  passed: boolean;
-  certificate_code: string | null;
-  signature_path: string | null;
-  signature_name: string | null;
-  signature_agreed: boolean;
-  signed_at: string | null;
-  finished_at: string;
-  created_at: string;
-};
-
-type ExamRow = { id: string; title: string; exam_type: string };
-type EmployeeRow = { id: string; full_name: string; matricula: string; sector: string };
-
-type CertificateRecord = AttemptRow & {
-  exam_title: string;
-  exam_type: string;
-  employee_name: string;
-  employee_sector: string;
-  formally_issued: boolean;
-};
 
 function normalizeCode(value: string) {
   return value.trim().toUpperCase().replace(/\s+/g, "");
@@ -47,41 +20,6 @@ function fmtDate(value?: string | null) {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-  });
-}
-
-async function listCertificateRecords(): Promise<CertificateRecord[]> {
-  const client = supabase as any;
-  const [{ data: attempts, error: attemptsError }, { data: exams, error: examsError }, { data: employees, error: employeesError }] = await Promise.all([
-    client
-      .from("exam_attempts")
-      .select("id, exam_id, user_id, matricula, score, passed, certificate_code, signature_path, signature_name, signature_agreed, signed_at, finished_at, created_at")
-      .eq("passed", true)
-      .not("certificate_code", "is", null)
-      .order("finished_at", { ascending: false }),
-    client.from("exams").select("id, title, exam_type"),
-    client.from("employees").select("id, full_name, matricula, sector"),
-  ]);
-
-  if (attemptsError) throw attemptsError;
-  if (examsError) throw examsError;
-  if (employeesError) throw employeesError;
-
-  const examMap = new Map<string, ExamRow>((exams ?? []).map((row: ExamRow) => [row.id, row]));
-  const employeeById = new Map<string, EmployeeRow>((employees ?? []).map((row: EmployeeRow) => [row.id, row]));
-  const employeeByMatricula = new Map<string, EmployeeRow>((employees ?? []).map((row: EmployeeRow) => [row.matricula, row]));
-
-  return (attempts ?? []).map((attempt: AttemptRow) => {
-    const exam = examMap.get(attempt.exam_id);
-    const employee = employeeById.get(attempt.user_id) ?? (attempt.matricula ? employeeByMatricula.get(attempt.matricula) : undefined);
-    return {
-      ...attempt,
-      exam_title: exam?.title ?? "Avaliação",
-      exam_type: exam?.exam_type ?? "—",
-      employee_name: employee?.full_name ?? "Colaborador",
-      employee_sector: employee?.sector ?? "—",
-      formally_issued: Boolean(attempt.signature_agreed && attempt.signature_path && attempt.signed_at),
-    };
   });
 }
 
