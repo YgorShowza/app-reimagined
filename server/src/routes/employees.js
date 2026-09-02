@@ -6,8 +6,8 @@ import { asBool, asyncHandler, badRequest, conflict, notFound, requireOneOf, req
 
 export const employeesRouter = Router();
 
-const SECTORS = ["CFTV", "Portaria", "Ronda", "Administrativo", "Todos"];
-const PROFILES = ["Inspetor", "Operador"];
+const SECTORS = ["CFTV", "Vigilância", "Portaria", "Ronda", "Administrativo", "Todos"];
+const PROFILES = ["Inspetor", "Operacional"];
 const STATUSES = ["Ativo", "Inativo"];
 
 function mapEmployee(row) {
@@ -47,7 +47,7 @@ function readEmployeeInput(body, { partial = false } = {}) {
   if (!partial || has("full_name")) input.full_name = requireText(body?.full_name, "Nome completo");
   if (!partial || has("matricula")) input.matricula = requireText(body?.matricula, "Matrícula");
   if (!partial || has("sector")) input.sector = requireOneOf(body?.sector, SECTORS, "Setor");
-  if (!partial || has("access_profile")) input.access_profile = requireOneOf(body?.access_profile, PROFILES, "Perfil de acesso", "Operador");
+  if (!partial || has("access_profile")) input.access_profile = requireOneOf(body?.access_profile, PROFILES, "Perfil de acesso", "Operacional");
   if (!partial || has("status")) input.status = requireOneOf(body?.status, STATUSES, "Situação", "Ativo");
 
   if (partial && Object.keys(input).length === 0) throw badRequest("Nenhum campo para atualizar");
