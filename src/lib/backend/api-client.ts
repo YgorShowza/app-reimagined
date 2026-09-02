@@ -10,6 +10,12 @@ export function isSegempatApiConfigured() {
   return Boolean(getApiBaseUrl());
 }
 
+export function buildSegempatApiUrl(path: string) {
+  const baseUrl = getApiBaseUrl();
+  if (!baseUrl) throw new Error("SEGEMPAT API ainda não configurada. Defina VITE_SEGEMPAT_API_URL.");
+  return `${baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
 async function parseError(response: Response): Promise<Error> {
   try {
     const body = (await response.json()) as Partial<ApiErrorBody>;
@@ -23,17 +29,12 @@ export async function apiRequest<T>(
   path: string,
   init: RequestInit = {},
 ): Promise<T> {
-  const baseUrl = getApiBaseUrl();
-  if (!baseUrl) {
-    throw new Error("SEGEMPAT API ainda não configurada. Defina VITE_SEGEMPAT_API_URL.");
-  }
-
   const headers = new Headers(init.headers);
-  if (init.body && !headers.has("content-type")) {
+  if (init.body && !(init.body instanceof FormData) && !headers.has("content-type")) {
     headers.set("content-type", "application/json");
   }
 
-  const response = await fetch(`${baseUrl}${path.startsWith("/") ? path : `/${path}`}`, {
+  const response = await fetch(buildSegempatApiUrl(path), {
     ...init,
     headers,
     credentials: "include",
