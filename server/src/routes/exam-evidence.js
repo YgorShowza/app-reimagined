@@ -13,16 +13,25 @@ examEvidenceRouter.get(
   requireAdmin,
   asyncHandler(async (_req, res) => {
     const rows = await query(
-      `SELECT a.id, a.exam_id, a.matricula, a.score, a.passed, a.certificate_code,
-              a.signature_path, a.signature_name, a.signed_at, a.finished_at,
-              e.title AS exam_title,
-              COALESCE(emp.full_name, a.signature_name, a.matricula, 'Colaborador') AS employee_name
+      `SELECT a.id, a.exam_id, a.user_id, a.matricula, a.score, a.passed, a.certificate_code,
+              a.signature_path, a.signature_name, a.signature_agreed, a.signed_at, a.finished_at, a.created_at,
+              e.title AS exam_title, e.exam_type,
+              COALESCE(emp.full_name, a.signature_name, a.matricula, 'Colaborador') AS employee_name,
+              COALESCE(emp.sector, '—') AS employee_sector
          FROM exam_attempts a
          JOIN exams e ON e.id = a.exam_id
          LEFT JOIN employees emp ON LOWER(TRIM(emp.matricula)) = LOWER(TRIM(a.matricula))
         ORDER BY a.finished_at DESC`,
     );
-    res.json(rows.map((row) => ({ ...row, score: Number(row.score ?? 0), passed: asBool(row.passed) })));
+    res.json(
+      rows.map((row) => ({
+        ...row,
+        score: Number(row.score ?? 0),
+        passed: asBool(row.passed),
+        signature_agreed: asBool(row.signature_agreed),
+        formally_issued: Boolean(asBool(row.passed) && row.certificate_code && asBool(row.signature_agreed) && row.signature_path && row.signed_at),
+      })),
+    );
   }),
 );
 
