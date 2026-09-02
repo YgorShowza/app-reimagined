@@ -9,6 +9,7 @@ import {
   notFound,
   optionalDate,
   parseJson,
+  requireBoolean,
   requireMonth,
   requireOneOf,
   requireText,
@@ -303,7 +304,9 @@ cronogramaRouter.post(
     const id = uuid();
     const theme = requireText(req.body?.theme, "Tema");
     const targetSector = requireOneOf(req.body?.target_sector, TARGET_SECTORS, "Setor alvo");
-    const active = req.body?.active === false ? 0 : 1;
+    const active = Object.prototype.hasOwnProperty.call(req.body ?? {}, "active")
+      ? requireBoolean(req.body.active, "Situação ativa", { asInteger: true })
+      : 1;
     await execute(
       `INSERT INTO cronograma_recurring_models (id, theme, target_sector, recurrence, active, created_by, created_by_name, created_at, updated_at)
        VALUES (?, ?, ?, 'monthly', ?, ?, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
@@ -324,7 +327,7 @@ cronogramaRouter.patch(
     const values = [];
     if (Object.prototype.hasOwnProperty.call(req.body ?? {}, "theme")) { fields.push("theme"); values.push(requireText(req.body.theme, "Tema")); }
     if (Object.prototype.hasOwnProperty.call(req.body ?? {}, "target_sector")) { fields.push("target_sector"); values.push(requireOneOf(req.body.target_sector, TARGET_SECTORS, "Setor alvo")); }
-    if (Object.prototype.hasOwnProperty.call(req.body ?? {}, "active")) { fields.push("active"); values.push(req.body.active ? 1 : 0); }
+    if (Object.prototype.hasOwnProperty.call(req.body ?? {}, "active")) { fields.push("active"); values.push(requireBoolean(req.body.active, "Situação ativa", { asInteger: true })); }
     if (!fields.length) throw badRequest("Nenhum campo para atualizar");
     await execute(`UPDATE cronograma_recurring_models SET ${fields.map((f) => `${f} = ?`).join(", ")}, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`, [...values, req.params.id]);
     await audit(req.user.id, "UPDATE", "cronograma_recurring_models", req.params.id, { changed: fields });
