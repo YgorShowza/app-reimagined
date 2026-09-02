@@ -8,7 +8,15 @@ import { uuid } from "./util.js";
 export async function audit(actorId, action, entity, entityId, details = null, connection = null) {
   const sql = `INSERT INTO audit_logs (id, actor_id, action, entity, entity_id, details, created_at)
                VALUES (?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3))`;
-  const params = [uuid(), actorId ?? null, action, entity, entityId ? String(entityId) : "", details ? JSON.stringify(details) : null];
+  const params = [
+    uuid(),
+    actorId ?? null,
+    action,
+    entity,
+    entityId ? String(entityId) : "",
+    JSON.stringify(details ?? {}),
+  ];
+
   if (connection) {
     await connection.execute(sql, params);
     return;
