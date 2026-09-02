@@ -6,19 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { listEmployees, type Employee } from "@/lib/employees";
-import { supabase } from "@/integrations/supabase/client";
-
-type GeneratedAccess = {
-  code: string;
-  employee_id: string;
-  employee_name: string;
-  matricula: string;
-  expires_at: string;
-};
-
-const rpc = supabase as unknown as {
-  rpc: (name: string, params: Record<string, unknown>) => Promise<{ data: unknown; error: { message?: string } | null }>;
-};
+import {
+  generateActivationCode,
+  revokeActivationCode,
+  type GeneratedAccess,
+} from "@/lib/backend/access-gateway";
 
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
@@ -58,13 +50,7 @@ export function AccessActivationAdmin() {
   }, [employees.data, search]);
 
   const generate = useMutation({
-    mutationFn: async (employee: Employee) => {
-      const { data, error } = await rpc.rpc("generate_registration_code", {
-        p_employee_id: employee.id,
-      });
-      if (error) throw new Error(error.message || "Não foi possível gerar o código");
-      return data as GeneratedAccess;
-    },
+    mutationFn: async (employee: Employee) => generateActivationCode(employee.id),
     onSuccess: (data) => {
       setCopied(false);
       setGenerated(data);
@@ -82,10 +68,7 @@ export function AccessActivationAdmin() {
 
   const revoke = useMutation({
     mutationFn: async (employee: Employee) => {
-      const { error } = await rpc.rpc("revoke_registration_code", {
-        p_employee_id: employee.id,
-      });
-      if (error) throw new Error(error.message || "Não foi possível revogar o código");
+      await revokeActivationCode(employee.id);
       return employee;
     },
     onSuccess: (employee) => toast.success(`Código de ${employee.full_name} revogado`),
