@@ -9,6 +9,7 @@ import { employeesRouter } from "./routes/employees.js";
 import { accessRouter } from "./routes/access.js";
 import { examsRouter, myExamsRouter } from "./routes/exams.js";
 import { examEvidenceRouter } from "./routes/exam-evidence.js";
+import { cronogramaRouter } from "./routes/cronograma.js";
 import { HttpError } from "./util.js";
 
 export function createApp() {
@@ -44,6 +45,7 @@ export function createApp() {
   app.use("/api/exams", examsRouter);
   app.use("/api/me", myExamsRouter);
   app.use("/api/admin", examEvidenceRouter);
+  app.use("/api/cronograma", cronogramaRouter);
 
   app.use((_req, _res, next) => {
     next(new HttpError(404, "Rota não encontrada", "NOT_FOUND"));
