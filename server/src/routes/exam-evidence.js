@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { Router } from "express";
 import { config } from "../config.js";
-import { query } from "../db.js";
+import { query, queryOne } from "../db.js";
 import { requireAdmin } from "../session.js";
 import { asBool, asyncHandler, badRequest, notFound } from "../util.js";
 
@@ -52,9 +52,20 @@ examEvidenceRouter.get(
   requireAdmin,
   asyncHandler(async (req, res) => {
     if (config.storage.driver !== "filesystem") throw badRequest("Driver de armazenamento ainda não suportado nesta API");
-    const requested = String(req.query["path"] || "");
-    if (!requested || requested.includes("..") || !requested.startsWith("exam-signatures/")) {
+    const requested = String(req.query["path"] || "").trim();
+    if (!requested || requested.includes("..") || !requested.startsWith("exam-signatures/") || !requested.endsWith(".png")) {
       throw badRequest("Caminho de assinatura inválido");
+    }
+
+    const evidence = await queryOne(
+      `SELECT id, signature_path, signature_agreed, signed_at
+         FROM exam_attempts
+        WHERE signature_path = ?
+        LIMIT 1`,
+      [requested],
+    );
+    if (!evidence || !asBool(evidence.signature_agreed) || !evidence.signed_at) {
+      throw notFound("Assinatura não encontrada");
     }
 
     const storageRoot = path.resolve(config.storage.path);
@@ -63,6 +74,9 @@ examEvidenceRouter.get(
 
     try {
       const bytes = await fs.readFile(absolutePath);
+      if (bytes.length < 8 || bytes[0] !== 0x89 || bytes[1] !== 0x50 || bytes[2] !== 0x4e || bytes[3] !== 0x47) {
+        throw notFound("Assinatura não encontrada");
+      }
       res.setHeader("Content-Type", "image/png");
       res.setHeader("Cache-Control", "private, no-store, max-age=0");
       res.setHeader("Content-Disposition", "inline; filename=assinatura.png");
