@@ -3,13 +3,14 @@ import { apiRequest, isSegempatApiConfigured } from "@/lib/backend/api-client";
 
 export type PracticalRecurrence = "once" | "monthly" | "bimonthly" | "quarterly";
 export type PracticalTemplateStatus = "Ativo" | "Inativo";
+export type PracticalTargetSector = "Todos" | "CFTV" | "Vigilância" | "Portaria" | "Ronda" | "Administrativo";
 
 export interface PracticalEvalTemplate {
   id: string;
   title: string;
   platform: string | null;
   description: string | null;
-  target_sector: "Todos" | "CFTV" | "Vigilância";
+  target_sector: PracticalTargetSector;
   min_approval_score: number;
   recurrence: PracticalRecurrence;
   applications_per_month: number;
