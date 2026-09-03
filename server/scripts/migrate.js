@@ -7,6 +7,14 @@ import { config } from "../src/config.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const migrationsDir = path.resolve(here, "../../database/mysql");
+const BASELINE_TABLES = [
+  "app_users",
+  "employees",
+  "exam_attempts",
+  "cronograma_entries",
+  "training_schedules",
+  "audit_logs",
+];
 
 function migrationVersion(fileName) {
   const match = /^(\d{3,})_.+\.sql$/i.exec(fileName);
@@ -41,15 +49,25 @@ async function ensureMigrationTable(connection) {
   `);
 }
 
-async function tableExists(connection, tableName) {
+async function existingTables(connection, tableNames) {
+  if (!tableNames.length) return new Set();
+  const placeholders = tableNames.map(() => "?").join(",");
   const [rows] = await connection.execute(
-    `SELECT 1 AS found
+    `SELECT table_name
        FROM information_schema.tables
-      WHERE table_schema = DATABASE() AND table_name = ?
-      LIMIT 1`,
-    [tableName],
+      WHERE table_schema = DATABASE()
+        AND table_name IN (${placeholders})`,
+    tableNames,
   );
-  return rows.length > 0;
+  return new Set(rows.map((row) => String(row.table_name)));
+}
+
+async function detectPreRunnerBaseline(connection) {
+  const found = await existingTables(connection, BASELINE_TABLES);
+  if (found.size === 0) return { state: "empty", missing: BASELINE_TABLES };
+  const missing = BASELINE_TABLES.filter((table) => !found.has(table));
+  if (missing.length) return { state: "partial", missing };
+  return { state: "complete", missing: [] };
 }
 
 async function loadMigrationFiles() {
@@ -96,20 +114,29 @@ async function main() {
     const applied = new Map(appliedRows.map((row) => [String(row.version), row]));
 
     // Compatibilidade com instalações que receberam o 001_schema.sql antes do runner versionado.
-    // Se o banco já possui o núcleo do SEGEMPAT e ainda não há histórico, assume o baseline 001 como aplicado.
-    if (applied.size === 0 && migrations[0]?.version === "001" && await tableExists(connection, "app_users")) {
-      const baseline = migrations[0];
-      await connection.execute(
-        `INSERT INTO schema_migrations (version, file_name, checksum_sha256, applied_at)
-         VALUES (?, ?, ?, UTC_TIMESTAMP(3))`,
-        [baseline.version, baseline.fileName, baseline.checksum],
-      );
-      applied.set(baseline.version, {
-        version: baseline.version,
-        file_name: baseline.fileName,
-        checksum_sha256: baseline.checksum,
-      });
-      console.log(`[segempat-api] baseline existente registrado: ${baseline.fileName}`);
+    // Só registra o baseline automaticamente quando um conjunto representativo do schema 001 está completo.
+    if (applied.size === 0 && migrations[0]?.version === "001") {
+      const baselineState = await detectPreRunnerBaseline(connection);
+      if (baselineState.state === "partial") {
+        throw new Error(
+          `Banco MySQL aparenta ter um baseline 001 incompleto. Tabelas ausentes: ${baselineState.missing.join(", ")}. ` +
+          "Não é seguro registrar nem reaplicar automaticamente o 001; corrija o schema antes de continuar.",
+        );
+      }
+      if (baselineState.state === "complete") {
+        const baseline = migrations[0];
+        await connection.execute(
+          `INSERT INTO schema_migrations (version, file_name, checksum_sha256, applied_at)
+           VALUES (?, ?, ?, UTC_TIMESTAMP(3))`,
+          [baseline.version, baseline.fileName, baseline.checksum],
+        );
+        applied.set(baseline.version, {
+          version: baseline.version,
+          file_name: baseline.fileName,
+          checksum_sha256: baseline.checksum,
+        });
+        console.log(`[segempat-api] baseline existente validado e registrado: ${baseline.fileName}`);
+      }
     }
 
     let appliedCount = 0;
