@@ -228,7 +228,7 @@ export async function signAttempt(input: { attemptId: string; userId: string; si
     const pngDataUrl = await blobToDataUrl(input.pngBlob);
     return apiRequest<ExamAttempt>(`/api/me/exam-attempts/${encodeURIComponent(input.attemptId)}/signature`, {
       method: "POST",
-      body: JSON.stringify({ signerName: input.signerName, pngDataUrl }),
+      body: JSON.stringify({ pngDataUrl }),
     });
   }
   const path = `${input.userId}/${input.attemptId}.png`;
