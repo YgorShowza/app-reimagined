@@ -7,6 +7,7 @@ import { config } from "../src/config.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const migrationsDir = path.resolve(here, "../../database/mysql");
+const MIGRATION_LOCK_NAME = "segempat:migrations";
 const BASELINE_TABLES = [
   "app_users",
   "employees",
@@ -51,6 +52,21 @@ async function migrationSslOptions() {
     return { ca, rejectUnauthorized: true };
   } catch (error) {
     throw new Error(`Certificado CA do MySQL não pôde ser lido em ${config.db.caPath}: ${error?.message || error}`);
+  }
+}
+
+async function acquireMigrationLock(connection) {
+  const [rows] = await connection.execute(`SELECT GET_LOCK(?, 30) AS acquired`, [MIGRATION_LOCK_NAME]);
+  if (Number(rows?.[0]?.acquired) !== 1) {
+    throw new Error("Não foi possível obter o lock exclusivo de migrations em até 30 segundos. Verifique se outro deploy está migrando o banco.");
+  }
+}
+
+async function releaseMigrationLock(connection) {
+  const [rows] = await connection.execute(`SELECT RELEASE_LOCK(?) AS released`, [MIGRATION_LOCK_NAME]);
+  const released = rows?.[0]?.released;
+  if (released !== null && Number(released) !== 1) {
+    console.warn("[segempat-api] aviso: lock de migrations não foi liberado explicitamente");
   }
 }
 
@@ -176,9 +192,12 @@ async function main() {
     timezone: "Z",
   });
 
+  let lockAcquired = false;
   try {
     await connection.query("SET NAMES utf8mb4");
     await connection.query("SET time_zone = '+00:00'");
+    await acquireMigrationLock(connection);
+    lockAcquired = true;
     await ensureMigrationTable(connection);
 
     const migrations = await loadMigrationFiles();
@@ -237,6 +256,9 @@ async function main() {
     if (appliedCount === 0) console.log("[segempat-api] schema MySQL já está atualizado");
     else console.log(`[segempat-api] ${appliedCount} migration(s) MySQL aplicada(s) com sucesso`);
   } finally {
+    if (lockAcquired) await releaseMigrationLock(connection).catch((error) => {
+      console.warn(`[segempat-api] aviso ao liberar lock de migrations: ${error?.message || error}`);
+    });
     await connection.end();
   }
 }
