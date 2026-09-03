@@ -152,6 +152,9 @@ jobs:
           expect_rejected "timezone inválida" SEGEMPAT_TIMEZONE=Invalid/Timezone
           expect_rejected "senha MySQL placeholder" MYSQL_PASSWORD=CHANGE_ME
           expect_rejected "segredo de sessão placeholder" SEGEMPAT_SESSION_SECRET=CHANGE_ME_TO_A_LONG_RANDOM_SECRET_32_BYTES_MINIMUM
+          expect_rejected "host MySQL somente com espaços" MYSQL_HOST="   "
+          expect_rejected "CA MySQL informada com TLS desabilitado" MYSQL_SSL=false MYSQL_SSL_CA_PATH=/tmp/mysql-ca.pem
+          expect_rejected "CA MySQL relativa em produção" MYSQL_SSL=true MYSQL_SSL_CA_PATH=./mysql-ca.pem
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
