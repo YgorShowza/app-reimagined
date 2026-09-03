@@ -37,7 +37,7 @@ Esse status significa que a camada de código local necessária para conexão, a
 - [x] rejeição de histórico de migrations inválido, divergente ou com lacunas;
 - [x] pool MySQL com UTC, `utf8mb4`, transações e suporte a TLS/CA corporativa;
 - [x] preflight não destrutivo para validar conexão MySQL, versão, database selecionado, TLS e escrita/leitura real no storage;
-- [x] smoke test exigindo MySQL 8+, tabelas essenciais, InnoDB, `utf8mb4`, baseline registrada, `FOREIGN_KEY_CHECKS=1`, foreign keys críticas e índices UNIQUE críticos;
+- [x] smoke test exigindo MySQL 8+, tabelas essenciais, InnoDB, `utf8mb4`, baseline registrada, `FOREIGN_KEY_CHECKS=1`, foreign keys críticas, índices UNIQUE críticos, sessão em UTC e modo SQL estrito;
 - [x] auditoria de cutover não destrutiva para identidade, profiles, privilégios administrativos, cobertura do Banco de Questões por setor, coerência de certificados/revogação e existência/assinatura PNG das evidências no storage;
 - [x] validação rígida das variáveis de ambiente críticas antes da inicialização da API;
 - [x] `NODE_ENV` restrito a `production`, `development` ou `test`;
@@ -163,7 +163,7 @@ npm start
 
 - `npm run preflight`: não altera o banco; confirma MySQL 8+, database correto, negociação TLS quando exigida e storage realmente gravável/legível.
 - `npm run migrate`: aplica somente migrations ainda não registradas e valida histórico/checksums.
-- `npm run smoke`: valida schema, engines, charset, migration registrada, `FOREIGN_KEY_CHECKS`, foreign keys críticas e índices UNIQUE indispensáveis para identidade, certificados, treino e proteção contra duplicidade.
+- `npm run smoke`: valida schema, engines, charset, migration registrada, `FOREIGN_KEY_CHECKS`, foreign keys críticas, índices UNIQUE indispensáveis, sessão em UTC e modo SQL estrito (`STRICT_TRANS_TABLES` ou `STRICT_ALL_TABLES`).
 - `npm run cutover:audit`: deve ser executado depois da migração de dados; valida vínculos entre contas/profiles/colaboradores, privilégio administrativo, cobertura funcional das questões de treinamento, coerência de certificados e se as assinaturas registradas realmente existem como PNG no storage corporativo.
 - `npm start`: somente depois dos checks anteriores aprovados no ambiente de homologação.
 
