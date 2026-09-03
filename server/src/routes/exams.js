@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { Router } from "express";
 import { config } from "../config.js";
-import { execute, query, queryOne, withTransaction } from "../db.js";
+import { query, queryOne, withTransaction } from "../db.js";
 import { audit } from "../audit.js";
 import { requireAdmin, requireAuth } from "../session.js";
 import {
@@ -199,32 +199,50 @@ examsRouter.get("/:id", requireAdmin, asyncHandler(async (req, res) => {
 examsRouter.post("/", requireAdmin, asyncHandler(async (req, res) => {
   const input = readExamInput(req.body);
   const id = uuid();
-  await execute(
-    `INSERT INTO exams
-     (id, title, description, exam_type, target_sector, min_approval_pct, scheduled_date, status, questions, created_by, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
-    [id,input.title,input.description,input.exam_type,input.target_sector,input.min_approval_pct,input.scheduled_date,input.status,JSON.stringify(input.questions),req.user.id],
-  );
-  await audit(req.user.id, "INSERT", "exams", id, { title: input.title });
+
+  await withTransaction(async (connection) => {
+    await connection.execute(
+      `INSERT INTO exams
+       (id, title, description, exam_type, target_sector, min_approval_pct, scheduled_date, status, questions, created_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
+      [id, input.title, input.description, input.exam_type, input.target_sector, input.min_approval_pct, input.scheduled_date, input.status, JSON.stringify(input.questions), req.user.id],
+    );
+    await audit(req.user.id, "INSERT", "exams", id, { title: input.title, atomic: true }, connection);
+  });
+
   res.status(201).json({ id });
 }));
 
 examsRouter.patch("/:id", requireAdmin, asyncHandler(async (req, res) => {
-  const existing = await queryOne(`SELECT * FROM exams WHERE id = ?`, [req.params.id]);
-  if (!existing) throw notFound("Prova não encontrada");
   const input = readExamInput(req.body, { partial: true });
   const fields = Object.keys(input);
   const values = fields.map((field) => (field === "questions" ? JSON.stringify(input[field]) : input[field]));
-  await execute(`UPDATE exams SET ${fields.map((field) => `${field} = ?`).join(", ")}, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`, [...values, existing.id]);
-  await audit(req.user.id, "UPDATE", "exams", existing.id, { changed: fields });
+
+  await withTransaction(async (connection) => {
+    const [rows] = await connection.execute(`SELECT id FROM exams WHERE id = ? LIMIT 1 FOR UPDATE`, [req.params.id]);
+    const existing = rows[0];
+    if (!existing) throw notFound("Prova não encontrada");
+
+    await connection.execute(
+      `UPDATE exams SET ${fields.map((field) => `${field} = ?`).join(", ")}, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`,
+      [...values, existing.id],
+    );
+    await audit(req.user.id, "UPDATE", "exams", existing.id, { changed: fields, atomic: true }, connection);
+  });
+
   res.status(204).end();
 }));
 
 examsRouter.delete("/:id", requireAdmin, asyncHandler(async (req, res) => {
-  const existing = await queryOne(`SELECT id, title FROM exams WHERE id = ?`, [req.params.id]);
-  if (!existing) throw notFound("Prova não encontrada");
-  await execute(`DELETE FROM exams WHERE id = ?`, [existing.id]);
-  await audit(req.user.id, "DELETE", "exams", existing.id, { title: existing.title });
+  await withTransaction(async (connection) => {
+    const [rows] = await connection.execute(`SELECT id, title FROM exams WHERE id = ? LIMIT 1 FOR UPDATE`, [req.params.id]);
+    const existing = rows[0];
+    if (!existing) throw notFound("Prova não encontrada");
+
+    await connection.execute(`DELETE FROM exams WHERE id = ?`, [existing.id]);
+    await audit(req.user.id, "DELETE", "exams", existing.id, { title: existing.title, atomic: true }, connection);
+  });
+
   res.status(204).end();
 }));
 
