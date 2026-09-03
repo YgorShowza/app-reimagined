@@ -41,7 +41,8 @@ async function main() {
         WHERE table_schema = DATABASE()`,
     );
 
-    if (mysqlMajor(version?.version) < 8) {
+    const majorVersion = mysqlMajor(version?.version);
+    if (!Number.isInteger(majorVersion) || majorVersion < 8) {
       throw new Error(`Versão MySQL não suportada: ${version?.version || "desconhecida"}. O SEGEMPAT requer MySQL 8.0+`);
     }
     if (!database?.database_name) {
