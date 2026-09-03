@@ -8,13 +8,23 @@ import { asyncHandler, badRequest, forbidden, requireText, unauthorized, uuid } 
 export const authRouter = Router();
 
 const MIN_PASSWORD = 8;
+const MAX_PASSWORD = 128;
+const MAX_MATRICULA = 80;
 
 function normalizeMatricula(value) {
-  return requireText(value, "Matrícula").trim().toLowerCase();
+  const matricula = requireText(value, "Matrícula").trim().toLowerCase();
+  if (matricula.length > MAX_MATRICULA) throw badRequest("Matrícula inválida");
+  return matricula;
+}
+
+function passwordText(value, label = "Senha") {
+  const text = String(value ?? "");
+  if (text.length > MAX_PASSWORD) throw badRequest(`${label} excede o limite permitido`);
+  return text;
 }
 
 function assertStrongPassword(password) {
-  const text = String(password ?? "");
+  const text = passwordText(password, "Senha");
   if (text.length < MIN_PASSWORD) throw badRequest(`A senha deve ter ao menos ${MIN_PASSWORD} caracteres`);
   return text;
 }
@@ -23,7 +33,7 @@ authRouter.post(
   "/login",
   asyncHandler(async (req, res) => {
     const matricula = normalizeMatricula(req.body?.matricula);
-    const password = String(req.body?.password ?? "");
+    const password = passwordText(req.body?.password);
 
     const account = await queryOne(
       `SELECT id, password_hash FROM app_users
@@ -64,7 +74,7 @@ authRouter.post(
       if (!employee) throw forbidden("Matrícula não autorizada para cadastro");
 
       const [existing] = await connection.execute(
-        `SELECT id FROM app_users WHERE LOWER(TRIM(matricula)) = ? LIMIT 1`,
+        `SELECT id FROM app_users WHERE LOWER(TRIM(matricula)) = ? LIMIT 1 FOR UPDATE`,
         [matricula],
       );
       if (existing[0]) throw badRequest("Esta matrícula já possui acesso cadastrado");
@@ -103,7 +113,7 @@ authRouter.post(
         `UPDATE registration_activation_codes SET used_at = UTC_TIMESTAMP(3) WHERE employee_id = ?`,
         [employee.id],
       );
-      await audit(id, "ACTIVATE", "app_users", id, { matricula: employee.matricula }, connection);
+      await audit(id, "ACTIVATE", "app_users", id, { matricula: employee.matricula, atomic: true }, connection);
       return id;
     });
 
@@ -126,19 +136,29 @@ authRouter.post(
   "/change-password",
   requireAuth,
   asyncHandler(async (req, res) => {
-    const current = String(req.body?.currentPassword ?? "");
+    const current = passwordText(req.body?.currentPassword, "Senha atual");
     const next = assertStrongPassword(req.body?.newPassword);
+    const nextHash = await bcrypt.hash(next, 12);
 
-    const account = await queryOne(`SELECT password_hash FROM app_users WHERE id = ?`, [req.user.id]);
-    if (!account || !(await bcrypt.compare(current, account.password_hash))) {
-      throw badRequest("Senha atual incorreta");
-    }
+    await withTransaction(async (connection) => {
+      const [accounts] = await connection.execute(
+        `SELECT password_hash FROM app_users WHERE id = ? AND status = 'Ativo' LIMIT 1 FOR UPDATE`,
+        [req.user.id],
+      );
+      const account = accounts[0];
+      if (!account || !(await bcrypt.compare(current, account.password_hash))) {
+        throw badRequest("Senha atual incorreta");
+      }
+      if (await bcrypt.compare(next, account.password_hash)) {
+        throw badRequest("A nova senha deve ser diferente da senha atual");
+      }
 
-    await execute(`UPDATE app_users SET password_hash = ?, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`, [
-      await bcrypt.hash(next, 12),
-      req.user.id,
-    ]);
-    await audit(req.user.id, "PASSWORD_CHANGE", "app_users", req.user.id);
+      await connection.execute(
+        `UPDATE app_users SET password_hash = ?, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`,
+        [nextHash, req.user.id],
+      );
+      await audit(req.user.id, "PASSWORD_CHANGE", "app_users", req.user.id, { atomic: true }, connection);
+    });
     res.status(204).end();
   }),
 );
