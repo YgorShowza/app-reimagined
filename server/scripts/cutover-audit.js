@@ -81,6 +81,58 @@ async function checkIdentity() {
   console.log(`[cutover] identidade employees=${employees} active_employees=${activeEmployees} users=${users}`);
 }
 
+async function checkOperationalIntegrity() {
+  const occurrenceIdentityMismatch = await scalar(
+    `SELECT COUNT(*) AS total
+       FROM occurrences o
+       JOIN employees e ON e.id = o.employee_id
+      WHERE o.employee_id IS NOT NULL
+        AND (
+          COALESCE(o.employee_name, '') <> COALESCE(e.full_name, '')
+          OR LOWER(TRIM(COALESCE(o.employee_matricula, ''))) <> LOWER(TRIM(COALESCE(e.matricula, '')))
+        )`,
+  );
+  const practicalIdentityMismatch = await scalar(
+    `SELECT COUNT(*) AS total
+       FROM practical_evaluations p
+       JOIN employees e ON e.id = p.employee_id
+      WHERE COALESCE(p.employee_name, '') <> COALESCE(e.full_name, '')
+         OR LOWER(TRIM(COALESCE(p.employee_matricula, ''))) <> LOWER(TRIM(COALESCE(e.matricula, '')))
+         OR COALESCE(p.employee_sector, '') <> COALESCE(e.sector, '')`,
+  );
+  const pendingActivationForInactiveEmployee = await scalar(
+    `SELECT COUNT(*) AS total
+       FROM registration_activation_codes r
+       JOIN employees e ON e.id = r.employee_id
+      WHERE r.used_at IS NULL
+        AND e.status <> 'Ativo'`,
+  );
+  const pendingActivationWithAccount = await scalar(
+    `SELECT COUNT(*) AS total
+       FROM registration_activation_codes r
+       JOIN employees e ON e.id = r.employee_id
+       JOIN app_users u ON LOWER(TRIM(u.matricula)) = LOWER(TRIM(e.matricula))
+      WHERE r.used_at IS NULL`,
+  );
+
+  if (occurrenceIdentityMismatch > 0) {
+    fail(`${occurrenceIdentityMismatch} ocorrência(s) possuem snapshot de identidade divergente do colaborador relacionado`);
+  }
+  if (practicalIdentityMismatch > 0) {
+    fail(`${practicalIdentityMismatch} avaliação(ões) prática(s) possuem snapshot funcional divergente do colaborador relacionado`);
+  }
+  if (pendingActivationForInactiveEmployee > 0) {
+    fail(`${pendingActivationForInactiveEmployee} código(s) de ativação pendente(s) pertencem a colaborador inativo`);
+  }
+  if (pendingActivationWithAccount > 0) {
+    fail(`${pendingActivationWithAccount} código(s) de ativação pendente(s) pertencem a matrícula que já possui conta`);
+  }
+
+  console.log(
+    `[cutover] operação occurrence_identity_mismatch=${occurrenceIdentityMismatch} practical_identity_mismatch=${practicalIdentityMismatch} pending_activation_inactive=${pendingActivationForInactiveEmployee} pending_activation_with_account=${pendingActivationWithAccount}`,
+  );
+}
+
 async function checkTrainingQuestionCoverage() {
   const sectors = await query(
     `SELECT DISTINCT sector
@@ -258,6 +310,7 @@ async function main() {
   try {
     await checkForeignKeySession();
     await checkIdentity();
+    await checkOperationalIntegrity();
     await checkTrainingQuestionCoverage();
     await checkExamEvidence();
 
