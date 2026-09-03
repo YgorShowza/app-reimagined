@@ -2,12 +2,7 @@
 
 ## Objetivo
 
-Preparar o SEGEMPAT para operar sobre o MySQL da empresa sem manter o frontend acoplado ao Supabase.
-
-A migração será feita em duas fases para não interromper o app atual:
-
-1. **Compatibilidade** — o app continua funcionando no Supabase enquanto o frontend passa a consumir uma camada própria de backend/API.
-2. **Cutover** — o backend/API passa a usar MySQL e o Supabase deixa de ser dependência operacional.
+Operar o SEGEMPAT sobre o MySQL da empresa sem expor credenciais do banco ao navegador e sem depender do Supabase quando a API corporativa estiver configurada.
 
 ## Arquitetura alvo
 
@@ -16,56 +11,73 @@ Navegador / SEGEMPAT React
         |
         | HTTPS / JSON
         v
-SEGEMPAT Backend API (server-side)
+SEGEMPAT Backend API (Node/Express)
         |
         +--> MySQL 8.0 da empresa
         +--> armazenamento privado de assinaturas/evidências
-        +--> autenticação/sessão
+        +--> autenticação/sessão assinada
 ```
 
 **Regra obrigatória:** o navegador nunca recebe host, usuário ou senha do MySQL. Credenciais MySQL existem somente no servidor.
 
-## O que hoje depende do Supabase
+Durante a transição, o frontend mantém fallback legado para Supabase somente quando `VITE_SEGEMPAT_API_URL` não está configurado. Em modo API, os fluxos migrados usam a API SEGEMPAT.
 
-O Supabase atual entrega quatro funções diferentes:
+## Situação atual do código
 
-- PostgreSQL para dados;
-- Auth para sessão/usuários;
-- RLS para autorização por perfil/setor/usuário;
-- Storage para assinaturas de provas.
+### Implementado
 
-No MySQL essas responsabilidades precisam ser separadas:
+- [x] schema base MySQL 8 em `database/mysql/001_schema.sql`;
+- [x] runner versionado de migrations MySQL com histórico, checksum e detecção segura de baseline existente;
+- [x] validação de ordem numérica e versões duplicadas das migrations;
+- [x] pool MySQL com UTC, `utf8mb4`, transações e suporte a TLS/CA corporativa;
+- [x] smoke test do schema operacional e engines InnoDB;
+- [x] sessão assinada no backend e reconstrução de autorização a cada requisição;
+- [x] login, primeiro acesso, troca de senha e logout via MySQL;
+- [x] código de ativação com hash, expiração, uso único e auditoria;
+- [x] autorização administrativa vinculada a role `admin` + perfil funcional atual `Inspetor`;
+- [x] Equipe/Colaboradores via API MySQL;
+- [x] Cronograma via API MySQL, incluindo bulk atômico, recorrência, suspensões e sincronização com provas;
+- [x] Banco de Questões via API MySQL;
+- [x] Provas/tentativas com correção server-side;
+- [x] assinatura de prova em storage privado controlado pelo backend;
+- [x] certificados e evidências via API;
+- [x] Treinamentos, Simulador, Stress Test, Teste Rápido e Desafio Diário via API;
+- [x] XP/nível calculados no servidor e protegidos por transação;
+- [x] Avaliação Prática e modelos de avaliação via API;
+- [x] Ocorrências e Base de Conhecimento via API;
+- [x] auditoria administrativa via backend;
+- [x] rotas pessoais separadas de rotas administrativas quando necessário;
+- [x] payloads do frontend sanitizados para não confiar em nome, matrícula, setor, criador ou avaliador enviados pelo navegador;
+- [x] geração de Cronograma em modo API limitada a operações atômicas de até 1000 lançamentos;
+- [x] CI validando migrations, sintaxe do backend, typecheck, lint e build.
 
-- **MySQL:** persistência;
-- **Backend API:** autorização equivalente à RLS e regras de negócio;
-- **Sessão do backend:** autenticação;
-- **Storage privado da empresa ou filesystem/S3 compatível:** assinaturas/evidências.
+### Ainda depende da infraestrutura real da empresa
+
+- [ ] receber e configurar host/porta/database do MySQL de homologação;
+- [ ] configurar usuário MySQL de privilégio mínimo;
+- [ ] configurar TLS/SSL e CA corporativa, se exigido;
+- [ ] disponibilizar a API SEGEMPAT em ambiente acessível pelo frontend;
+- [ ] definir storage corporativo definitivo para assinaturas/evidências;
+- [ ] aplicar migrations no MySQL de homologação;
+- [ ] migrar os dados existentes;
+- [ ] executar homologação ponta a ponta;
+- [ ] executar cutover de produção e rollback planejado.
 
 ## Modelo de identidade
 
-O banco MySQL terá `app_users` para substituir `auth.users`.
-
-`employees` continua sendo o cadastro funcional e **não** deve ser usado diretamente como tabela de senha.
-
-Fluxo:
+O MySQL usa `app_users` para conta/senha e `employees` como cadastro funcional.
 
 ```text
 employees (cadastro funcional)
    |
-   +-- matricula
+   +-- matrícula
    |
 app_users (conta/senha/sessão)
    |
 profiles + user_roles
 ```
 
-Isso preserva o desenho atual do SEGEMPAT: uma pessoa pode existir no cadastro funcional antes de possuir acesso ao sistema.
-
-## UUIDs
-
-Na primeira versão MySQL, IDs serão `CHAR(36)` para preservar integralmente os UUIDs já existentes e evitar remapeamento de chaves durante a migração.
-
-Depois da homologação, a TI pode opcionalmente migrar UUIDs para `BINARY(16)` para reduzir tamanho de índices.
+Uma pessoa pode existir em `employees` antes de receber acesso ao sistema.
 
 ## Conversões PostgreSQL -> MySQL
 
@@ -73,119 +85,119 @@ Depois da homologação, a TI pode opcionalmente migrar UUIDs para `BINARY(16)` 
 | --- | --- |
 | `uuid` | `CHAR(36)` |
 | `jsonb` | `JSON` |
-| `text` | `TEXT`/`VARCHAR` |
 | `boolean` | `TINYINT(1)` |
 | `timestamptz` | `DATETIME(3)` em UTC |
 | `uuid[]` | `JSON` |
 | RLS | autorização no backend |
-| RPC `SECURITY DEFINER` | service/use-case no backend |
+| RPC `SECURITY DEFINER` | serviço/endpoint no backend |
 | Supabase Storage | storage privado do backend |
 | `auth.users` | `app_users` |
 
-## Segurança que deve ser preservada no backend MySQL
-
-As regras abaixo não podem ser delegadas somente ao frontend:
+## Segurança preservada no backend MySQL
 
 - Operador só consulta dados próprios quando aplicável;
-- conteúdo/provas/questões filtrados por setor;
-- Inspetor possui autorização administrativa explícita;
-- colaborador Inativo não opera mesmo com sessão antiga;
+- conteúdo, provas e questões são filtrados por setor;
+- Inspetor depende de autorização administrativa explícita e perfil funcional atual;
+- colaborador inativo perde acesso mesmo com cookie ainda válido;
 - notas de provas são calculadas no servidor;
-- XP é calculado no servidor;
-- gabaritos não são enviados ao Operador antes da conclusão;
-- assinatura pertence ao próprio usuário/tentativa;
-- certificado formal exige aprovação + assinatura;
-- códigos de ativação têm hash adaptativo, uso único e expiração;
-- auditoria é escrita no servidor e somente Inspetor consulta.
+- XP e nível são calculados no servidor;
+- gabaritos não são enviados antes da conclusão;
+- identidade funcional é derivada do banco/sessão, não do navegador;
+- assinatura é vinculada a tentativa registrada no MySQL;
+- códigos de ativação possuem hash, expiração e uso único;
+- operações críticas usam transações sempre que o MySQL permite atomicidade;
+- auditoria é escrita pelo servidor;
+- TLS MySQL pode exigir CA corporativa com validação de certificado ativa.
 
-## Etapas de implementação
+## Migrations MySQL
 
-### Fase A — preparação (sem trocar banco)
+As migrations ficam em `database/mysql` e seguem o padrão:
 
-- [x] inventariar schema PostgreSQL real;
-- [x] mapear PKs, uniques, FKs e índices;
-- [x] definir arquitetura MySQL/API;
-- [x] criar schema MySQL inicial;
-- [x] criar contratos de backend independentes de banco;
-- [ ] mover serviços do frontend para o novo cliente de API gradualmente;
-- [ ] retirar chamadas diretas a `supabase.from`, `.rpc`, `.storage` e `.auth` das telas.
+```text
+001_schema.sql
+002_descricao.sql
+003_descricao.sql
+...
+```
 
-### Fase B — backend MySQL
+O runner:
 
-- [ ] receber dados de conexão MySQL da TI em variáveis **server-only**;
-- [ ] adicionar driver MySQL no servidor (`mysql2` ou driver aprovado pela empresa);
-- [ ] implementar pool de conexões;
-- [ ] implementar autenticação/sessão;
-- [ ] implementar autorização por perfil/setor;
-- [ ] implementar endpoints de Equipe, Cronograma, Provas, Treinamentos, Avaliação Prática, Ocorrências, Relatórios e Certificados;
-- [ ] implementar upload privado de assinatura/evidência;
-- [ ] implementar auditoria transacional.
+1. ordena versões numericamente;
+2. rejeita versões duplicadas, inclusive variações numericamente equivalentes;
+3. registra checksum SHA-256;
+4. não permite alterar uma migration já registrada;
+5. reconhece instalação anterior ao runner somente quando o baseline representativo está completo;
+6. bloqueia automaticamente baseline parcial para evitar mascarar banco incompleto.
 
-### Fase C — migração de dados
+**Observação:** DDL do MySQL pode fazer auto-commit. Migrations incrementais devem ser pequenas, previsíveis e, quando possível, idempotentes.
 
-- [ ] criar dump lógico do banco atual;
-- [ ] exportar `auth.users` somente pelo procedimento administrativo autorizado;
-- [ ] migrar 19 tabelas públicas preservando UUIDs;
-- [ ] migrar ou recriar contas de usuários com política aprovada pela empresa;
-- [ ] copiar assinaturas/evidências para o storage escolhido;
-- [ ] comparar contagens e checksums por tabela;
-- [ ] executar testes de integridade.
+## Variáveis de ambiente
 
-### Fase D — cutover
-
-- [ ] homologar ambiente MySQL isolado;
-- [ ] congelar escritas no banco antigo;
-- [ ] executar delta final;
-- [ ] trocar `SEGEMPAT_API_URL` para backend MySQL;
-- [ ] validar login Inspetor/Operador;
-- [ ] validar Cronograma, provas, assinatura, certificado e relatórios;
-- [ ] manter plano de rollback durante a janela definida pela TI.
-
-## Variáveis de ambiente alvo
-
-### Frontend (pode ser exposto)
+### Frontend
 
 ```text
 VITE_SEGEMPAT_API_URL=https://segempat-api.empresa.local
 ```
 
-### Servidor (NUNCA usar prefixo VITE_)
+### Servidor
 
 ```text
-SEGEMPAT_DB_DRIVER=mysql
 MYSQL_HOST=
 MYSQL_PORT=3306
 MYSQL_DATABASE=
 MYSQL_USER=
 MYSQL_PASSWORD=
 MYSQL_SSL=true
+MYSQL_SSL_CA_PATH=
 SEGEMPAT_SESSION_SECRET=
-SEGEMPAT_STORAGE_DRIVER=
+SEGEMPAT_ALLOWED_ORIGINS=
 SEGEMPAT_STORAGE_PATH=
 ```
 
-## Informações que ainda serão necessárias da TI
+Secrets reais devem ser cadastrados diretamente no ambiente de deploy, não incluídos no código ou em arquivos versionados.
 
-Para a conexão final, precisamos somente de informações técnicas — **não devem ser enviadas em chat se forem credenciais reais**. O ideal é cadastrá-las diretamente como secrets/variáveis no ambiente de deploy.
+## Dados que precisamos da TI para homologação
 
 - versão exata do MySQL;
 - host/IP interno;
 - porta;
-- nome do database/schema;
+- database/schema;
 - exigência de TLS/SSL e certificado CA;
-- política de rede (VPN, allowlist, firewall);
-- usuário de aplicação com privilégios mínimos;
+- firewall/VPN/allowlist;
+- usuário da aplicação e permissões concedidas;
 - ambiente de homologação separado de produção;
-- opção de storage para assinaturas/evidências;
-- política corporativa de autenticação (senha local, AD/LDAP, SSO ou outro).
+- local definitivo para storage de assinaturas/evidências;
+- URL/host onde a API SEGEMPAT será executada.
 
-## Critério de conclusão
+## Fase de migração de dados
 
-A migração será considerada concluída quando:
+Antes do cutover será necessário:
 
-1. nenhuma tela importar Supabase diretamente;
-2. todo acesso aos dados ocorrer através da API SEGEMPAT;
-3. a API estiver conectada ao MySQL com usuário de privilégio mínimo;
-4. regras hoje feitas por RLS/RPC estiverem testadas no backend;
-5. contagens e integridade do banco MySQL forem equivalentes;
-6. login, Cronograma, prova, assinatura, certificado, relatórios e auditoria passarem na homologação.
+- exportar os dados atuais pelo procedimento autorizado;
+- preservar UUIDs e vínculos funcionais;
+- migrar tabelas operacionais para MySQL;
+- tratar contas/senhas conforme política aprovada pela empresa;
+- copiar assinaturas/evidências;
+- comparar contagens e integridade por tabela;
+- validar amostras funcionais e históricas.
+
+## Critério de “código pronto para conectar ao MySQL da empresa”
+
+A parte de código pode ser considerada concluída quando:
+
+1. os fluxos necessários em modo API não dependem de Supabase em runtime;
+2. CI estiver verde no commit final;
+3. migrations, smoke test, autenticação, permissões e storage estiverem preparados para configuração corporativa;
+4. não houver pendência conhecida de consistência que dependa apenas de alteração de código local.
+
+## Critério de “SEGEMPAT homologado no MySQL da empresa”
+
+Só será considerado pronto para produção depois de:
+
+1. API conectada ao MySQL real de homologação;
+2. migrations aplicadas e smoke test aprovado;
+3. dados migrados e integridade conferida;
+4. login Inspetor e Operador testados;
+5. Equipe, Cronograma, Provas, Banco de Questões, Treinamentos, Avaliação Prática, Ocorrências, assinatura, certificados, relatórios e auditoria testados ponta a ponta;
+6. TLS, CORS, cookies, firewall e permissões validados no ambiente real;
+7. plano de rollback aprovado para o cutover.
