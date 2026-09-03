@@ -55,6 +55,67 @@ async function migrationSslOptions() {
   }
 }
 
+async function initializeMigrationSession(connection) {
+  await connection.query("SET NAMES utf8mb4");
+  await connection.query(`
+    SET SESSION
+      time_zone = '+00:00',
+      foreign_key_checks = 1,
+      sql_mode = CASE
+        WHEN FIND_IN_SET('STRICT_TRANS_TABLES', @@SESSION.sql_mode) > 0
+          OR FIND_IN_SET('STRICT_ALL_TABLES', @@SESSION.sql_mode) > 0
+        THEN @@SESSION.sql_mode
+        ELSE CONCAT_WS(',', NULLIF(@@SESSION.sql_mode, ''), 'STRICT_TRANS_TABLES')
+      END
+  `);
+
+  const [sessionRows] = await connection.query(`
+    SELECT @@SESSION.time_zone AS time_zone,
+           @@SESSION.foreign_key_checks AS foreign_key_checks,
+           @@SESSION.sql_mode AS sql_mode,
+           @@SESSION.character_set_client AS character_set_client,
+           @@SESSION.character_set_connection AS character_set_connection,
+           @@SESSION.character_set_results AS character_set_results
+  `);
+  const session = sessionRows?.[0] ?? {};
+  const sqlModes = String(session.sql_mode || "")
+    .split(",")
+    .map((value) => value.trim().toUpperCase())
+    .filter(Boolean);
+
+  if (String(session.time_zone || "").trim() !== "+00:00") {
+    throw new Error(`Sessão de migration MySQL não permaneceu em UTC: ${session.time_zone || "desconhecido"}`);
+  }
+  if (Number(session.foreign_key_checks) !== 1) {
+    throw new Error("Sessão de migration MySQL está com FOREIGN_KEY_CHECKS desabilitado");
+  }
+  if (!sqlModes.includes("STRICT_TRANS_TABLES") && !sqlModes.includes("STRICT_ALL_TABLES")) {
+    throw new Error("Sessão de migration MySQL não está em modo SQL estrito");
+  }
+
+  const charsets = {
+    client: session.character_set_client,
+    connection: session.character_set_connection,
+    results: session.character_set_results,
+  };
+  for (const [name, value] of Object.entries(charsets)) {
+    if (String(value || "").toLowerCase() !== "utf8mb4") {
+      throw new Error(`Sessão de migration MySQL exige character_set_${name}=utf8mb4; detectado: ${value || "desconhecido"}`);
+    }
+  }
+
+  const [sslRows] = await connection.query("SHOW SESSION STATUS LIKE 'Ssl_cipher'");
+  const sslCipher = String(sslRows?.[0]?.Value ?? sslRows?.[0]?.value ?? "").trim();
+  if (config.db.ssl && !sslCipher) {
+    throw new Error("MYSQL_SSL=true, mas o runner de migrations não negociou TLS");
+  }
+  if (config.nodeEnv === "production" && !sslCipher) {
+    throw new Error("Migrations de produção exigem conexão MySQL com TLS efetivamente negociado");
+  }
+
+  return sslCipher;
+}
+
 async function acquireMigrationLock(connection) {
   const [rows] = await connection.execute(`SELECT GET_LOCK(?, 30) AS acquired`, [MIGRATION_LOCK_NAME]);
   if (Number(rows?.[0]?.acquired) !== 1) {
@@ -194,8 +255,10 @@ async function main() {
 
   let lockAcquired = false;
   try {
-    await connection.query("SET NAMES utf8mb4");
-    await connection.query("SET time_zone = '+00:00'");
+    const sslCipher = await initializeMigrationSession(connection);
+    console.log(
+      `[segempat-api] sessão de migration pronta; tls=${sslCipher || "off"}; timezone=UTC; foreign_keys=on; strict_sql=on`,
+    );
     await acquireMigrationLock(connection);
     lockAcquired = true;
     await ensureMigrationTable(connection);
