@@ -83,8 +83,8 @@ try {
     );
 
     await connection.execute(
-      `INSERT IGNORE INTO user_roles (id, user_id, role, created_at)
-       VALUES (?, ?, 'admin', UTC_TIMESTAMP(3))`,
+      `INSERT IGNORE INTO user_roles (id, user_id, role)
+       VALUES (?, ?, 'admin')`,
       [randomUUID(), userId],
     );
 
