@@ -49,10 +49,10 @@ O `smoke` valida o schema MySQL: tabelas críticas, engines, charset, histórico
 6. Crie o primeiro Inspetor somente depois de schema e smoke aprovados:
 
 ```bash
-MATRICULA=970 NOME="Nome do Inspetor" SETOR=Administrativo SENHA='senha-forte' npm run bootstrap-admin
+CONFIRM_BOOTSTRAP_ADMIN=SIM MATRICULA=970 NOME="Nome do Inspetor" SETOR=Administrativo SENHA='senha-forte' npm run bootstrap-admin
 ```
 
-O comando cria ou reabilita a identidade administrativa de forma transacional, grava somente o hash bcrypt da senha e registra a operação em auditoria. Depois desse bootstrap inicial, os demais acessos devem seguir o fluxo normal de cadastro/código de ativação do sistema.
+O comando é deliberadamente protegido por `CONFIRM_BOOTSTRAP_ADMIN=SIM`, porque ele cria ou reabilita uma identidade com privilégio de Inspetor. A operação é transacional, grava somente o hash bcrypt da senha, invalida código de ativação pendente da matrícula e registra o bootstrap em auditoria. Depois desse bootstrap inicial, os demais acessos devem seguir o fluxo normal de cadastro/código de ativação do sistema.
 
 7. Depois da migração dos dados existentes e da cópia das evidências para o storage corporativo, execute:
 
