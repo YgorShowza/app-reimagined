@@ -1,6 +1,6 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import { execute, query, queryOne, withTransaction } from "../db.js";
+import { query, withTransaction } from "../db.js";
 import { audit } from "../audit.js";
 import { requireAdmin } from "../session.js";
 import { asyncHandler, badRequest, conflict, notFound, numericCode } from "../util.js";
@@ -49,20 +49,33 @@ accessRouter.post(
   "/activation-codes/:employeeId",
   requireAdmin,
   asyncHandler(async (req, res) => {
-    const employee = await queryOne(`SELECT * FROM employees WHERE id = ? AND status = 'Ativo'`, [req.params.employeeId]);
-    if (!employee) throw notFound("Colaborador ativo não encontrado");
-
-    const account = await queryOne(`SELECT id FROM app_users WHERE LOWER(TRIM(matricula)) = LOWER(TRIM(?))`, [employee.matricula]);
-    if (account) throw conflict("Esta matrícula já possui acesso cadastrado");
+    const employeeId = String(req.params.employeeId || "").trim();
+    if (!employeeId) throw badRequest("Colaborador não informado");
 
     const code = numericCode(8);
     const codeHash = await bcrypt.hash(code, 10);
     const expiresAt = new Date(Date.now() + CODE_TTL_HOURS * 3600_000);
 
-    await withTransaction(async (connection) => {
-      // Revalida a ausência da conta dentro da transação para reduzir a janela entre checagem e emissão.
+    const issued = await withTransaction(async (connection) => {
+      // O colaborador é bloqueado e revalidado dentro da mesma transação da emissão.
+      // Assim matrícula/status não podem mudar entre a validação e a gravação do convite.
+      const [employees] = await connection.execute(
+        `SELECT id, full_name, matricula, sector, status
+           FROM employees
+          WHERE id = ?
+          LIMIT 1
+          FOR UPDATE`,
+        [employeeId],
+      );
+      const employee = employees[0];
+      if (!employee || employee.status !== "Ativo") throw notFound("Colaborador ativo não encontrado");
+
       const [accounts] = await connection.execute(
-        `SELECT id FROM app_users WHERE LOWER(TRIM(matricula)) = LOWER(TRIM(?)) LIMIT 1 FOR UPDATE`,
+        `SELECT id
+           FROM app_users
+          WHERE LOWER(TRIM(matricula)) = LOWER(TRIM(?))
+          LIMIT 1
+          FOR UPDATE`,
         [employee.matricula],
       );
       if (accounts.length) throw conflict("Esta matrícula já possui acesso cadastrado");
@@ -76,16 +89,22 @@ accessRouter.post(
       );
       await audit(req.user.id, "ISSUE_ACTIVATION_CODE", "registration_activation_codes", employee.id, {
         matricula: employee.matricula,
+        employee_status_revalidated: true,
+        employee_locked: true,
         atomic: true,
       }, connection);
+
+      return {
+        employee_id: employee.id,
+        employee_name: employee.full_name,
+        matricula: employee.matricula,
+      };
     });
 
     // Código puro devolvido uma única vez; o banco guarda apenas o hash.
     res.status(201).json({
       code,
-      employee_id: employee.id,
-      employee_name: employee.full_name,
-      matricula: employee.matricula,
+      ...issued,
       expires_at: expiresAt.toISOString(),
     });
   }),
