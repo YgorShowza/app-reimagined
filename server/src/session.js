@@ -72,7 +72,8 @@ export async function loadAuthContext(userId) {
   if (row.account_status !== "Ativo" || row.employee_status !== "Ativo") return null;
 
   const roles = await query(`SELECT role FROM user_roles WHERE user_id = ?`, [userId]);
-  const isAdmin = roles.some((entry) => entry.role === "admin");
+  const hasAdminRole = roles.some((entry) => entry.role === "admin");
+  const isAdmin = hasAdminRole && row.access_profile === "Inspetor";
 
   return {
     id: row.id,
