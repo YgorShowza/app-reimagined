@@ -33,14 +33,20 @@ const SESSION_INVARIANTS_SQL = `
   SET SESSION
     time_zone = '+00:00',
     foreign_key_checks = 1,
-    sql_mode = CONCAT_WS(',', NULLIF(@@SESSION.sql_mode, ''), 'STRICT_TRANS_TABLES')
+    sql_mode = CASE
+      WHEN FIND_IN_SET('STRICT_TRANS_TABLES', @@SESSION.sql_mode) > 0
+        OR FIND_IN_SET('STRICT_ALL_TABLES', @@SESSION.sql_mode) > 0
+      THEN @@SESSION.sql_mode
+      ELSE CONCAT_WS(',', NULLIF(@@SESSION.sql_mode, ''), 'STRICT_TRANS_TABLES')
+    END
 `;
 
 // A inicialização precisa terminar antes da conexão ser usada. O evento `connection`
 // do pool é síncrono, mas a query disparada dentro dele não bloqueia o primeiro checkout;
 // portanto, cada checkout confirma explicitamente as invariantes antes da operação real.
 // O modo estrito também é aplicado aqui para que a API não dependa apenas da configuração
-// global do servidor MySQL ou da execução prévia do preflight.
+// global do servidor MySQL ou da execução prévia do preflight. A verificação evita acumular
+// STRICT_TRANS_TABLES repetidamente a cada reutilização da mesma conexão do pool.
 async function getInitializedConnection() {
   const connection = await pool.getConnection();
   try {
