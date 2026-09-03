@@ -1,4 +1,11 @@
-import { healthcheck, queryOne, pool } from "../src/db.js";
+import fs from "node:fs/promises";
+import path from "node:path";
+import crypto from "node:crypto";
+import { fileURLToPath } from "node:url";
+import { healthcheck, query, queryOne, pool } from "../src/db.js";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const migrationsDir = path.resolve(here, "../../database/mysql");
 
 const REQUIRED_TABLES = [
   "app_users",
@@ -74,6 +81,60 @@ function mysqlMajor(versionText) {
   return match ? Number(match[1]) : NaN;
 }
 
+function migrationVersion(fileName) {
+  const match = /^(\d{3,})_.+\.sql$/i.exec(fileName);
+  return match ? match[1] : null;
+}
+
+function checksum(content) {
+  return crypto.createHash("sha256").update(content, "utf8").digest("hex");
+}
+
+async function verifyMigrationHistory() {
+  const files = (await fs.readdir(migrationsDir))
+    .map((fileName) => ({ fileName, version: migrationVersion(fileName) }))
+    .filter((entry) => entry.version)
+    .sort((a, b) => BigInt(a.version) < BigInt(b.version) ? -1 : BigInt(a.version) > BigInt(b.version) ? 1 : a.fileName.localeCompare(b.fileName, "en"));
+
+  if (files.length === 0) throw new Error("Nenhuma migration MySQL encontrada em database/mysql");
+
+  const expected = [];
+  for (const file of files) {
+    const sql = await fs.readFile(path.join(migrationsDir, file.fileName), "utf8");
+    expected.push({ ...file, checksum: checksum(sql) });
+  }
+
+  const appliedRows = await query(
+    `SELECT version, file_name, checksum_sha256
+       FROM schema_migrations
+      ORDER BY CAST(version AS UNSIGNED) ASC, version ASC`,
+  );
+  const applied = new Map(appliedRows.map((row) => [String(row.version), row]));
+
+  if (applied.size !== expected.length) {
+    throw new Error(`Histórico de migrations divergente do código: esperadas ${expected.length}, registradas ${applied.size}`);
+  }
+
+  for (const migration of expected) {
+    const row = applied.get(migration.version);
+    if (!row) throw new Error(`Migration ${migration.fileName} não está registrada em schema_migrations`);
+    if (String(row.file_name) !== migration.fileName) {
+      throw new Error(`Migration ${migration.version} registrada com nome divergente: ${row.file_name}`);
+    }
+    if (String(row.checksum_sha256) !== migration.checksum) {
+      throw new Error(`Migration ${migration.fileName} possui checksum divergente do arquivo versionado`);
+    }
+  }
+
+  for (const [version, row] of applied) {
+    if (!expected.some((migration) => migration.version === version)) {
+      throw new Error(`Histórico contém migration inexistente no código atual: ${version}:${row.file_name}`);
+    }
+  }
+
+  return expected.at(-1);
+}
+
 async function main() {
   try {
     await healthcheck();
@@ -128,6 +189,13 @@ async function main() {
     );
     if (!latestMigration) {
       throw new Error("Nenhuma migration MySQL está registrada");
+    }
+
+    const expectedLatestMigration = await verifyMigrationHistory();
+    if (String(latestMigration.version) !== String(expectedLatestMigration.version) || latestMigration.file_name !== expectedLatestMigration.fileName) {
+      throw new Error(
+        `Última migration registrada (${latestMigration.version}:${latestMigration.file_name}) difere da última migration do código (${expectedLatestMigration.version}:${expectedLatestMigration.fileName})`,
+      );
     }
 
     const placeholders = REQUIRED_TABLES.map(() => "?").join(",");
@@ -210,7 +278,7 @@ async function main() {
     console.log(
       `[segempat-api] MySQL OK; banco=${database.database_name}; versão=${version.version}; ` +
       `${Number(tables?.total ?? 0)} tabela(s); baseline=${baseline.version}:${baseline.file_name}; ` +
-      `latest=${latestMigration.version}:${latestMigration.file_name}; foreign_keys=on; timezone=${timeZone}; strict_sql=on; ` +
+      `latest=${latestMigration.version}:${latestMigration.file_name}; migration_history=complete; foreign_keys=on; timezone=${timeZone}; strict_sql=on; ` +
       `critical_fks=${CRITICAL_FOREIGN_KEYS.length}; critical_unique_indexes=${CRITICAL_UNIQUE_INDEXES.length}`,
     );
   } finally {
