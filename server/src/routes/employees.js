@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { execute, query, queryOne } from "../db.js";
+import { execute, query, queryOne, withTransaction } from "../db.js";
 import { audit } from "../audit.js";
 import { requireAdmin, requireAuth } from "../session.js";
 import { asBool, asyncHandler, badRequest, conflict, notFound, requireOneOf, requireText, uuid } from "../util.js";
@@ -90,12 +90,14 @@ employeesRouter.post(
     if (duplicate) throw conflict("Já existe colaborador com esta matrícula");
 
     const id = uuid();
-    await execute(
-      `INSERT INTO employees (id, full_name, matricula, sector, access_profile, status, level, points, first_access, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 1, 0, 1, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
-      [id, input.full_name, input.matricula, input.sector, input.access_profile, input.status],
-    );
-    await audit(req.user.id, "INSERT", "employees", id, { new: { ...input, id } });
+    await withTransaction(async (connection) => {
+      await connection.execute(
+        `INSERT INTO employees (id, full_name, matricula, sector, access_profile, status, level, points, first_access, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 1, 0, 1, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
+        [id, input.full_name, input.matricula, input.sector, input.access_profile, input.status],
+      );
+      await audit(req.user.id, "INSERT", "employees", id, { new: { ...input, id } }, connection);
+    });
     res.status(201).json({ id });
   }),
 );
@@ -115,25 +117,35 @@ employeesRouter.patch(
     }
 
     const fields = Object.keys(input);
-    await execute(
-      `UPDATE employees SET ${fields.map((field) => `${field} = ?`).join(", ")}, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`,
-      [...fields.map((field) => input[field]), employee.id],
-    );
+    await withTransaction(async (connection) => {
+      const [lockedRows] = await connection.execute(`SELECT * FROM employees WHERE id = ? FOR UPDATE`, [employee.id]);
+      const lockedEmployee = lockedRows[0];
+      if (!lockedEmployee) throw notFound("Colaborador não encontrado");
 
-    if (input.access_profile || input.status) {
-      const account = await queryOne(`SELECT id FROM app_users WHERE LOWER(TRIM(matricula)) = LOWER(TRIM(?))`, [employee.matricula]);
-      if (account) {
-        const profile = input.access_profile ?? employee.access_profile;
-        const status = input.status ?? employee.status;
-        if (profile === "Inspetor" && status === "Ativo") {
-          await execute(`INSERT IGNORE INTO user_roles (id, user_id, role) VALUES (?, ?, 'admin')`, [uuid(), account.id]);
-        } else {
-          await execute(`DELETE FROM user_roles WHERE user_id = ? AND role = 'admin'`, [account.id]);
+      await connection.execute(
+        `UPDATE employees SET ${fields.map((field) => `${field} = ?`).join(", ")}, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`,
+        [...fields.map((field) => input[field]), lockedEmployee.id],
+      );
+
+      if (input.access_profile || input.status) {
+        const [accounts] = await connection.execute(
+          `SELECT id FROM app_users WHERE LOWER(TRIM(matricula)) = LOWER(TRIM(?)) LIMIT 1 FOR UPDATE`,
+          [lockedEmployee.matricula],
+        );
+        const account = accounts[0];
+        if (account) {
+          const profile = input.access_profile ?? lockedEmployee.access_profile;
+          const status = input.status ?? lockedEmployee.status;
+          if (profile === "Inspetor" && status === "Ativo") {
+            await connection.execute(`INSERT IGNORE INTO user_roles (id, user_id, role) VALUES (?, ?, 'admin')`, [uuid(), account.id]);
+          } else {
+            await connection.execute(`DELETE FROM user_roles WHERE user_id = ? AND role = 'admin'`, [account.id]);
+          }
         }
       }
-    }
 
-    await audit(req.user.id, "UPDATE", "employees", employee.id, { old: employee, new: input });
+      await audit(req.user.id, "UPDATE", "employees", lockedEmployee.id, { old: lockedEmployee, new: input, role_sync_atomic: true }, connection);
+    });
     res.status(204).end();
   }),
 );
@@ -147,8 +159,13 @@ employeesRouter.delete(
     if (await hasAccountOrHistory(employee)) {
       throw conflict("Colaborador possui conta ou histórico operacional. Inative o cadastro em vez de excluir.");
     }
-    await execute(`DELETE FROM employees WHERE id = ?`, [employee.id]);
-    await audit(req.user.id, "DELETE", "employees", employee.id, { old: employee });
+    await withTransaction(async (connection) => {
+      const [lockedRows] = await connection.execute(`SELECT * FROM employees WHERE id = ? FOR UPDATE`, [employee.id]);
+      const lockedEmployee = lockedRows[0];
+      if (!lockedEmployee) throw notFound("Colaborador não encontrado");
+      await connection.execute(`DELETE FROM employees WHERE id = ?`, [lockedEmployee.id]);
+      await audit(req.user.id, "DELETE", "employees", lockedEmployee.id, { old: lockedEmployee }, connection);
+    });
     res.status(204).end();
   }),
 );
