@@ -29,11 +29,18 @@ export const pool = mysql.createPool({
   charset: "utf8mb4_general_ci",
 });
 
-const SESSION_INVARIANTS_SQL = "SET SESSION time_zone = '+00:00', SESSION foreign_key_checks = 1";
+const SESSION_INVARIANTS_SQL = `
+  SET SESSION
+    time_zone = '+00:00',
+    foreign_key_checks = 1,
+    sql_mode = CONCAT_WS(',', NULLIF(@@SESSION.sql_mode, ''), 'STRICT_TRANS_TABLES')
+`;
 
 // A inicialização precisa terminar antes da conexão ser usada. O evento `connection`
 // do pool é síncrono, mas a query disparada dentro dele não bloqueia o primeiro checkout;
 // portanto, cada checkout confirma explicitamente as invariantes antes da operação real.
+// O modo estrito também é aplicado aqui para que a API não dependa apenas da configuração
+// global do servidor MySQL ou da execução prévia do preflight.
 async function getInitializedConnection() {
   const connection = await pool.getConnection();
   try {
