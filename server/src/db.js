@@ -29,6 +29,20 @@ export const pool = mysql.createPool({
   charset: "utf8mb4_general_ci",
 });
 
+// Cada conexão física nova do pool recebe as invariantes usadas pelo SEGEMPAT.
+// `timezone: "Z"` controla conversão no driver, mas não substitui o timezone da sessão MySQL,
+// que também afeta CURRENT_TIMESTAMP e outros valores gerados pelo próprio banco.
+pool.on("connection", (connection) => {
+  connection.query(
+    "SET SESSION time_zone = '+00:00', SESSION foreign_key_checks = 1",
+    (error) => {
+      if (!error) return;
+      console.error("[segempat-api] falha ao inicializar sessão MySQL", error?.message || error);
+      connection.destroy();
+    },
+  );
+});
+
 export async function query(sql, params = []) {
   const [rows] = await pool.execute(sql, params);
   return rows;
