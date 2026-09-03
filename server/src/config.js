@@ -96,6 +96,10 @@ const mysqlPassword = String(process.env["MYSQL_PASSWORD"]);
 const mysqlSsl = booleanValue("MYSQL_SSL", false);
 const mysqlCaPath = String(process.env["MYSQL_SSL_CA_PATH"] || "").trim() || null;
 
+if (nodeEnv === "production" && !mysqlSsl) {
+  console.error("[segempat-api] MYSQL_SSL deve ser true em produção");
+  process.exit(1);
+}
 if (mysqlCaPath && !mysqlSsl) {
   console.error("[segempat-api] MYSQL_SSL_CA_PATH foi informado, mas MYSQL_SSL=false");
   process.exit(1);
