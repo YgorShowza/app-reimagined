@@ -10,6 +10,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
+    "preflight": "node scripts/preflight.js",
     "migrate": "node scripts/migrate.js",
     "smoke": "node scripts/smoke.js"
   },
