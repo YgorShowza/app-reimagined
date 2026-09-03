@@ -171,15 +171,30 @@ async function main() {
       throw new Error(`Índices UNIQUE críticos ausentes: ${missingUniqueIndexes.join(", ")}`);
     }
 
-    const foreignKeyChecks = await queryOne(`SELECT @@FOREIGN_KEY_CHECKS AS enabled`);
-    if (Number(foreignKeyChecks?.enabled) !== 1) {
+    const session = await queryOne(
+      `SELECT @@FOREIGN_KEY_CHECKS AS foreign_keys,
+              @@SESSION.time_zone AS time_zone,
+              @@SESSION.sql_mode AS sql_mode`,
+    );
+    if (Number(session?.foreign_keys) !== 1) {
       throw new Error("FOREIGN_KEY_CHECKS está desabilitado na sessão MySQL; a homologação exige integridade referencial ativa");
+    }
+    const timeZone = String(session?.time_zone || "").trim();
+    if (!["+00:00", "UTC"].includes(timeZone.toUpperCase() === "UTC" ? "UTC" : timeZone)) {
+      throw new Error(`Sessão MySQL fora de UTC: ${timeZone || "desconhecido"}`);
+    }
+    const sqlModes = String(session?.sql_mode || "")
+      .split(",")
+      .map((value) => value.trim().toUpperCase())
+      .filter(Boolean);
+    if (!sqlModes.includes("STRICT_TRANS_TABLES") && !sqlModes.includes("STRICT_ALL_TABLES")) {
+      throw new Error("Modo SQL estrito não está ativo na sessão MySQL; habilite STRICT_TRANS_TABLES ou STRICT_ALL_TABLES");
     }
 
     console.log(
       `[segempat-api] MySQL OK; banco=${database.database_name}; versão=${version.version}; ` +
       `${Number(tables?.total ?? 0)} tabela(s); baseline=${baseline.version}:${baseline.file_name}; ` +
-      `latest=${latestMigration.version}:${latestMigration.file_name}; foreign_keys=on; ` +
+      `latest=${latestMigration.version}:${latestMigration.file_name}; foreign_keys=on; timezone=${timeZone}; strict_sql=on; ` +
       `critical_fks=${CRITICAL_FOREIGN_KEYS.length}; critical_unique_indexes=${CRITICAL_UNIQUE_INDEXES.length}`,
     );
   } finally {
