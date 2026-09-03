@@ -106,6 +106,49 @@ async function loadMigrationFiles() {
   return migrations;
 }
 
+function validateAppliedHistory(migrations, applied) {
+  if (applied.size === 0) return;
+
+  const byNumeric = new Map(migrations.map((migration) => [migration.numeric.toString(), migration]));
+  let highestAppliedIndex = -1;
+
+  for (const [version, row] of applied) {
+    if (!/^\d+$/.test(version)) {
+      throw new Error(`Histórico de migrations contém versão inválida: ${version}`);
+    }
+
+    const numericKey = numericVersion(version).toString();
+    const migration = byNumeric.get(numericKey);
+    if (!migration) {
+      throw new Error(`Histórico de migrations contém versão ${version} que não existe no código atual`);
+    }
+    if (migration.version !== version) {
+      throw new Error(
+        `Histórico de migrations usa versão ${version}, mas o arquivo atual equivalente é ${migration.version} (${migration.fileName})`,
+      );
+    }
+    if (row.file_name !== migration.fileName) {
+      throw new Error(`Migration ${version} já aplicada com outro nome: ${row.file_name}`);
+    }
+    if (row.checksum_sha256 !== migration.checksum) {
+      throw new Error(`Migration ${migration.fileName} foi alterada após ser aplicada. Crie uma nova migration em vez de editar a anterior.`);
+    }
+
+    const index = migrations.findIndex((item) => item.version === version);
+    if (index > highestAppliedIndex) highestAppliedIndex = index;
+  }
+
+  for (let index = 0; index <= highestAppliedIndex; index += 1) {
+    const migration = migrations[index];
+    if (!applied.has(migration.version)) {
+      throw new Error(
+        `Histórico de migrations está fora de ordem: ${migration.fileName} está ausente, mas existe migration posterior registrada. ` +
+        "Corrija schema_migrations antes de continuar.",
+      );
+    }
+  }
+}
+
 async function main() {
   const connection = await mysql.createConnection({
     host: config.db.host,
@@ -156,18 +199,11 @@ async function main() {
       }
     }
 
+    validateAppliedHistory(migrations, applied);
+
     let appliedCount = 0;
     for (const migration of migrations) {
-      const previous = applied.get(migration.version);
-      if (previous) {
-        if (previous.file_name !== migration.fileName) {
-          throw new Error(`Migration ${migration.version} já aplicada com outro nome: ${previous.file_name}`);
-        }
-        if (previous.checksum_sha256 !== migration.checksum) {
-          throw new Error(`Migration ${migration.fileName} foi alterada após ser aplicada. Crie uma nova migration em vez de editar a anterior.`);
-        }
-        continue;
-      }
+      if (applied.has(migration.version)) continue;
 
       console.log(`[segempat-api] aplicando ${migration.fileName}`);
       await connection.query(migration.sql);
@@ -176,6 +212,11 @@ async function main() {
          VALUES (?, ?, ?, UTC_TIMESTAMP(3))`,
         [migration.version, migration.fileName, migration.checksum],
       );
+      applied.set(migration.version, {
+        version: migration.version,
+        file_name: migration.fileName,
+        checksum_sha256: migration.checksum,
+      });
       appliedCount += 1;
     }
 
