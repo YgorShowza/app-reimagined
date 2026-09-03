@@ -15,6 +15,11 @@ function warn(message) {
   warnings.push(message);
 }
 
+function isPathInside(root, candidate) {
+  const relative = path.relative(root, candidate);
+  return relative !== "" && !relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative);
+}
+
 async function scalar(sql, params = []) {
   const row = await queryOne(sql, params);
   return Number(row?.total ?? 0);
@@ -199,6 +204,7 @@ async function checkTrainingQuestionCoverage() {
 
 async function checkStoredSignatureFiles() {
   const storageRoot = path.resolve(config.storage.path);
+  const storageRootReal = await fs.realpath(storageRoot);
   const rows = await query(
     `SELECT id, signature_path
        FROM exam_attempts
@@ -214,17 +220,22 @@ async function checkStoredSignatureFiles() {
   for (const row of rows) {
     const relativePath = String(row.signature_path || "").trim();
     const absolutePath = path.resolve(storageRoot, relativePath);
-    if (!relativePath || !absolutePath.startsWith(`${storageRoot}${path.sep}`)) {
+    if (!relativePath || !isPathInside(storageRoot, absolutePath)) {
       invalidPath += 1;
       continue;
     }
     try {
-      const stat = await fs.stat(absolutePath);
+      const realPath = await fs.realpath(absolutePath);
+      if (!isPathInside(storageRootReal, realPath)) {
+        invalidPath += 1;
+        continue;
+      }
+      const stat = await fs.stat(realPath);
       if (!stat.isFile() || stat.size < 100 || stat.size > 1_500_000) {
         invalidSize += 1;
         continue;
       }
-      const handle = await fs.open(absolutePath, "r");
+      const handle = await fs.open(realPath, "r");
       try {
         const header = Buffer.alloc(PNG_SIGNATURE.length);
         const { bytesRead } = await handle.read(header, 0, header.length, 0);
@@ -238,7 +249,7 @@ async function checkStoredSignatureFiles() {
     }
   }
 
-  if (invalidPath > 0) fail(`${invalidPath} assinatura(s) possuem caminho inválido fora do storage configurado`);
+  if (invalidPath > 0) fail(`${invalidPath} assinatura(s) possuem caminho inválido ou escapam do storage configurado`);
   if (missing > 0) fail(`${missing} arquivo(s) de assinatura registrados no MySQL não existem no storage`);
   if (invalidSize > 0) fail(`${invalidSize} arquivo(s) de assinatura possuem tamanho inválido ou não são arquivos regulares`);
   if (invalidPng > 0) fail(`${invalidPng} arquivo(s) de assinatura registrados não possuem assinatura PNG completa`);
