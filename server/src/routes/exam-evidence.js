@@ -8,6 +8,10 @@ import { asBool, asyncHandler, badRequest, notFound } from "../util.js";
 
 export const examEvidenceRouter = Router();
 
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const MIN_SIGNATURE_BYTES = 100;
+const MAX_SIGNATURE_BYTES = 1_500_000;
+
 examEvidenceRouter.get(
   "/exam-attempts",
   requireAdmin,
@@ -69,12 +73,23 @@ examEvidenceRouter.get(
     }
 
     const storageRoot = path.resolve(config.storage.path);
-    const absolutePath = path.resolve(storageRoot, requested);
-    if (!absolutePath.startsWith(`${storageRoot}${path.sep}`)) throw badRequest("Caminho de assinatura inválido");
+    const candidatePath = path.resolve(storageRoot, requested);
+    if (!candidatePath.startsWith(`${storageRoot}${path.sep}`)) throw badRequest("Caminho de assinatura inválido");
 
     try {
+      const [storageRootReal, absolutePath] = await Promise.all([
+        fs.realpath(storageRoot),
+        fs.realpath(candidatePath),
+      ]);
+      if (!absolutePath.startsWith(`${storageRootReal}${path.sep}`)) throw badRequest("Caminho de assinatura inválido");
+
+      const stat = await fs.stat(absolutePath);
+      if (!stat.isFile() || stat.size < MIN_SIGNATURE_BYTES || stat.size > MAX_SIGNATURE_BYTES) {
+        throw notFound("Assinatura não encontrada");
+      }
+
       const bytes = await fs.readFile(absolutePath);
-      if (bytes.length < 8 || bytes[0] !== 0x89 || bytes[1] !== 0x50 || bytes[2] !== 0x4e || bytes[3] !== 0x47) {
+      if (bytes.length < PNG_SIGNATURE.length || !bytes.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)) {
         throw notFound("Assinatura não encontrada");
       }
       res.setHeader("Content-Type", "image/png");
