@@ -5,7 +5,7 @@ import { Lock, User, Eye, EyeOff, ChevronRight, KeyRound, Loader2 } from "lucide
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { activateWithCode, loginWithMatricula } from "@/lib/backend/auth-gateway";
 import { getCurrentSessionUser } from "@/lib/backend/current-user-gateway";
-import { matriculaSchema, passwordSchema } from "@/lib/matricula";
+import { loginPasswordSchema, matriculaSchema, passwordSchema } from "@/lib/matricula";
 import type { SessionUser } from "@/lib/backend/contracts";
 
 const LOGO_URL =
@@ -98,7 +98,7 @@ function AuthScreen() {
   };
 
   const handleLogin = async () => {
-    const pwd = passwordSchema.safeParse(password);
+    const pwd = loginPasswordSchema.safeParse(password);
     if (!pwd.success) {
       toast.error(pwd.error.issues[0]?.message ?? "Senha inválida");
       return;
