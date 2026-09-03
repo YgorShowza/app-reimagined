@@ -10,6 +10,13 @@ export const matriculaSchema = z
   .max(32, "Matrícula muito longa")
   .regex(/^[A-Za-z0-9._-]+$/, "Use apenas letras, números, ponto, hífen ou underline");
 
+/** Login deve aceitar senhas legadas já cadastradas, mesmo que tenham menos de 8 caracteres. */
+export const loginPasswordSchema = z
+  .string()
+  .min(1, "Informe sua senha")
+  .max(128, "Senha inválida");
+
+/** Nova senha / primeiro acesso mantém a política mínima atual. */
 export const passwordSchema = z
   .string()
   .min(8, "A senha deve ter pelo menos 8 caracteres")
