@@ -119,6 +119,40 @@ jobs:
           mkdir -p "$SEGEMPAT_STORAGE_PATH"
           node --input-type=module -e "const { config } = await import('./server/src/config.js'); if (config.nodeEnv !== 'production' || config.storage.driver !== 'filesystem' || config.allowedOrigins.length !== 1) process.exit(1); console.log('Configuração de produção da API validada.');"
 
+      - name: Reject unsafe production configuration
+        shell: bash
+        env:
+          NODE_ENV: production
+          MYSQL_HOST: 127.0.0.1
+          MYSQL_DATABASE: segempat_ci
+          MYSQL_USER: segempat_ci
+          MYSQL_PASSWORD: ci-password-only
+          MYSQL_SSL: "false"
+          SEGEMPAT_SESSION_SECRET: ci-only-session-secret-with-at-least-32-bytes
+          SEGEMPAT_SESSION_SECURE: "true"
+          SEGEMPAT_ALLOWED_ORIGINS: https://segempat.example.test
+          SEGEMPAT_STORAGE_DRIVER: filesystem
+          SEGEMPAT_STORAGE_PATH: /tmp/segempat-ci-storage
+        run: |
+          set -euo pipefail
+          expect_rejected() {
+            description="$1"
+            shift
+            if env "$@" node --input-type=module -e "await import('./server/src/config.js')" >/tmp/segempat-config-negative.log 2>&1; then
+              cat /tmp/segempat-config-negative.log
+              echo "::error::Configuração insegura foi aceita: $description"
+              exit 1
+            fi
+            echo "Rejeição confirmada: $description"
+          }
+
+          expect_rejected "cookie sem Secure em produção" SEGEMPAT_SESSION_SECURE=false
+          expect_rejected "origem HTTP em produção" SEGEMPAT_ALLOWED_ORIGINS=http://segempat.example.test
+          expect_rejected "storage relativo em produção" SEGEMPAT_STORAGE_PATH=./storage
+          expect_rejected "timezone inválida" SEGEMPAT_TIMEZONE=Invalid/Timezone
+          expect_rejected "senha MySQL placeholder" MYSQL_PASSWORD=CHANGE_ME
+          expect_rejected "segredo de sessão placeholder" SEGEMPAT_SESSION_SECRET=CHANGE_ME_TO_A_LONG_RANDOM_SECRET_32_BYTES_MINIMUM
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
