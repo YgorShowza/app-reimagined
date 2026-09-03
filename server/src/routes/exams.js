@@ -319,6 +319,12 @@ myExamsRouter.post("/exam-attempts/:attemptId/signature", requireAuth, asyncHand
     [req.params.attemptId, req.user.id],
   );
   if (!attempt) throw notFound("Tentativa não encontrada");
+  if (!asBool(attempt.passed) || !attempt.certificate_code) {
+    throw forbidden("Assinatura disponível somente para tentativa aprovada");
+  }
+  if (asBool(attempt.signature_agreed) || attempt.signed_at || attempt.signature_path) {
+    throw forbidden("Tentativa já assinada; a evidência não pode ser substituída");
+  }
 
   const signerName = requireText(req.user.nome, "Nome do usuário autenticado").slice(0, 255);
   const dataUrl = requireText(req.body?.pngDataUrl, "Assinatura");
@@ -338,6 +344,30 @@ myExamsRouter.post("/exam-attempts/:attemptId/signature", requireAuth, asyncHand
 
   try {
     await withTransaction(async (connection) => {
+      const [lockedAttempts] = await connection.execute(
+        `SELECT passed, certificate_code, signature_agreed, signed_at, signature_path
+           FROM exam_attempts
+          WHERE id = ? AND user_id = ?
+          LIMIT 1 FOR UPDATE`,
+        [attempt.id, req.user.id],
+      );
+      const lockedAttempt = lockedAttempts[0];
+      if (!lockedAttempt) throw notFound("Tentativa não encontrada");
+      if (!asBool(lockedAttempt.passed) || !lockedAttempt.certificate_code) {
+        throw forbidden("Assinatura disponível somente para tentativa aprovada");
+      }
+      if (asBool(lockedAttempt.signature_agreed) || lockedAttempt.signed_at || lockedAttempt.signature_path) {
+        throw forbidden("Tentativa já assinada; a evidência não pode ser substituída");
+      }
+
+      const [existingCertificates] = await connection.execute(
+        `SELECT id FROM certificates WHERE attempt_id = ? LIMIT 1 FOR UPDATE`,
+        [attempt.id],
+      );
+      if (existingCertificates[0]) {
+        throw forbidden("Certificado já emitido; a evidência de assinatura é imutável");
+      }
+
       await connection.execute(
         `UPDATE exam_attempts
             SET signature_path = ?, signature_name = ?, signed_at = UTC_TIMESTAMP(3), signature_agreed = 1, updated_at = UTC_TIMESTAMP(3)
@@ -345,30 +375,22 @@ myExamsRouter.post("/exam-attempts/:attemptId/signature", requireAuth, asyncHand
         [relativePath, signerName, attempt.id, req.user.id],
       );
 
-      if (asBool(attempt.passed) && attempt.certificate_code) {
-        const [existingCertificates] = await connection.execute(`SELECT id FROM certificates WHERE attempt_id = ? LIMIT 1`, [attempt.id]);
-        if (!existingCertificates[0]) {
-          await connection.execute(
-            `INSERT INTO certificates
-             (id, attempt_id, user_id, matricula, employee_name, exam_id, exam_title, score, verification_code, issued_at, revoked, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3), 0, UTC_TIMESTAMP(3))`,
-            [uuid(), attempt.id, req.user.id, req.user.matricula, req.user.nome, attempt.exam_id, attempt.exam_title, attempt.score, attempt.certificate_code],
-          );
-        }
-      }
+      await connection.execute(
+        `INSERT INTO certificates
+         (id, attempt_id, user_id, matricula, employee_name, exam_id, exam_title, score, verification_code, issued_at, revoked, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3), 0, UTC_TIMESTAMP(3))`,
+        [uuid(), attempt.id, req.user.id, req.user.matricula, req.user.nome, attempt.exam_id, attempt.exam_title, attempt.score, attempt.certificate_code],
+      );
+
       await audit(req.user.id, "SIGN_EXAM_ATTEMPT", "exam_attempts", attempt.id, {
         signature_path: relativePath,
         signer_derived_server_side: true,
+        evidence_immutable_after_issuance: true,
       }, connection);
     });
   } catch (error) {
     await fs.unlink(absolutePath).catch(() => {});
     throw error;
-  }
-
-  if (attempt.signature_path && attempt.signature_path !== relativePath) {
-    const oldPath = path.resolve(config.storage.path, attempt.signature_path);
-    if (oldPath.startsWith(`${storageRoot}${path.sep}`)) await fs.unlink(oldPath).catch(() => {});
   }
 
   const row = await queryOne(`SELECT * FROM exam_attempts WHERE id = ?`, [attempt.id]);
