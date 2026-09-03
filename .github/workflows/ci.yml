@@ -100,6 +100,25 @@ jobs:
             node --check "$file"
           done < <(find server/src server/scripts -type f -name '*.js' | sort)
 
+      - name: Validate production API configuration
+        shell: bash
+        env:
+          NODE_ENV: production
+          MYSQL_HOST: 127.0.0.1
+          MYSQL_DATABASE: segempat_ci
+          MYSQL_USER: segempat_ci
+          MYSQL_PASSWORD: ci-password-only
+          MYSQL_SSL: "false"
+          SEGEMPAT_SESSION_SECRET: ci-only-session-secret-with-at-least-32-bytes
+          SEGEMPAT_SESSION_SECURE: "true"
+          SEGEMPAT_ALLOWED_ORIGINS: https://segempat.example.test
+          SEGEMPAT_STORAGE_DRIVER: filesystem
+          SEGEMPAT_STORAGE_PATH: /tmp/segempat-ci-storage
+        run: |
+          set -euo pipefail
+          mkdir -p "$SEGEMPAT_STORAGE_PATH"
+          node --input-type=module -e "const { config } = await import('./server/src/config.js'); if (config.nodeEnv !== 'production' || config.storage.driver !== 'filesystem' || config.allowedOrigins.length !== 1) process.exit(1); console.log('Configuração de produção da API validada.');"
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
