@@ -21,9 +21,12 @@ accessRouter.get(
   requireAdmin,
   asyncHandler(async (_req, res) => {
     // Nunca retorna o código puro — somente estado do convite.
+    // A expiração é calculada pelo próprio MySQL em UTC, evitando divergência
+    // entre relógio/timezone do processo Node e a sessão do banco corporativo.
     const rows = await query(
       `SELECT r.employee_id, e.full_name, e.matricula, e.sector,
               r.expires_at, r.used_at, r.created_at,
+              (r.used_at IS NULL AND r.expires_at < UTC_TIMESTAMP(3)) AS expired,
               (SELECT COUNT(*) FROM app_users u WHERE LOWER(TRIM(u.matricula)) = LOWER(TRIM(e.matricula))) AS has_account
          FROM registration_activation_codes r
          JOIN employees e ON e.id = r.employee_id
@@ -39,7 +42,7 @@ accessRouter.get(
         used_at: row.used_at,
         created_at: row.created_at,
         has_account: Number(row.has_account) > 0,
-        expired: !row.used_at && new Date(row.expires_at).getTime() < Date.now(),
+        expired: Number(row.expired) > 0,
       })),
     );
   }),
