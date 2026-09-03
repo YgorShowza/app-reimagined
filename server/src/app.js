@@ -17,6 +17,16 @@ import { operationsRouter } from "./routes/operations.js";
 import { myPracticalRouter } from "./routes/practical-self.js";
 import { HttpError } from "./util.js";
 
+const READINESS_TABLES = [
+  "app_users",
+  "employees",
+  "exams",
+  "exam_attempts",
+  "cronograma_entries",
+  "training_schedules",
+  "audit_logs",
+];
+
 export function createApp() {
   const app = express();
 
@@ -43,7 +53,7 @@ export function createApp() {
   // Liveness: confirma apenas que o processo HTTP está respondendo.
   app.get("/health", (_req, res) => res.json({ ok: true, service: "segempat-api" }));
 
-  // Readiness: só fica pronta quando o MySQL responde e o histórico de migrations existe.
+  // Readiness: exige MySQL, histórico de migrations e o núcleo do schema operacional.
   // É apropriada para health checks do balanceador/orquestrador no ambiente corporativo.
   app.get("/health/ready", async (_req, res) => {
     try {
@@ -62,10 +72,30 @@ export function createApp() {
           migrations: "not-applied",
         });
       }
+
+      const placeholders = READINESS_TABLES.map(() => "?").join(",");
+      const schema = await queryOne(
+        `SELECT COUNT(*) AS total
+           FROM information_schema.tables
+          WHERE table_schema = DATABASE()
+            AND table_name IN (${placeholders})`,
+        READINESS_TABLES,
+      );
+      const foundTables = Number(schema?.total ?? 0);
+      if (foundTables !== READINESS_TABLES.length) {
+        return res.status(503).json({
+          ok: false,
+          service: "segempat-api",
+          database: "connected",
+          schema: "incomplete",
+        });
+      }
+
       return res.json({
         ok: true,
         service: "segempat-api",
         database: "connected",
+        schema: "ready",
         migration: {
           version: String(migration.version),
           file_name: migration.file_name,
