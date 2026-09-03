@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { execute, query, queryOne } from "../db.js";
+import { query, withTransaction } from "../db.js";
 import { audit } from "../audit.js";
 import { requireAdmin, requireAuth } from "../session.js";
 import { asBool, asyncHandler, badRequest, notFound, parseJson, requireBoolean, requireOneOf, requireText, trimOrNull, uuid } from "../util.js";
@@ -116,14 +116,18 @@ questionBankRouter.post(
     const input = readInput(req.body);
     validateAnswerShape(input);
     const id = uuid();
-    await execute(
-      `INSERT INTO question_bank
-       (id, bank_type, question_text, options, correct_index, correct_answer, explanation, target_sector, difficulty, theme, active, created_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
-      [id, input.bank_type, input.question_text, JSON.stringify(input.options), input.correct_index, input.correct_answer, input.explanation,
-        input.target_sector, input.difficulty, input.theme, input.active, req.user.id],
-    );
-    await audit(req.user.id, "INSERT", "question_bank", id, { bank_type: input.bank_type, difficulty: input.difficulty });
+
+    await withTransaction(async (connection) => {
+      await connection.execute(
+        `INSERT INTO question_bank
+         (id, bank_type, question_text, options, correct_index, correct_answer, explanation, target_sector, difficulty, theme, active, created_by, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
+        [id, input.bank_type, input.question_text, JSON.stringify(input.options), input.correct_index, input.correct_answer, input.explanation,
+          input.target_sector, input.difficulty, input.theme, input.active, req.user.id],
+      );
+      await audit(req.user.id, "INSERT", "question_bank", id, { bank_type: input.bank_type, difficulty: input.difficulty, atomic: true }, connection);
+    });
+
     res.status(201).json({ id });
   }),
 );
@@ -132,14 +136,23 @@ questionBankRouter.patch(
   "/:id",
   requireAdmin,
   asyncHandler(async (req, res) => {
-    const existing = await queryOne(`SELECT * FROM question_bank WHERE id = ?`, [req.params.id]);
-    if (!existing) throw notFound("Questão não encontrada");
     const input = readInput(req.body, { partial: true });
-    validateAnswerShape(input, existing);
-    const fields = Object.keys(input);
-    const values = fields.map((field) => field === "options" ? JSON.stringify(input[field]) : input[field]);
-    await execute(`UPDATE question_bank SET ${fields.map((field) => `${field} = ?`).join(", ")}, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`, [...values, req.params.id]);
-    await audit(req.user.id, "UPDATE", "question_bank", req.params.id, { changed: fields });
+
+    await withTransaction(async (connection) => {
+      const [rows] = await connection.execute(`SELECT * FROM question_bank WHERE id = ? LIMIT 1 FOR UPDATE`, [req.params.id]);
+      const existing = rows[0];
+      if (!existing) throw notFound("Questão não encontrada");
+
+      validateAnswerShape(input, existing);
+      const fields = Object.keys(input);
+      const values = fields.map((field) => field === "options" ? JSON.stringify(input[field]) : input[field]);
+      await connection.execute(
+        `UPDATE question_bank SET ${fields.map((field) => `${field} = ?`).join(", ")}, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`,
+        [...values, req.params.id],
+      );
+      await audit(req.user.id, "UPDATE", "question_bank", req.params.id, { changed: fields, atomic: true }, connection);
+    });
+
     res.status(204).end();
   }),
 );
@@ -148,10 +161,15 @@ questionBankRouter.delete(
   "/:id",
   requireAdmin,
   asyncHandler(async (req, res) => {
-    const existing = await queryOne(`SELECT id FROM question_bank WHERE id = ?`, [req.params.id]);
-    if (!existing) throw notFound("Questão não encontrada");
-    await execute(`DELETE FROM question_bank WHERE id = ?`, [req.params.id]);
-    await audit(req.user.id, "DELETE", "question_bank", req.params.id);
+    await withTransaction(async (connection) => {
+      const [rows] = await connection.execute(`SELECT id FROM question_bank WHERE id = ? LIMIT 1 FOR UPDATE`, [req.params.id]);
+      const existing = rows[0];
+      if (!existing) throw notFound("Questão não encontrada");
+
+      await connection.execute(`DELETE FROM question_bank WHERE id = ?`, [req.params.id]);
+      await audit(req.user.id, "DELETE", "question_bank", req.params.id, { atomic: true }, connection);
+    });
+
     res.status(204).end();
   }),
 );
