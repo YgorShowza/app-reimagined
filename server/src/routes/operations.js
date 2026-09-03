@@ -240,24 +240,25 @@ operationsRouter.get("/practical-evaluations", requireAdmin, asyncHandler(async(
 operationsRouter.post("/practical-evaluations", requireAdmin, asyncHandler(async(req,res)=>{
   const id=uuid();
   const employeeId=requireText(req.body?.employee_id,"Colaborador");
-  const employee=await queryOne(`SELECT id,full_name,matricula,sector,status,access_profile FROM employees WHERE id=?`,[employeeId]);
-  if(!employee) throw notFound("Colaborador não encontrado");
-  if(employee.status!=="Ativo") throw badRequest("A avaliação só pode ser planejada para colaborador ativo");
-  if(employee.access_profile==="Inspetor") throw badRequest("Avaliação prática operacional não pode ser criada para Inspetor");
   const title=requireText(req.body?.title,"Título");
   const checklist=normalizeChecklist(req.body?.checklist ?? []);
   const evaluationDate=mysqlDateOrNull(req.body?.evaluation_date,"Data da avaliação");
-  await execute(
-    `INSERT INTO practical_evaluations (id,employee_id,employee_name,employee_matricula,employee_sector,title,evaluator_id,evaluator_name,status,score,max_score,checklist,notes,evaluation_date,completed_at,created_at,updated_at)
-     VALUES (?,?,?,?,?,?,?,?, 'Planejada',0,10,?,?,?,NULL,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))`,
-    [id,employee.id,employee.full_name,employee.matricula,employee.sector,title,req.user.id,req.user.nome,JSON.stringify(checklist),trimOrNull(req.body?.notes),evaluationDate],
-  );
-  await audit(req.user.id,"INSERT","practical_evaluations",id,{employee_id:employee.id,title,identity_derived_server_side:true});
+  await withTransaction(async (connection) => {
+    const [employees]=await connection.execute(`SELECT id,full_name,matricula,sector,status,access_profile FROM employees WHERE id=? LIMIT 1 FOR UPDATE`,[employeeId]);
+    const employee=employees[0];
+    if(!employee) throw notFound("Colaborador não encontrado");
+    if(employee.status!=="Ativo") throw badRequest("A avaliação só pode ser planejada para colaborador ativo");
+    if(employee.access_profile==="Inspetor") throw badRequest("Avaliação prática operacional não pode ser criada para Inspetor");
+    await connection.execute(
+      `INSERT INTO practical_evaluations (id,employee_id,employee_name,employee_matricula,employee_sector,title,evaluator_id,evaluator_name,status,score,max_score,checklist,notes,evaluation_date,completed_at,created_at,updated_at)
+       VALUES (?,?,?,?,?,?,?,?, 'Planejada',0,10,?,?,?,NULL,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))`,
+      [id,employee.id,employee.full_name,employee.matricula,employee.sector,title,req.user.id,req.user.nome,JSON.stringify(checklist),trimOrNull(req.body?.notes),evaluationDate],
+    );
+    await audit(req.user.id,"INSERT","practical_evaluations",id,{employee_id:employee.id,title,identity_derived_server_side:true,atomic:true},connection);
+  });
   res.status(201).json({id});
 }));
 operationsRouter.patch("/practical-evaluations/:id", requireAdmin, asyncHandler(async(req,res)=>{
-  const current=await queryOne(`SELECT * FROM practical_evaluations WHERE id=?`,[req.params.id]);
-  if(!current) throw notFound("Avaliação não encontrada");
   const patch={};
   if(Object.prototype.hasOwnProperty.call(req.body||{},"title")) patch.title=requireText(req.body.title,"Título");
   if(Object.prototype.hasOwnProperty.call(req.body||{},"status")) patch.status=requireOneOf(req.body.status,PRACTICAL_STATUS,"Situação");
@@ -268,22 +269,36 @@ operationsRouter.patch("/practical-evaluations/:id", requireAdmin, asyncHandler(
   if(Object.prototype.hasOwnProperty.call(req.body||{},"evaluation_date")) patch.evaluation_date=mysqlDateOrNull(req.body.evaluation_date,"Data da avaliação");
   if(!Object.keys(patch).length) throw badRequest("Nenhum campo para atualizar");
 
-  const effectiveMax=Number(patch.max_score ?? current.max_score ?? 10);
-  const effectiveScore=Number(patch.score ?? current.score ?? 0);
-  if(effectiveScore>effectiveMax) throw badRequest("A nota não pode ser maior que a nota máxima");
+  await withTransaction(async (connection) => {
+    const [rows]=await connection.execute(`SELECT * FROM practical_evaluations WHERE id=? LIMIT 1 FOR UPDATE`,[req.params.id]);
+    const current=rows[0];
+    if(!current) throw notFound("Avaliação não encontrada");
 
-  if(Object.prototype.hasOwnProperty.call(patch,"status")) {
-    patch.completed_at = patch.status === "Concluída" ? (current.completed_at || new Date()) : null;
-  }
-  patch.evaluator_id=req.user.id;
-  patch.evaluator_name=req.user.nome;
+    const effectiveMax=Number(patch.max_score ?? current.max_score ?? 10);
+    const effectiveScore=Number(patch.score ?? current.score ?? 0);
+    if(effectiveScore>effectiveMax) throw badRequest("A nota não pode ser maior que a nota máxima");
 
-  const fields=Object.keys(patch);
-  await execute(`UPDATE practical_evaluations SET ${fields.map(f=>`${f} = ?`).join(", ")}, updated_at=UTC_TIMESTAMP(3) WHERE id=?`,[...fields.map(f=>patch[f]),req.params.id]);
-  await audit(req.user.id,"UPDATE","practical_evaluations",req.params.id,{changed:fields,evaluator_derived_server_side:true});
+    if(Object.prototype.hasOwnProperty.call(patch,"status")) {
+      patch.completed_at = patch.status === "Concluída" ? (current.completed_at || new Date()) : null;
+    }
+    patch.evaluator_id=req.user.id;
+    patch.evaluator_name=req.user.nome;
+
+    const fields=Object.keys(patch);
+    await connection.execute(`UPDATE practical_evaluations SET ${fields.map(f=>`${f} = ?`).join(", ")}, updated_at=UTC_TIMESTAMP(3) WHERE id=?`,[...fields.map(f=>patch[f]),req.params.id]);
+    await audit(req.user.id,"UPDATE","practical_evaluations",req.params.id,{changed:fields,evaluator_derived_server_side:true,atomic:true},connection);
+  });
   res.status(204).end();
 }));
-operationsRouter.delete("/practical-evaluations/:id", requireAdmin, asyncHandler(async(req,res)=>{await execute(`DELETE FROM practical_evaluations WHERE id=?`,[req.params.id]);await audit(req.user.id,"DELETE","practical_evaluations",req.params.id);res.status(204).end();}));
+operationsRouter.delete("/practical-evaluations/:id", requireAdmin, asyncHandler(async(req,res)=>{
+  await withTransaction(async (connection) => {
+    const [rows]=await connection.execute(`SELECT id FROM practical_evaluations WHERE id=? LIMIT 1 FOR UPDATE`,[req.params.id]);
+    if(!rows.length) throw notFound("Avaliação não encontrada");
+    await connection.execute(`DELETE FROM practical_evaluations WHERE id=?`,[req.params.id]);
+    await audit(req.user.id,"DELETE","practical_evaluations",req.params.id,{atomic:true},connection);
+  });
+  res.status(204).end();
+}));
 
 operationsRouter.get("/practical-templates", requireAdmin, asyncHandler(async(_req,res)=>{const rows=await query(`SELECT * FROM practical_eval_templates ORDER BY title`);res.json(rows.map(templateRow));}));
 operationsRouter.post("/practical-templates", requireAdmin, asyncHandler(async(req,res)=>{
