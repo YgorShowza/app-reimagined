@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import express from "express";
 import cookieParser from "cookie-parser";
@@ -29,6 +30,22 @@ const READINESS_TABLES = [
   "training_schedules",
   "audit_logs",
 ];
+
+async function verifyStorageReadiness() {
+  const storageRoot = path.resolve(config.storage.path);
+  const stat = await fs.stat(storageRoot);
+  if (!stat.isDirectory()) throw new Error("Storage de evidências não é um diretório");
+  await fs.access(storageRoot, fsConstants.R_OK | fsConstants.W_OK);
+
+  const probePath = path.join(storageRoot, `.segempat-readiness-${randomUUID()}.tmp`);
+  try {
+    await fs.writeFile(probePath, "segempat-readiness", { encoding: "utf8", flag: "wx" });
+    const probe = await fs.readFile(probePath, "utf8");
+    if (probe !== "segempat-readiness") throw new Error("Storage de evidências falhou na verificação de leitura");
+  } finally {
+    await fs.rm(probePath, { force: true }).catch(() => {});
+  }
+}
 
 export function createApp() {
   const app = express();
@@ -98,8 +115,7 @@ export function createApp() {
       }
 
       phase = "storage";
-      const storageRoot = path.resolve(config.storage.path);
-      await fs.access(storageRoot, fsConstants.R_OK | fsConstants.W_OK);
+      await verifyStorageReadiness();
 
       return res.json({
         ok: true,
