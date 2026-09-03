@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { execute, query, queryOne, withTransaction } from "../db.js";
+import { query, queryOne, withTransaction } from "../db.js";
 import { audit } from "../audit.js";
 import { requireAdmin, requireAuth } from "../session.js";
 import { asBool, asyncHandler, badRequest, conflict, notFound, requireOneOf, requireText, uuid } from "../util.js";
@@ -67,8 +67,8 @@ function readEmployeeInput(body, { partial = false } = {}) {
   return input;
 }
 
-async function hasAccountOrHistory(employee) {
-  const row = await queryOne(
+async function hasAccountOrHistory(connection, employee) {
+  const [rows] = await connection.execute(
     `SELECT
        (SELECT COUNT(*) FROM app_users u WHERE LOWER(TRIM(u.matricula)) = LOWER(TRIM(?))) AS accounts,
        (SELECT COUNT(*) FROM cronograma_entries WHERE employee_id = ?) AS cronograma,
@@ -78,7 +78,7 @@ async function hasAccountOrHistory(employee) {
        (SELECT COUNT(*) FROM exam_attempts WHERE LOWER(TRIM(COALESCE(matricula,''))) = LOWER(TRIM(?))) AS attempts`,
     [employee.matricula, employee.id, employee.id, employee.id, employee.id, employee.matricula],
   );
-  return Object.values(row).some((value) => Number(value) > 0);
+  return Object.values(rows[0] ?? {}).some((value) => Number(value) > 0);
 }
 
 employeesRouter.post(
@@ -86,17 +86,19 @@ employeesRouter.post(
   requireAdmin,
   asyncHandler(async (req, res) => {
     const input = readEmployeeInput(req.body);
-    const duplicate = await queryOne(`SELECT id FROM employees WHERE LOWER(TRIM(matricula)) = LOWER(TRIM(?))`, [input.matricula]);
-    if (duplicate) throw conflict("Já existe colaborador com esta matrícula");
-
     const id = uuid();
     await withTransaction(async (connection) => {
+      const [duplicates] = await connection.execute(
+        `SELECT id FROM employees WHERE LOWER(TRIM(matricula)) = LOWER(TRIM(?)) LIMIT 1 FOR UPDATE`,
+        [input.matricula],
+      );
+      if (duplicates.length) throw conflict("Já existe colaborador com esta matrícula");
       await connection.execute(
         `INSERT INTO employees (id, full_name, matricula, sector, access_profile, status, level, points, first_access, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, 1, 0, 1, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
         [id, input.full_name, input.matricula, input.sector, input.access_profile, input.status],
       );
-      await audit(req.user.id, "INSERT", "employees", id, { new: { ...input, id } }, connection);
+      await audit(req.user.id, "INSERT", "employees", id, { new: { ...input, id }, atomic: true }, connection);
     });
     res.status(201).json({ id });
   }),
@@ -107,20 +109,22 @@ employeesRouter.patch(
   requireAdmin,
   asyncHandler(async (req, res) => {
     const input = readEmployeeInput(req.body, { partial: true });
-    const employee = await queryOne(`SELECT * FROM employees WHERE id = ?`, [req.params.id]);
-    if (!employee) throw notFound("Colaborador não encontrado");
-
-    if (input.matricula && input.matricula.trim().toLowerCase() !== String(employee.matricula).trim().toLowerCase()) {
-      if (await hasAccountOrHistory(employee)) {
-        throw conflict("Matrícula de colaborador com conta ou histórico não pode ser alterada. Inative o cadastro.");
-      }
-    }
-
     const fields = Object.keys(input);
     await withTransaction(async (connection) => {
-      const [lockedRows] = await connection.execute(`SELECT * FROM employees WHERE id = ? FOR UPDATE`, [employee.id]);
+      const [lockedRows] = await connection.execute(`SELECT * FROM employees WHERE id = ? FOR UPDATE`, [req.params.id]);
       const lockedEmployee = lockedRows[0];
       if (!lockedEmployee) throw notFound("Colaborador não encontrado");
+
+      if (input.matricula && input.matricula.trim().toLowerCase() !== String(lockedEmployee.matricula).trim().toLowerCase()) {
+        if (await hasAccountOrHistory(connection, lockedEmployee)) {
+          throw conflict("Matrícula de colaborador com conta ou histórico não pode ser alterada. Inative o cadastro.");
+        }
+        const [duplicates] = await connection.execute(
+          `SELECT id FROM employees WHERE LOWER(TRIM(matricula)) = LOWER(TRIM(?)) AND id <> ? LIMIT 1 FOR UPDATE`,
+          [input.matricula, lockedEmployee.id],
+        );
+        if (duplicates.length) throw conflict("Já existe colaborador com esta matrícula");
+      }
 
       await connection.execute(
         `UPDATE employees SET ${fields.map((field) => `${field} = ?`).join(", ")}, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`,
@@ -154,17 +158,15 @@ employeesRouter.delete(
   "/:id",
   requireAdmin,
   asyncHandler(async (req, res) => {
-    const employee = await queryOne(`SELECT * FROM employees WHERE id = ?`, [req.params.id]);
-    if (!employee) throw notFound("Colaborador não encontrado");
-    if (await hasAccountOrHistory(employee)) {
-      throw conflict("Colaborador possui conta ou histórico operacional. Inative o cadastro em vez de excluir.");
-    }
     await withTransaction(async (connection) => {
-      const [lockedRows] = await connection.execute(`SELECT * FROM employees WHERE id = ? FOR UPDATE`, [employee.id]);
+      const [lockedRows] = await connection.execute(`SELECT * FROM employees WHERE id = ? FOR UPDATE`, [req.params.id]);
       const lockedEmployee = lockedRows[0];
       if (!lockedEmployee) throw notFound("Colaborador não encontrado");
+      if (await hasAccountOrHistory(connection, lockedEmployee)) {
+        throw conflict("Colaborador possui conta ou histórico operacional. Inative o cadastro em vez de excluir.");
+      }
       await connection.execute(`DELETE FROM employees WHERE id = ?`, [lockedEmployee.id]);
-      await audit(req.user.id, "DELETE", "employees", lockedEmployee.id, { old: lockedEmployee }, connection);
+      await audit(req.user.id, "DELETE", "employees", lockedEmployee.id, { old: lockedEmployee, history_guard_atomic: true }, connection);
     });
     res.status(204).end();
   }),
