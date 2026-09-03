@@ -3,6 +3,7 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import helmet from "helmet";
 import { config } from "./config.js";
+import { healthcheck, queryOne } from "./db.js";
 import { attachUser } from "./session.js";
 import { authRouter } from "./routes/auth.js";
 import { employeesRouter } from "./routes/employees.js";
@@ -39,7 +40,47 @@ export function createApp() {
   app.use(cookieParser());
   app.use(attachUser);
 
+  // Liveness: confirma apenas que o processo HTTP está respondendo.
   app.get("/health", (_req, res) => res.json({ ok: true, service: "segempat-api" }));
+
+  // Readiness: só fica pronta quando o MySQL responde e o histórico de migrations existe.
+  // É apropriada para health checks do balanceador/orquestrador no ambiente corporativo.
+  app.get("/health/ready", async (_req, res) => {
+    try {
+      await healthcheck();
+      const migration = await queryOne(
+        `SELECT version, file_name, applied_at
+           FROM schema_migrations
+          ORDER BY CAST(version AS UNSIGNED) DESC, version DESC
+          LIMIT 1`,
+      );
+      if (!migration) {
+        return res.status(503).json({
+          ok: false,
+          service: "segempat-api",
+          database: "connected",
+          migrations: "not-applied",
+        });
+      }
+      return res.json({
+        ok: true,
+        service: "segempat-api",
+        database: "connected",
+        migration: {
+          version: String(migration.version),
+          file_name: migration.file_name,
+          applied_at: migration.applied_at,
+        },
+      });
+    } catch (error) {
+      console.error("[segempat-api] readiness falhou", error?.message || error);
+      return res.status(503).json({
+        ok: false,
+        service: "segempat-api",
+        database: "unavailable",
+      });
+    }
+  });
 
   app.use("/api/auth", authRouter);
   app.use("/api/employees", employeesRouter);
