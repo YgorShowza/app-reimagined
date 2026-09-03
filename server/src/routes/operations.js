@@ -304,26 +304,40 @@ operationsRouter.get("/practical-templates", requireAdmin, asyncHandler(async(_r
 operationsRouter.post("/practical-templates", requireAdmin, asyncHandler(async(req,res)=>{
   const input=practicalTemplateInput(req.body);
   const id=uuid();
-  await execute(
-    `INSERT INTO practical_eval_templates (id,title,platform,description,target_sector,min_approval_score,recurrence,applications_per_month,tasks,status,created_by,created_at,updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))`,
-    [id,input.title,input.platform,input.description,input.target_sector,input.min_approval_score,input.recurrence,input.applications_per_month,input.tasks,input.status,req.user.id],
-  );
-  const row=await queryOne(`SELECT * FROM practical_eval_templates WHERE id=?`,[id]);
-  await audit(req.user.id,"INSERT","practical_eval_templates",id,{title:input.title,target_sector:input.target_sector,recurrence:input.recurrence});
+  const row=await withTransaction(async (connection) => {
+    await connection.execute(
+      `INSERT INTO practical_eval_templates (id,title,platform,description,target_sector,min_approval_score,recurrence,applications_per_month,tasks,status,created_by,created_at,updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))`,
+      [id,input.title,input.platform,input.description,input.target_sector,input.min_approval_score,input.recurrence,input.applications_per_month,input.tasks,input.status,req.user.id],
+    );
+    const [rows]=await connection.execute(`SELECT * FROM practical_eval_templates WHERE id=? LIMIT 1`,[id]);
+    await audit(req.user.id,"INSERT","practical_eval_templates",id,{title:input.title,target_sector:input.target_sector,recurrence:input.recurrence,atomic:true},connection);
+    return rows[0];
+  });
   res.status(201).json(templateRow(row));
 }));
 operationsRouter.patch("/practical-templates/:id", requireAdmin, asyncHandler(async(req,res)=>{
-  const current=await queryOne(`SELECT * FROM practical_eval_templates WHERE id=?`,[req.params.id]);
-  if(!current) throw notFound("Modelo não encontrado");
   const patch=practicalTemplateInput(req.body,{partial:true});
   const fields=Object.keys(patch);
-  await execute(`UPDATE practical_eval_templates SET ${fields.map(f=>`${f} = ?`).join(", ")}, updated_at=UTC_TIMESTAMP(3) WHERE id=?`,[...fields.map(f=>patch[f]),req.params.id]);
-  const row=await queryOne(`SELECT * FROM practical_eval_templates WHERE id=?`,[req.params.id]);
-  await audit(req.user.id,"UPDATE","practical_eval_templates",req.params.id,{changed:fields});
+  const row=await withTransaction(async (connection) => {
+    const [locked]=await connection.execute(`SELECT id FROM practical_eval_templates WHERE id=? LIMIT 1 FOR UPDATE`,[req.params.id]);
+    if(!locked.length) throw notFound("Modelo não encontrado");
+    await connection.execute(`UPDATE practical_eval_templates SET ${fields.map(f=>`${f} = ?`).join(", ")}, updated_at=UTC_TIMESTAMP(3) WHERE id=?`,[...fields.map(f=>patch[f]),req.params.id]);
+    const [rows]=await connection.execute(`SELECT * FROM practical_eval_templates WHERE id=? LIMIT 1`,[req.params.id]);
+    await audit(req.user.id,"UPDATE","practical_eval_templates",req.params.id,{changed:fields,atomic:true},connection);
+    return rows[0];
+  });
   res.json(templateRow(row));
 }));
-operationsRouter.delete("/practical-templates/:id", requireAdmin, asyncHandler(async(req,res)=>{await execute(`DELETE FROM practical_eval_templates WHERE id=?`,[req.params.id]);await audit(req.user.id,"DELETE","practical_eval_templates",req.params.id);res.status(204).end();}));
+operationsRouter.delete("/practical-templates/:id", requireAdmin, asyncHandler(async(req,res)=>{
+  await withTransaction(async (connection) => {
+    const [rows]=await connection.execute(`SELECT id FROM practical_eval_templates WHERE id=? LIMIT 1 FOR UPDATE`,[req.params.id]);
+    if(!rows.length) throw notFound("Modelo não encontrado");
+    await connection.execute(`DELETE FROM practical_eval_templates WHERE id=?`,[req.params.id]);
+    await audit(req.user.id,"DELETE","practical_eval_templates",req.params.id,{atomic:true},connection);
+  });
+  res.status(204).end();
+}));
 
 operationsRouter.get("/audit", requireAdmin, asyncHandler(async(req,res)=>{
   const rawLimit = req.query.limit;
