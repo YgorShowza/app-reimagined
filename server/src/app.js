@@ -89,7 +89,7 @@ async function verifyStorageReadiness() {
 
   const probePath = path.join(storageRoot, `.segempat-readiness-${randomUUID()}.tmp`);
   try {
-    await fs.writeFile(probePath, "segempat-readiness", { encoding: "utf8", flag: "wx" });
+    await fs.writeFile(probePath, "segempat-readiness", { encoding: "utf8", flag: "wx", mode: 0o600 });
     const probe = await fs.readFile(probePath, "utf8");
     if (probe !== "segempat-readiness") throw new Error("Storage de evidências falhou na verificação de leitura");
   } finally {
@@ -123,12 +123,25 @@ export function createApp() {
   // Liveness: confirma apenas que o processo HTTP está respondendo.
   app.get("/health", (_req, res) => res.json({ ok: true, service: "segempat-api" }));
 
-  // Readiness: exige MySQL, migration atual do deploy, schema funcional completo e storage privado disponível.
+  // Readiness: exige MySQL, TLS quando configurado, migration atual do deploy, schema funcional completo e storage privado disponível.
   // É apropriada para health checks do balanceador/orquestrador no ambiente corporativo.
   app.get("/health/ready", async (_req, res) => {
     let phase = "database";
     try {
       await healthcheck();
+
+      phase = "database-tls";
+      const sslStatus = await queryOne("SHOW SESSION STATUS LIKE 'Ssl_cipher'");
+      const sslCipher = String(sslStatus?.Value ?? sslStatus?.value ?? "").trim();
+      if (config.db.ssl && !sslCipher) {
+        return res.status(503).json({
+          ok: false,
+          service: "segempat-api",
+          database: "connected",
+          tls: "not-negotiated",
+        });
+      }
+
       phase = "migrations";
       const migration = await queryOne(
         `SELECT version, file_name, checksum_sha256, applied_at
@@ -187,6 +200,7 @@ export function createApp() {
         ok: true,
         service: "segempat-api",
         database: "connected",
+        tls: sslCipher ? "ready" : "off",
         schema: "ready",
         storage: "ready",
         migration: {
