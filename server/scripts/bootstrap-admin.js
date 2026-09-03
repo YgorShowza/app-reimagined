@@ -2,7 +2,7 @@
  * Cria (ou reabilita) o primeiro Inspetor do SEGEMPAT direto no MySQL.
  *
  * Uso:
- *   MATRICULA=970 NOME="Nome do Inspetor" SETOR=Administrativo SENHA='...' node scripts/bootstrap-admin.js
+ *   CONFIRM_BOOTSTRAP_ADMIN=SIM MATRICULA=970 NOME="Nome do Inspetor" SETOR=Administrativo SENHA='...' node scripts/bootstrap-admin.js
  *
  * A senha nunca é gravada em texto: apenas o hash bcrypt vai para app_users.
  * Depois do primeiro acesso, novos usuários devem ser criados pela tela de
@@ -12,6 +12,7 @@ import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
 import { pool, withTransaction } from "../src/db.js";
 
+const confirmation = String(process.env["CONFIRM_BOOTSTRAP_ADMIN"] || "").trim().toUpperCase();
 const matricula = String(process.env["MATRICULA"] || "").trim();
 const nome = String(process.env["NOME"] || "").trim();
 const setor = String(process.env["SETOR"] || "Administrativo").trim();
@@ -22,6 +23,9 @@ function fail(message) {
   process.exit(1);
 }
 
+if (confirmation !== "SIM") {
+  fail("operação privilegiada bloqueada; defina CONFIRM_BOOTSTRAP_ADMIN=SIM para confirmar conscientemente o bootstrap do Inspetor");
+}
 if (!matricula) fail("MATRICULA é obrigatória");
 if (matricula.length > 64) fail("MATRICULA excede 64 caracteres");
 if (!nome) fail("NOME é obrigatório");
@@ -127,6 +131,7 @@ try {
         matricula: employee.matricula,
         employee_id: employee.id,
         via: "scripts/bootstrap-admin.js",
+        explicit_confirmation: true,
         activation_codes_revoked: true,
       })],
     );
