@@ -24,6 +24,35 @@ const REQUIRED_TABLES = [
   "schema_migrations",
 ];
 
+const CRITICAL_FOREIGN_KEYS = [
+  "profiles_user_fk",
+  "profiles_employee_matricula_fk",
+  "user_roles_user_fk",
+  "exam_attempts_exam_fk",
+  "exam_attempts_user_fk",
+  "certificates_attempt_fk",
+  "certificates_exam_fk",
+  "certificates_user_fk",
+  "cronograma_entries_employee_fk",
+  "training_activity_user_fk",
+  "training_activity_employee_fk",
+  "training_schedules_employee_fk",
+  "practical_evaluations_employee_fk",
+  "audit_logs_actor_fk",
+];
+
+const CRITICAL_UNIQUE_INDEXES = [
+  ["app_users", "app_users_matricula_key"],
+  ["employees", "employees_matricula_key"],
+  ["profiles", "profiles_matricula_key"],
+  ["user_roles", "user_roles_user_id_role_key"],
+  ["exam_attempts", "exam_attempts_certificate_code_uidx"],
+  ["certificates", "certificates_attempt_id_key"],
+  ["certificates", "certificates_verification_code_key"],
+  ["training_activity_attempts", "training_activity_daily_challenge_unique_idx"],
+  ["training_schedules", "training_schedules_employee_id_key"],
+];
+
 function mysqlMajor(versionText) {
   const match = /^(\d+)/.exec(String(versionText || ""));
   return match ? Number(match[1]) : NaN;
@@ -110,6 +139,38 @@ async function main() {
       throw new Error("Uma ou mais tabelas obrigatórias não estão usando collation utf8mb4");
     }
 
+    const missingForeignKeys = [];
+    for (const constraint of CRITICAL_FOREIGN_KEYS) {
+      const row = await queryOne(
+        `SELECT COUNT(*) AS total
+           FROM information_schema.referential_constraints
+          WHERE constraint_schema = DATABASE()
+            AND constraint_name = ?`,
+        [constraint],
+      );
+      if (Number(row?.total ?? 0) !== 1) missingForeignKeys.push(constraint);
+    }
+    if (missingForeignKeys.length > 0) {
+      throw new Error(`Foreign keys críticas ausentes: ${missingForeignKeys.join(", ")}`);
+    }
+
+    const missingUniqueIndexes = [];
+    for (const [table, indexName] of CRITICAL_UNIQUE_INDEXES) {
+      const row = await queryOne(
+        `SELECT COUNT(DISTINCT index_name) AS total
+           FROM information_schema.statistics
+          WHERE table_schema = DATABASE()
+            AND table_name = ?
+            AND index_name = ?
+            AND non_unique = 0`,
+        [table, indexName],
+      );
+      if (Number(row?.total ?? 0) !== 1) missingUniqueIndexes.push(`${table}.${indexName}`);
+    }
+    if (missingUniqueIndexes.length > 0) {
+      throw new Error(`Índices UNIQUE críticos ausentes: ${missingUniqueIndexes.join(", ")}`);
+    }
+
     const foreignKeyChecks = await queryOne(`SELECT @@FOREIGN_KEY_CHECKS AS enabled`);
     if (Number(foreignKeyChecks?.enabled) !== 1) {
       throw new Error("FOREIGN_KEY_CHECKS está desabilitado na sessão MySQL; a homologação exige integridade referencial ativa");
@@ -118,7 +179,8 @@ async function main() {
     console.log(
       `[segempat-api] MySQL OK; banco=${database.database_name}; versão=${version.version}; ` +
       `${Number(tables?.total ?? 0)} tabela(s); baseline=${baseline.version}:${baseline.file_name}; ` +
-      `latest=${latestMigration.version}:${latestMigration.file_name}; foreign_keys=on`,
+      `latest=${latestMigration.version}:${latestMigration.file_name}; foreign_keys=on; ` +
+      `critical_fks=${CRITICAL_FOREIGN_KEYS.length}; critical_unique_indexes=${CRITICAL_UNIQUE_INDEXES.length}`,
     );
   } finally {
     await pool.end();
