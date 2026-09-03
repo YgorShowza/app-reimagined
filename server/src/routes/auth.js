@@ -1,6 +1,6 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import { execute, queryOne, withTransaction } from "../db.js";
+import { queryOne, withTransaction } from "../db.js";
 import { audit } from "../audit.js";
 import { clearSessionCookie, loadAuthContext, requireAuth, setSessionCookie, toSessionUser } from "../session.js";
 import { asyncHandler, badRequest, forbidden, requireText, unauthorized, uuid } from "../util.js";
@@ -48,9 +48,18 @@ authRouter.post(
     const context = await loadAuthContext(account.id);
     if (!context) throw forbidden("Cadastro funcional inativo. Procure a Inspetoria.");
 
-    await execute(`UPDATE app_users SET last_login_at = UTC_TIMESTAMP(3) WHERE id = ?`, [context.id]);
+    await withTransaction(async (connection) => {
+      const [rows] = await connection.execute(
+        `SELECT id FROM app_users WHERE id = ? AND status = 'Ativo' LIMIT 1 FOR UPDATE`,
+        [context.id],
+      );
+      if (!rows[0]) throw forbidden("Conta de acesso inativa");
+
+      await connection.execute(`UPDATE app_users SET last_login_at = UTC_TIMESTAMP(3) WHERE id = ?`, [context.id]);
+      await audit(context.id, "LOGIN", "app_users", context.id, { atomic: true }, connection);
+    });
+
     setSessionCookie(res, context.id);
-    await audit(context.id, "LOGIN", "app_users", context.id);
     res.json(toSessionUser(context));
   }),
 );
@@ -67,7 +76,7 @@ authRouter.post(
     const userId = await withTransaction(async (connection) => {
       const [employees] = await connection.execute(
         `SELECT id, full_name, matricula, access_profile FROM employees
-          WHERE LOWER(TRIM(matricula)) = ? AND status = 'Ativo' LIMIT 1`,
+          WHERE LOWER(TRIM(matricula)) = ? AND status = 'Ativo' LIMIT 1 FOR UPDATE`,
         [matricula],
       );
       const employee = employees[0];
