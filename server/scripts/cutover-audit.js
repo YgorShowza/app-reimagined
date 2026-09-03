@@ -87,6 +87,53 @@ async function checkIdentity() {
 }
 
 async function checkOperationalIntegrity() {
+  const orphanOccurrenceEmployees = await scalar(
+    `SELECT COUNT(*) AS total
+       FROM occurrences o
+       LEFT JOIN employees e ON e.id = o.employee_id
+      WHERE o.employee_id IS NOT NULL
+        AND e.id IS NULL`,
+  );
+  const orphanOccurrenceCreators = await scalar(
+    `SELECT COUNT(*) AS total
+       FROM occurrences o
+       LEFT JOIN app_users u ON u.id = o.created_by
+      WHERE o.created_by IS NOT NULL
+        AND u.id IS NULL`,
+  );
+  const orphanPracticalEmployees = await scalar(
+    `SELECT COUNT(*) AS total
+       FROM practical_evaluations p
+       LEFT JOIN employees e ON e.id = p.employee_id
+      WHERE e.id IS NULL`,
+  );
+  const orphanPracticalEvaluators = await scalar(
+    `SELECT COUNT(*) AS total
+       FROM practical_evaluations p
+       LEFT JOIN app_users u ON u.id = p.evaluator_id
+      WHERE p.evaluator_id IS NOT NULL
+        AND u.id IS NULL`,
+  );
+  const orphanPracticalTemplateCreators = await scalar(
+    `SELECT COUNT(*) AS total
+       FROM practical_eval_templates t
+       LEFT JOIN app_users u ON u.id = t.created_by
+      WHERE t.created_by IS NOT NULL
+        AND u.id IS NULL`,
+  );
+  const orphanActivationEmployees = await scalar(
+    `SELECT COUNT(*) AS total
+       FROM registration_activation_codes r
+       LEFT JOIN employees e ON e.id = r.employee_id
+      WHERE e.id IS NULL`,
+  );
+  const orphanActivationCreators = await scalar(
+    `SELECT COUNT(*) AS total
+       FROM registration_activation_codes r
+       LEFT JOIN app_users u ON u.id = r.created_by
+      WHERE r.created_by IS NOT NULL
+        AND u.id IS NULL`,
+  );
   const occurrenceIdentityMismatch = await scalar(
     `SELECT COUNT(*) AS total
        FROM occurrences o
@@ -120,6 +167,13 @@ async function checkOperationalIntegrity() {
       WHERE r.used_at IS NULL`,
   );
 
+  if (orphanOccurrenceEmployees > 0) fail(`${orphanOccurrenceEmployees} ocorrência(s) referenciam colaborador inexistente`);
+  if (orphanOccurrenceCreators > 0) fail(`${orphanOccurrenceCreators} ocorrência(s) referenciam criador inexistente`);
+  if (orphanPracticalEmployees > 0) fail(`${orphanPracticalEmployees} avaliação(ões) prática(s) referenciam colaborador inexistente`);
+  if (orphanPracticalEvaluators > 0) fail(`${orphanPracticalEvaluators} avaliação(ões) prática(s) referenciam avaliador inexistente`);
+  if (orphanPracticalTemplateCreators > 0) fail(`${orphanPracticalTemplateCreators} modelo(s) de avaliação prática referenciam criador inexistente`);
+  if (orphanActivationEmployees > 0) fail(`${orphanActivationEmployees} código(s) de ativação referenciam colaborador inexistente`);
+  if (orphanActivationCreators > 0) fail(`${orphanActivationCreators} código(s) de ativação referenciam criador inexistente`);
   if (occurrenceIdentityMismatch > 0) {
     fail(`${occurrenceIdentityMismatch} ocorrência(s) possuem snapshot de identidade divergente do colaborador relacionado`);
   }
@@ -134,7 +188,7 @@ async function checkOperationalIntegrity() {
   }
 
   console.log(
-    `[cutover] operação occurrence_identity_mismatch=${occurrenceIdentityMismatch} practical_identity_mismatch=${practicalIdentityMismatch} pending_activation_inactive=${pendingActivationForInactiveEmployee} pending_activation_with_account=${pendingActivationWithAccount}`,
+    `[cutover] operação orphan_refs=${orphanOccurrenceEmployees + orphanOccurrenceCreators + orphanPracticalEmployees + orphanPracticalEvaluators + orphanPracticalTemplateCreators + orphanActivationEmployees + orphanActivationCreators} occurrence_identity_mismatch=${occurrenceIdentityMismatch} practical_identity_mismatch=${practicalIdentityMismatch} pending_activation_inactive=${pendingActivationForInactiveEmployee} pending_activation_with_account=${pendingActivationWithAccount}`,
   );
 }
 
