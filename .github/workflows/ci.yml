@@ -47,14 +47,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t files < <(find database/mysql -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort)
+          mapfile -t files < <(find database/mysql -maxdepth 1 -type f -name '*.sql' -printf '%f\n')
           if [[ "${#files[@]}" -eq 0 ]]; then
             echo "::error::Nenhuma migration MySQL encontrada em database/mysql"
             exit 1
           fi
+
           bad=0
-          versions=()
-          previous=""
+          numeric_versions=()
+          version_rows=()
           for file in "${files[@]}"; do
             if [[ ! "$file" =~ ^[0-9]{3,}_.+\.sql$ ]]; then
               echo "::error::Migration MySQL com nome inválido: $file"
@@ -62,26 +63,28 @@ jobs:
               continue
             fi
             version="${file%%_*}"
-            versions+=("$version")
-            if [[ -n "$previous" && "$version" < "$previous" ]]; then
-              echo "::error::Ordem de migrations MySQL inválida: $previous antes de $version"
-              bad=1
-            fi
-            previous="$version"
+            value=$((10#$version))
+            numeric_versions+=("$value")
+            version_rows+=("$value|$version|$file")
           done
-          duplicates=$(printf '%s\n' "${versions[@]}" | sort | uniq -d)
+
+          duplicates=$(printf '%s\n' "${numeric_versions[@]}" | sort -n | uniq -d)
           if [[ -n "$duplicates" ]]; then
-            echo "::error::Versões MySQL duplicadas: $duplicates"
+            echo "::error::Versões MySQL numericamente duplicadas: $duplicates"
             bad=1
           fi
-          if [[ "${files[0]}" != 001_* ]]; then
-            echo "::error::A primeira migration MySQL deve ser o baseline 001_*.sql"
+
+          mapfile -t ordered < <(printf '%s\n' "${version_rows[@]}" | sort -t'|' -k1,1n -k3,3)
+          first_value="${ordered[0]%%|*}"
+          if [[ "$first_value" -ne 1 ]]; then
+            echo "::error::A primeira migration MySQL deve ser a versão numérica 001"
             bad=1
           fi
+
           if [[ "$bad" -ne 0 ]]; then
             exit 1
           fi
-          echo "Migrations MySQL verificadas: ${#files[@]} arquivo(s), versões únicas e ordenadas."
+          echo "Migrations MySQL verificadas: ${#files[@]} arquivo(s), versões numericamente únicas e ordenáveis."
 
       - name: Setup Node for MySQL API validation
         uses: actions/setup-node@v4
