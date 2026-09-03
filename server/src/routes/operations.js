@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { execute, query, queryOne } from "../db.js";
+import { execute, query, queryOne, withTransaction } from "../db.js";
 import { audit } from "../audit.js";
 import { requireAdmin, requireAuth } from "../session.js";
 import { asBool, asyncHandler, badRequest, notFound, parseJson, requireBoolean, requireOneOf, requireText, trimOrNull, uuid } from "../util.js";
@@ -116,14 +116,14 @@ operationsRouter.post("/knowledge", requireAdmin, asyncHandler(async (req, res) 
   const category = requireText(req.body?.category || "Geral", "Categoria");
   const content = requireText(req.body?.content, "Conteúdo");
   const target = requireOneOf(req.body?.target_sector, TARGET_SECTORS, "Setor alvo", "Todos");
-  await execute(`INSERT INTO knowledge_items (id,title,category,content,target_sector,active,created_by,created_at,updated_at) VALUES (?,?,?,?,?,1,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))`, [id,title,category,content,target,req.user.id]);
-  await audit(req.user.id,"INSERT","knowledge_items",id,{title});
+  await withTransaction(async (connection) => {
+    await connection.execute(`INSERT INTO knowledge_items (id,title,category,content,target_sector,active,created_by,created_at,updated_at) VALUES (?,?,?,?,?,1,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))`, [id,title,category,content,target,req.user.id]);
+    await audit(req.user.id,"INSERT","knowledge_items",id,{title,atomic:true},connection);
+  });
   res.status(201).json({ id });
 }));
 
 operationsRouter.patch("/knowledge/:id", requireAdmin, asyncHandler(async (req,res) => {
-  const current = await queryOne(`SELECT id FROM knowledge_items WHERE id = ?`, [req.params.id]);
-  if (!current) throw notFound("Conteúdo não encontrado");
   const patch = {};
   if (Object.prototype.hasOwnProperty.call(req.body || {}, "title")) patch.title = requireText(req.body.title, "Título");
   if (Object.prototype.hasOwnProperty.call(req.body || {}, "category")) patch.category = requireText(req.body.category, "Categoria");
@@ -132,11 +132,23 @@ operationsRouter.patch("/knowledge/:id", requireAdmin, asyncHandler(async (req,r
   if (Object.prototype.hasOwnProperty.call(req.body || {}, "active")) patch.active = requireBoolean(req.body.active, "Situação ativa", { asInteger: true });
   if (!Object.keys(patch).length) throw badRequest("Nenhum campo para atualizar");
   const fields = Object.keys(patch);
-  await execute(`UPDATE knowledge_items SET ${fields.map(f=>`${f} = ?`).join(", ")}, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`, [...fields.map(f=>patch[f]),req.params.id]);
-  await audit(req.user.id,"UPDATE","knowledge_items",req.params.id,{changed:fields});
+  await withTransaction(async (connection) => {
+    const [rows] = await connection.execute(`SELECT id FROM knowledge_items WHERE id = ? FOR UPDATE`, [req.params.id]);
+    if (!rows.length) throw notFound("Conteúdo não encontrado");
+    await connection.execute(`UPDATE knowledge_items SET ${fields.map(f=>`${f} = ?`).join(", ")}, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`, [...fields.map(f=>patch[f]),req.params.id]);
+    await audit(req.user.id,"UPDATE","knowledge_items",req.params.id,{changed:fields,atomic:true},connection);
+  });
   res.status(204).end();
 }));
-operationsRouter.delete("/knowledge/:id", requireAdmin, asyncHandler(async (req,res)=>{ await execute(`DELETE FROM knowledge_items WHERE id = ?`,[req.params.id]); await audit(req.user.id,"DELETE","knowledge_items",req.params.id); res.status(204).end(); }));
+operationsRouter.delete("/knowledge/:id", requireAdmin, asyncHandler(async (req,res)=>{
+  await withTransaction(async (connection) => {
+    const [rows] = await connection.execute(`SELECT id FROM knowledge_items WHERE id = ? FOR UPDATE`, [req.params.id]);
+    if (!rows.length) throw notFound("Conteúdo não encontrado");
+    await connection.execute(`DELETE FROM knowledge_items WHERE id = ?`,[req.params.id]);
+    await audit(req.user.id,"DELETE","knowledge_items",req.params.id,{atomic:true},connection);
+  });
+  res.status(204).end();
+}));
 
 operationsRouter.get("/occurrences", requireAuth, asyncHandler(async (req,res)=>{
   const rows = req.user.isAdmin
