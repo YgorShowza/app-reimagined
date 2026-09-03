@@ -18,7 +18,9 @@ async function checkDatabase() {
     `SELECT VERSION() AS version,
             DATABASE() AS database_name,
             @@hostname AS server_hostname,
-            @@port AS server_port`,
+            @@port AS server_port,
+            @@session.time_zone AS session_time_zone,
+            @@session.sql_mode AS session_sql_mode`,
   );
   if (!info) fail("MySQL não retornou informações da conexão");
 
@@ -26,6 +28,31 @@ async function checkDatabase() {
   if (major === null || major < 8) fail(`MySQL 8+ obrigatório; detectado: ${info.version || "desconhecido"}`);
   if (String(info.database_name || "") !== String(config.db.database)) {
     fail(`database selecionado (${info.database_name || "nenhum"}) difere de MYSQL_DATABASE (${config.db.database})`);
+  }
+
+  const sessionTimeZone = String(info.session_time_zone || "").trim().toUpperCase();
+  if (!["+00:00", "UTC"].includes(sessionTimeZone)) {
+    fail(`sessão MySQL deve operar em UTC; detectado: ${info.session_time_zone || "desconhecido"}`);
+  }
+
+  const sqlModes = String(info.session_sql_mode || "")
+    .split(",")
+    .map((value) => value.trim().toUpperCase())
+    .filter(Boolean);
+  if (!sqlModes.includes("STRICT_TRANS_TABLES") && !sqlModes.includes("STRICT_ALL_TABLES")) {
+    fail("sessão MySQL deve usar modo SQL estrito (STRICT_TRANS_TABLES ou STRICT_ALL_TABLES)");
+  }
+
+  const schema = await queryOne(
+    `SELECT default_character_set_name AS charset_name,
+            default_collation_name AS collation_name
+       FROM information_schema.schemata
+      WHERE schema_name = DATABASE()
+      LIMIT 1`,
+  );
+  if (!schema) fail("não foi possível ler os defaults do database selecionado");
+  if (String(schema.charset_name || "").toLowerCase() !== "utf8mb4") {
+    fail(`database deve usar utf8mb4; detectado: ${schema.charset_name || "desconhecido"}`);
   }
 
   const sslRows = await query("SHOW STATUS LIKE 'Ssl_cipher'");
@@ -37,6 +64,10 @@ async function checkDatabase() {
     database: String(info.database_name),
     server: `${info.server_hostname}:${info.server_port}`,
     tls: sslCipher ? `on (${sslCipher})` : "off",
+    timezone: String(info.session_time_zone),
+    sqlMode: sqlModes.join(","),
+    charset: String(schema.charset_name),
+    collation: String(schema.collation_name || ""),
   };
 }
 
@@ -64,6 +95,8 @@ async function main() {
     console.log("[preflight] OK");
     console.log(`[preflight] node_env=${config.nodeEnv}`);
     console.log(`[preflight] mysql=${database.version} database=${database.database} server=${database.server} tls=${database.tls}`);
+    console.log(`[preflight] mysql_timezone=${database.timezone} charset=${database.charset} collation=${database.collation}`);
+    console.log(`[preflight] mysql_sql_mode=${database.sqlMode}`);
     console.log(`[preflight] storage=${storage}`);
     console.log(`[preflight] cors_origins=${config.allowedOrigins.length}`);
   } finally {
