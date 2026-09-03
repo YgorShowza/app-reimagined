@@ -1,7 +1,8 @@
 import fs from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import express from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
@@ -20,6 +21,9 @@ import { trainingRouter, adminTrainingRouter, myTrainingRouter } from "./routes/
 import { operationsRouter } from "./routes/operations.js";
 import { myPracticalRouter } from "./routes/practical-self.js";
 import { HttpError } from "./util.js";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const migrationsDir = path.resolve(here, "../../database/mysql");
 
 const READINESS_TABLES = [
   "app_users",
@@ -43,6 +47,39 @@ const READINESS_TABLES = [
   "occurrences",
   "audit_logs",
 ];
+
+let expectedMigrationPromise = null;
+
+function migrationVersion(fileName) {
+  const match = /^(\d{3,})_.+\.sql$/i.exec(fileName);
+  return match ? match[1] : null;
+}
+
+async function expectedLatestMigration() {
+  if (!expectedMigrationPromise) {
+    expectedMigrationPromise = (async () => {
+      const migrations = (await fs.readdir(migrationsDir))
+        .map((fileName) => ({ fileName, version: migrationVersion(fileName) }))
+        .filter((entry) => entry.version)
+        .sort((a, b) => {
+          const left = BigInt(a.version);
+          const right = BigInt(b.version);
+          return left < right ? -1 : left > right ? 1 : a.fileName.localeCompare(b.fileName, "en");
+        });
+      if (migrations.length === 0) throw new Error("Nenhuma migration MySQL versionada encontrada no deploy");
+      const latest = migrations.at(-1);
+      const sql = await fs.readFile(path.join(migrationsDir, latest.fileName), "utf8");
+      return {
+        ...latest,
+        checksum: createHash("sha256").update(sql, "utf8").digest("hex"),
+      };
+    })().catch((error) => {
+      expectedMigrationPromise = null;
+      throw error;
+    });
+  }
+  return expectedMigrationPromise;
+}
 
 async function verifyStorageReadiness() {
   const storageRoot = path.resolve(config.storage.path);
@@ -86,7 +123,7 @@ export function createApp() {
   // Liveness: confirma apenas que o processo HTTP está respondendo.
   app.get("/health", (_req, res) => res.json({ ok: true, service: "segempat-api" }));
 
-  // Readiness: exige MySQL, histórico de migrations, schema funcional completo e storage privado disponível.
+  // Readiness: exige MySQL, migration atual do deploy, schema funcional completo e storage privado disponível.
   // É apropriada para health checks do balanceador/orquestrador no ambiente corporativo.
   app.get("/health/ready", async (_req, res) => {
     let phase = "database";
@@ -94,7 +131,7 @@ export function createApp() {
       await healthcheck();
       phase = "migrations";
       const migration = await queryOne(
-        `SELECT version, file_name, applied_at
+        `SELECT version, file_name, checksum_sha256, applied_at
            FROM schema_migrations
           ORDER BY CAST(version AS UNSIGNED) DESC, version DESC
           LIMIT 1`,
@@ -105,6 +142,22 @@ export function createApp() {
           service: "segempat-api",
           database: "connected",
           migrations: "not-applied",
+        });
+      }
+
+      const expectedMigration = await expectedLatestMigration();
+      if (
+        String(migration.version) !== String(expectedMigration.version) ||
+        String(migration.file_name) !== expectedMigration.fileName ||
+        String(migration.checksum_sha256) !== expectedMigration.checksum
+      ) {
+        return res.status(503).json({
+          ok: false,
+          service: "segempat-api",
+          database: "connected",
+          migrations: "out-of-date",
+          expected: `${expectedMigration.version}:${expectedMigration.fileName}`,
+          applied: `${migration.version}:${migration.file_name}`,
         });
       }
 
