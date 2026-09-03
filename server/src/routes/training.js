@@ -254,6 +254,8 @@ adminTrainingRouter.patch(
     if (input.employee_id && input.employee_id !== current.employee_id) throw badRequest("Não é permitido trocar o colaborador de um ciclo existente");
     const employee = await queryOne(`SELECT id,full_name,matricula,status,access_profile FROM employees WHERE id = ?`, [current.employee_id]);
     if (!employee) throw notFound("Colaborador vinculado ao ciclo não encontrado");
+    if (employee.status !== "Ativo") throw badRequest("O ciclo só pode ser editado para colaborador ativo");
+    if (employee.access_profile === "Inspetor") throw badRequest("Ciclo operacional não pode ser mantido para Inspetor");
     const values = serverScheduleValues({ employee, current, input });
     await execute(
       `UPDATE training_schedules SET employee_name = ?, employee_matricula = ?, cycle_days = ?, last_training_date = ?, window_start = ?, window_end = ?, observations = ?, status = ?, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`,
