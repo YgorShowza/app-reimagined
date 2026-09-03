@@ -24,10 +24,23 @@ import { HttpError } from "./util.js";
 const READINESS_TABLES = [
   "app_users",
   "employees",
+  "profiles",
+  "user_roles",
+  "registration_activation_codes",
   "exams",
   "exam_attempts",
+  "certificates",
   "cronograma_entries",
+  "cronograma_recurring_models",
+  "cronograma_suspensions",
+  "knowledge_items",
+  "question_bank",
+  "training_modules",
+  "training_activity_attempts",
   "training_schedules",
+  "practical_eval_templates",
+  "practical_evaluations",
+  "occurrences",
   "audit_logs",
 ];
 
@@ -73,7 +86,7 @@ export function createApp() {
   // Liveness: confirma apenas que o processo HTTP está respondendo.
   app.get("/health", (_req, res) => res.json({ ok: true, service: "segempat-api" }));
 
-  // Readiness: exige MySQL, histórico de migrations, núcleo do schema e storage privado disponível.
+  // Readiness: exige MySQL, histórico de migrations, schema funcional completo e storage privado disponível.
   // É apropriada para health checks do balanceador/orquestrador no ambiente corporativo.
   app.get("/health/ready", async (_req, res) => {
     let phase = "database";
