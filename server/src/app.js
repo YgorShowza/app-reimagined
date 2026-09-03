@@ -1,3 +1,6 @@
+import fs from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
+import path from "node:path";
 import express from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
@@ -53,11 +56,13 @@ export function createApp() {
   // Liveness: confirma apenas que o processo HTTP está respondendo.
   app.get("/health", (_req, res) => res.json({ ok: true, service: "segempat-api" }));
 
-  // Readiness: exige MySQL, histórico de migrations e o núcleo do schema operacional.
+  // Readiness: exige MySQL, histórico de migrations, núcleo do schema e storage privado disponível.
   // É apropriada para health checks do balanceador/orquestrador no ambiente corporativo.
   app.get("/health/ready", async (_req, res) => {
+    let phase = "database";
     try {
       await healthcheck();
+      phase = "migrations";
       const migration = await queryOne(
         `SELECT version, file_name, applied_at
            FROM schema_migrations
@@ -73,6 +78,7 @@ export function createApp() {
         });
       }
 
+      phase = "schema";
       const placeholders = READINESS_TABLES.map(() => "?").join(",");
       const schema = await queryOne(
         `SELECT COUNT(*) AS total
@@ -91,11 +97,16 @@ export function createApp() {
         });
       }
 
+      phase = "storage";
+      const storageRoot = path.resolve(config.storage.path);
+      await fs.access(storageRoot, fsConstants.R_OK | fsConstants.W_OK);
+
       return res.json({
         ok: true,
         service: "segempat-api",
         database: "connected",
         schema: "ready",
+        storage: "ready",
         migration: {
           version: String(migration.version),
           file_name: migration.file_name,
@@ -103,11 +114,12 @@ export function createApp() {
         },
       });
     } catch (error) {
-      console.error("[segempat-api] readiness falhou", error?.message || error);
+      console.error(`[segempat-api] readiness falhou em ${phase}`, error?.message || error);
       return res.status(503).json({
         ok: false,
         service: "segempat-api",
-        database: "unavailable",
+        dependency: phase,
+        status: "unavailable",
       });
     }
   });
