@@ -1,13 +1,20 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import { execute, query, queryOne } from "../db.js";
+import { execute, query, queryOne, withTransaction } from "../db.js";
 import { audit } from "../audit.js";
 import { requireAdmin } from "../session.js";
-import { asyncHandler, badRequest, conflict, notFound, numericCode, uuid } from "../util.js";
+import { asyncHandler, badRequest, conflict, notFound, numericCode } from "../util.js";
 
 export const accessRouter = Router();
 
 const CODE_TTL_HOURS = 24;
+
+function boundedInteger(value, { fallback, min, max, label }) {
+  if (value === undefined || value === null || value === "") return fallback;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) throw badRequest(`${label} inválido`);
+  return parsed;
+}
 
 accessRouter.get(
   "/activation-codes",
@@ -52,15 +59,25 @@ accessRouter.post(
     const codeHash = await bcrypt.hash(code, 10);
     const expiresAt = new Date(Date.now() + CODE_TTL_HOURS * 3600_000);
 
-    await execute(
-      `INSERT INTO registration_activation_codes (employee_id, code_hash, expires_at, used_at, created_by, created_at)
-       VALUES (?, ?, ?, NULL, ?, UTC_TIMESTAMP(3))
-       ON DUPLICATE KEY UPDATE code_hash = VALUES(code_hash), expires_at = VALUES(expires_at),
-                               used_at = NULL, created_by = VALUES(created_by), created_at = UTC_TIMESTAMP(3)`,
-      [employee.id, codeHash, expiresAt, req.user.id],
-    );
-    await audit(req.user.id, "ISSUE_ACTIVATION_CODE", "registration_activation_codes", employee.id, {
-      matricula: employee.matricula,
+    await withTransaction(async (connection) => {
+      // Revalida a ausência da conta dentro da transação para reduzir a janela entre checagem e emissão.
+      const [accounts] = await connection.execute(
+        `SELECT id FROM app_users WHERE LOWER(TRIM(matricula)) = LOWER(TRIM(?)) LIMIT 1 FOR UPDATE`,
+        [employee.matricula],
+      );
+      if (accounts.length) throw conflict("Esta matrícula já possui acesso cadastrado");
+
+      await connection.execute(
+        `INSERT INTO registration_activation_codes (employee_id, code_hash, expires_at, used_at, created_by, created_at)
+         VALUES (?, ?, ?, NULL, ?, UTC_TIMESTAMP(3))
+         ON DUPLICATE KEY UPDATE code_hash = VALUES(code_hash), expires_at = VALUES(expires_at),
+                                 used_at = NULL, created_by = VALUES(created_by), created_at = UTC_TIMESTAMP(3)`,
+        [employee.id, codeHash, expiresAt, req.user.id],
+      );
+      await audit(req.user.id, "ISSUE_ACTIVATION_CODE", "registration_activation_codes", employee.id, {
+        matricula: employee.matricula,
+        atomic: true,
+      }, connection);
     });
 
     // Código puro devolvido uma única vez; o banco guarda apenas o hash.
@@ -78,9 +95,18 @@ accessRouter.delete(
   "/activation-codes/:employeeId",
   requireAdmin,
   asyncHandler(async (req, res) => {
-    if (!req.params.employeeId) throw badRequest("Colaborador não informado");
-    await execute(`DELETE FROM registration_activation_codes WHERE employee_id = ?`, [req.params.employeeId]);
-    await audit(req.user.id, "REVOKE_ACTIVATION_CODE", "registration_activation_codes", req.params.employeeId);
+    const employeeId = String(req.params.employeeId || "").trim();
+    if (!employeeId) throw badRequest("Colaborador não informado");
+
+    await withTransaction(async (connection) => {
+      const [rows] = await connection.execute(
+        `SELECT employee_id FROM registration_activation_codes WHERE employee_id = ? FOR UPDATE`,
+        [employeeId],
+      );
+      if (!rows.length) throw notFound("Código de ativação não encontrado");
+      await connection.execute(`DELETE FROM registration_activation_codes WHERE employee_id = ?`, [employeeId]);
+      await audit(req.user.id, "REVOKE_ACTIVATION_CODE", "registration_activation_codes", employeeId, { atomic: true }, connection);
+    });
     res.status(204).end();
   }),
 );
@@ -89,15 +115,15 @@ accessRouter.get(
   "/audit",
   requireAdmin,
   asyncHandler(async (req, res) => {
-    const limit = Math.min(Number(req.query["limit"] || 100), 500);
-    const offset = Math.max(Number(req.query["offset"] || 0), 0);
+    const limit = boundedInteger(req.query["limit"], { fallback: 100, min: 1, max: 500, label: "Limite" });
+    const offset = boundedInteger(req.query["offset"], { fallback: 0, min: 0, max: 1_000_000, label: "Offset" });
     const rows = await query(
       `SELECT a.id, a.actor_id, p.nome AS actor_name, a.action, a.entity, a.entity_id, a.created_at
          FROM audit_logs a
          LEFT JOIN profiles p ON p.id = a.actor_id
         ORDER BY a.created_at DESC
         LIMIT ? OFFSET ?`,
-      [String(limit), String(offset)],
+      [limit, offset],
     );
     res.json({ items: rows, nextOffset: rows.length === limit ? offset + limit : null });
   }),
