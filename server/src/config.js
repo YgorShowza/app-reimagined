@@ -59,6 +59,11 @@ function allowedOrigins() {
 }
 
 const nodeEnv = String(process.env["NODE_ENV"] || "production").trim().toLowerCase();
+if (!["production", "development", "test"].includes(nodeEnv)) {
+  console.error("[segempat-api] NODE_ENV inválido: use production, development ou test");
+  process.exit(1);
+}
+
 const sessionSecret = String(process.env["SEGEMPAT_SESSION_SECRET"] || "");
 if (Buffer.byteLength(sessionSecret, "utf8") < 32) {
   console.error("[segempat-api] SEGEMPAT_SESSION_SECRET deve possuir pelo menos 32 bytes");
