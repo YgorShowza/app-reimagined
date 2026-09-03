@@ -110,20 +110,15 @@ async function main() {
       throw new Error("Uma ou mais tabelas obrigatórias não estão usando collation utf8mb4");
     }
 
-    const fkRows = await queryOne(
-      `SELECT COUNT(*) AS invalid_count
-         FROM information_schema.referential_constraints
-        WHERE constraint_schema = DATABASE()
-          AND (referenced_table_name IS NULL OR referenced_table_name = '')`,
-    );
-    if (Number(fkRows?.invalid_count ?? 0) > 0) {
-      throw new Error("Foram encontradas constraints referenciais inválidas no schema MySQL");
+    const foreignKeyChecks = await queryOne(`SELECT @@FOREIGN_KEY_CHECKS AS enabled`);
+    if (Number(foreignKeyChecks?.enabled) !== 1) {
+      throw new Error("FOREIGN_KEY_CHECKS está desabilitado na sessão MySQL; a homologação exige integridade referencial ativa");
     }
 
     console.log(
       `[segempat-api] MySQL OK; banco=${database.database_name}; versão=${version.version}; ` +
       `${Number(tables?.total ?? 0)} tabela(s); baseline=${baseline.version}:${baseline.file_name}; ` +
-      `latest=${latestMigration.version}:${latestMigration.file_name}`,
+      `latest=${latestMigration.version}:${latestMigration.file_name}; foreign_keys=on`,
     );
   } finally {
     await pool.end();
