@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
+import { config } from "../src/config.js";
 import { healthcheck, query, queryOne, pool } from "../src/db.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -138,6 +139,15 @@ async function verifyMigrationHistory() {
 async function main() {
   try {
     await healthcheck();
+
+    const sslStatus = await queryOne("SHOW SESSION STATUS LIKE 'Ssl_cipher'");
+    const sslCipher = String(sslStatus?.Value ?? sslStatus?.value ?? "").trim();
+    if (config.db.ssl && !sslCipher) {
+      throw new Error("MYSQL_SSL=true, mas o smoke test não detectou TLS negociado na sessão MySQL");
+    }
+    if (config.nodeEnv === "production" && !sslCipher) {
+      throw new Error("Homologação de produção exige conexão MySQL com TLS efetivamente negociado");
+    }
 
     const version = await queryOne(`SELECT VERSION() AS version`);
     const database = await queryOne(`SELECT DATABASE() AS database_name`);
@@ -278,7 +288,7 @@ async function main() {
     console.log(
       `[segempat-api] MySQL OK; banco=${database.database_name}; versão=${version.version}; ` +
       `${Number(tables?.total ?? 0)} tabela(s); baseline=${baseline.version}:${baseline.file_name}; ` +
-      `latest=${latestMigration.version}:${latestMigration.file_name}; migration_history=complete; foreign_keys=on; timezone=${timeZone}; strict_sql=on; ` +
+      `latest=${latestMigration.version}:${latestMigration.file_name}; migration_history=complete; tls=${sslCipher || "off"}; foreign_keys=on; timezone=${timeZone}; strict_sql=on; ` +
       `critical_fks=${CRITICAL_FOREIGN_KEYS.length}; critical_unique_indexes=${CRITICAL_UNIQUE_INDEXES.length}`,
     );
   } finally {
