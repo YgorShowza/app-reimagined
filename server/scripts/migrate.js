@@ -10,9 +10,23 @@ const migrationsDir = path.resolve(here, "../../database/mysql");
 const BASELINE_TABLES = [
   "app_users",
   "employees",
+  "profiles",
+  "user_roles",
+  "registration_activation_codes",
+  "exams",
   "exam_attempts",
+  "certificates",
   "cronograma_entries",
+  "cronograma_recurring_models",
+  "cronograma_suspensions",
+  "knowledge_items",
+  "question_bank",
+  "training_modules",
+  "training_activity_attempts",
   "training_schedules",
+  "practical_eval_templates",
+  "practical_evaluations",
+  "occurrences",
   "audit_logs",
 ];
 
@@ -174,7 +188,7 @@ async function main() {
     const applied = new Map(appliedRows.map((row) => [String(row.version), row]));
 
     // Compatibilidade com instalações que receberam o 001_schema.sql antes do runner versionado.
-    // Só registra o baseline automaticamente quando um conjunto representativo do schema 001 está completo.
+    // O baseline só é registrado automaticamente quando todas as tabelas do schema 001 estão presentes.
     if (applied.size === 0 && migrations[0]?.numeric === 1n) {
       const baselineState = await detectPreRunnerBaseline(connection);
       if (baselineState.state === "partial") {
