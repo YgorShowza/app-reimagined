@@ -42,12 +42,25 @@ async function checkIdentity() {
        JOIN profiles p ON p.id = u.id
       WHERE LOWER(TRIM(p.matricula)) <> LOWER(TRIM(u.matricula))`,
   );
-  const adminOutsideInspector = await scalar(
+  const invalidAdminRole = await scalar(
     `SELECT COUNT(DISTINCT u.id) AS total
        FROM app_users u
        JOIN user_roles r ON r.user_id = u.id AND r.role = 'admin'
        LEFT JOIN employees e ON LOWER(TRIM(e.matricula)) = LOWER(TRIM(u.matricula))
-      WHERE e.id IS NULL OR e.access_profile <> 'Inspetor'`,
+      WHERE e.id IS NULL
+         OR e.access_profile <> 'Inspetor'
+         OR e.status <> 'Ativo'
+         OR u.status <> 'Ativo'`,
+  );
+  const activeInspectorWithoutAdmin = await scalar(
+    `SELECT COUNT(*) AS total
+       FROM app_users u
+       JOIN employees e ON LOWER(TRIM(e.matricula)) = LOWER(TRIM(u.matricula))
+       LEFT JOIN user_roles r ON r.user_id = u.id AND r.role = 'admin'
+      WHERE u.status = 'Ativo'
+        AND e.status = 'Ativo'
+        AND e.access_profile = 'Inspetor'
+        AND r.user_id IS NULL`,
   );
   const activeUsersWithInactiveEmployee = await scalar(
     `SELECT COUNT(*) AS total
@@ -61,7 +74,8 @@ async function checkIdentity() {
   if (orphanUsers > 0) fail(`${orphanUsers} conta(s) não possuem colaborador correspondente por matrícula`);
   if (missingProfiles > 0) fail(`${missingProfiles} conta(s) não possuem profile correspondente`);
   if (profileMatriculaMismatch > 0) fail(`${profileMatriculaMismatch} profile(s) possuem matrícula divergente da conta`);
-  if (adminOutsideInspector > 0) fail(`${adminOutsideInspector} conta(s) com role admin não pertencem a colaborador Inspetor`);
+  if (invalidAdminRole > 0) fail(`${invalidAdminRole} conta(s) mantêm role admin sem Inspetor ativo correspondente`);
+  if (activeInspectorWithoutAdmin > 0) fail(`${activeInspectorWithoutAdmin} Inspetor(es) ativo(s) com conta ativa estão sem role admin`);
   if (activeUsersWithInactiveEmployee > 0) warn(`${activeUsersWithInactiveEmployee} conta(s) ativas pertencem a colaborador inativo; o login será bloqueado pela API`);
 
   console.log(`[cutover] identidade employees=${employees} active_employees=${activeEmployees} users=${users}`);
@@ -180,6 +194,19 @@ async function checkStoredSignatureFiles() {
 }
 
 async function checkExamEvidence() {
+  const invalidSignatureState = await scalar(
+    `SELECT COUNT(*) AS total
+       FROM exam_attempts a
+      WHERE (a.signature_agreed = 1 OR a.signed_at IS NOT NULL OR a.signature_path IS NOT NULL OR a.signature_name IS NOT NULL)
+        AND (
+          a.passed <> 1
+          OR a.certificate_code IS NULL
+          OR a.signature_agreed <> 1
+          OR a.signed_at IS NULL
+          OR a.signature_path IS NULL
+          OR a.signature_name IS NULL
+        )`,
+  );
   const malformedCertificates = await scalar(
     `SELECT COUNT(*) AS total
        FROM certificates c
@@ -215,6 +242,7 @@ async function checkExamEvidence() {
          OR (revoked = 0 AND (revoked_at IS NOT NULL OR revoked_reason IS NOT NULL))`,
   );
 
+  if (invalidSignatureState > 0) fail(`${invalidSignatureState} tentativa(s) possuem estado de assinatura incompatível com aprovação/certificado`);
   if (malformedCertificates > 0) fail(`${malformedCertificates} certificado(s) divergem da tentativa assinada/aprovada`);
   if (signedWithoutCertificate > 0) fail(`${signedWithoutCertificate} tentativa(s) aprovadas e assinadas estão sem certificado correspondente`);
   if (malformedRevocation > 0) fail(`${malformedRevocation} certificado(s) possuem estado de revogação inconsistente`);
