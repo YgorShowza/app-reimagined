@@ -2,7 +2,7 @@ import { Router } from "express";
 import { execute, query, queryOne } from "../db.js";
 import { audit } from "../audit.js";
 import { requireAdmin, requireAuth } from "../session.js";
-import { asBool, asyncHandler, badRequest, notFound, parseJson, requireOneOf, requireText, trimOrNull, uuid } from "../util.js";
+import { asBool, asyncHandler, badRequest, notFound, parseJson, requireBoolean, requireOneOf, requireText, trimOrNull, uuid } from "../util.js";
 
 export const operationsRouter = Router();
 
@@ -17,12 +17,6 @@ const jsonValue = (value, fallback = []) => parseJson(value, fallback);
 const boolRow = (row) => ({ ...row, active: asBool(row.active) });
 const practicalRow = (row) => ({ ...row, score: Number(row.score ?? 0), max_score: Number(row.max_score ?? 10), checklist: jsonValue(row.checklist, []) });
 const templateRow = (row) => ({ ...row, min_approval_score: Number(row.min_approval_score ?? 7), applications_per_month: Number(row.applications_per_month ?? 1), tasks: jsonValue(row.tasks, []) });
-
-function strictBoolean01(value, label) {
-  if (value === true || value === 1 || value === "1") return 1;
-  if (value === false || value === 0 || value === "0") return 0;
-  throw badRequest(`${label} inválido`);
-}
 
 function mysqlDateTimeOrNull(value, label) {
   const text = trimOrNull(value);
@@ -53,7 +47,7 @@ function normalizeChecklist(value) {
   return value.map((item, index) => ({
     id: String(item?.id ?? index + 1).slice(0, 80),
     label: requireText(item?.label, `Item ${index + 1} do checklist`).slice(0, 500),
-    done: Boolean(item?.done),
+    done: requireBoolean(item?.done ?? false, `Situação do item ${index + 1}`),
   }));
 }
 
@@ -135,7 +129,7 @@ operationsRouter.patch("/knowledge/:id", requireAdmin, asyncHandler(async (req,r
   if (Object.prototype.hasOwnProperty.call(req.body || {}, "category")) patch.category = requireText(req.body.category, "Categoria");
   if (Object.prototype.hasOwnProperty.call(req.body || {}, "content")) patch.content = requireText(req.body.content, "Conteúdo");
   if (Object.prototype.hasOwnProperty.call(req.body || {}, "target_sector")) patch.target_sector = requireOneOf(req.body.target_sector, TARGET_SECTORS, "Setor alvo");
-  if (Object.prototype.hasOwnProperty.call(req.body || {}, "active")) patch.active = strictBoolean01(req.body.active, "Situação ativa");
+  if (Object.prototype.hasOwnProperty.call(req.body || {}, "active")) patch.active = requireBoolean(req.body.active, "Situação ativa", { asInteger: true });
   if (!Object.keys(patch).length) throw badRequest("Nenhum campo para atualizar");
   const fields = Object.keys(patch);
   await execute(`UPDATE knowledge_items SET ${fields.map(f=>`${f} = ?`).join(", ")}, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`, [...fields.map(f=>patch[f]),req.params.id]);
@@ -279,4 +273,12 @@ operationsRouter.patch("/practical-templates/:id", requireAdmin, asyncHandler(as
 }));
 operationsRouter.delete("/practical-templates/:id", requireAdmin, asyncHandler(async(req,res)=>{await execute(`DELETE FROM practical_eval_templates WHERE id=?`,[req.params.id]);await audit(req.user.id,"DELETE","practical_eval_templates",req.params.id);res.status(204).end();}));
 
-operationsRouter.get("/audit", requireAdmin, asyncHandler(async(req,res)=>{const limit=Math.min(Math.max(Number(req.query.limit||200),1),500);const rows=await query(`SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT ${limit}`);res.json(rows.map(row=>({...row,details:jsonValue(row.details,{})})));}));
+operationsRouter.get("/audit", requireAdmin, asyncHandler(async(req,res)=>{
+  const rawLimit = req.query.limit;
+  const parsedLimit = rawLimit === undefined ? 200 : Number(rawLimit);
+  if (!Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 500) {
+    throw badRequest("Limite de auditoria inválido; use um inteiro entre 1 e 500");
+  }
+  const rows=await query(`SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT ${parsedLimit}`);
+  res.json(rows.map(row=>({...row,details:jsonValue(row.details,{})})));
+}));
