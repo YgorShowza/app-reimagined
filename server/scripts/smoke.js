@@ -28,6 +28,8 @@ const CRITICAL_FOREIGN_KEYS = [
   "profiles_user_fk",
   "profiles_employee_matricula_fk",
   "user_roles_user_fk",
+  "registration_activation_employee_fk",
+  "registration_activation_creator_fk",
   "exam_attempts_exam_fk",
   "exam_attempts_user_fk",
   "certificates_attempt_fk",
@@ -37,7 +39,11 @@ const CRITICAL_FOREIGN_KEYS = [
   "training_activity_user_fk",
   "training_activity_employee_fk",
   "training_schedules_employee_fk",
+  "practical_eval_templates_creator_fk",
   "practical_evaluations_employee_fk",
+  "practical_evaluations_evaluator_fk",
+  "occurrences_employee_fk",
+  "occurrences_creator_fk",
   "audit_logs_actor_fk",
 ];
 
