@@ -79,6 +79,9 @@ async function checkDatabase() {
   const sslRows = await query("SHOW STATUS LIKE 'Ssl_cipher'");
   const sslCipher = String(sslRows?.[0]?.Value ?? sslRows?.[0]?.value ?? "").trim();
   if (config.db.ssl && !sslCipher) fail("MYSQL_SSL=true, mas a conexão MySQL não negociou TLS");
+  if (config.nodeEnv === "production" && (!config.db.ssl || !sslCipher)) {
+    fail("produção exige MYSQL_SSL=true e conexão MySQL com TLS efetivamente negociado");
+  }
 
   return {
     version: String(info.version),
