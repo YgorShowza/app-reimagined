@@ -2,179 +2,180 @@
 
 Sistema de Gestão, Operações e Desempenho da Unidade de Segurança Portuária da EMPAT.
 
-O projeto atual é a versão portada e evoluída do SEGEMPAT original, com frontend React/TanStack, Supabase como backend e Lovable como ambiente de desenvolvimento/preview.
+O SEGEMPAT reúne gestão operacional, desenvolvimento profissional, avaliações, registros, evidências e acompanhamento da equipe em uma única aplicação.
 
-## Stack
+## Status do projeto
+
+**PARTE DO MYSQL NO CÓDIGO CONCLUÍDA — PRONTO PARA CONECTAR AO BANCO DA EMPRESA.**
+
+A arquitetura para MySQL corporativo, API própria, autenticação, autorização, migrations, storage, validações e principais fluxos operacionais está preparada no código. O sistema ainda não deve ser considerado homologado em produção: a homologação final depende da conexão com o MySQL real da empresa, migração dos dados e testes ponta a ponta no ambiente corporativo.
+
+## Arquitetura alvo
+
+```text
+Navegador / SEGEMPAT
+        |
+        | HTTPS / JSON
+        v
+API SEGEMPAT — Node.js / Express
+        |
+        +--> MySQL 8.0 corporativo
+        +--> storage privado de assinaturas/evidências
+        +--> autenticação e regras de negócio
+```
+
+O navegador **nunca acessa o MySQL diretamente** e não recebe host, usuário ou senha do banco.
+
+Durante a transição existe código legado do Supabase para compatibilidade de preview quando `VITE_SEGEMPAT_API_URL` não está configurada. Com a API corporativa configurada, os fluxos migrados utilizam o backend SEGEMPAT/MySQL.
+
+## Stack principal
+
+### Frontend
 
 - React 19
-- TanStack Router / TanStack Query
 - TypeScript
+- TanStack Router / TanStack Query
+- TanStack Start / Vite
 - Tailwind CSS
-- Supabase Auth, PostgreSQL, Storage e RLS
 - Bun
-- Vite / TanStack Start
-- Lovable
 
-## Perfis
+### Backend corporativo
+
+- Node.js 20+
+- Express
+- MySQL 8.0+
+- `mysql2`
+- autenticação por sessão assinada em cookie
+- bcrypt para senhas e códigos sensíveis
+- Helmet e CORS por allowlist
+- storage privado controlado pelo servidor
+
+## Perfis de acesso
 
 ### Inspetor
 
-Acesso administrativo às áreas operacionais, incluindo:
+Perfil administrativo com acesso às funções de gestão, incluindo Dashboard, Analytics, Equipe, Cronograma, Provas, Banco de Questões, Treinamentos, Avaliações Práticas, Ocorrências, Certificados, evidências e Auditoria.
 
-- Dashboard e Analytics
-- Equipe
-- Cronograma de treinamentos
-- Provas e Banco de Questões
-- Módulos de Treinamento
-- Ciclos e Vencimentos
-- Avaliações Práticas
-- Ocorrências
-- Relatórios
-- Certificados e validação
-- Evidências de assinatura
-- Auditoria
-- Documento de Segurança
+O backend considera administrador somente quem possui role administrativa e perfil funcional atual de **Inspetor**.
 
 ### Operador
 
-Acesso restrito por identidade, matrícula, setor e políticas RLS:
+Perfil operacional com acesso limitado por identidade, matrícula, setor e regras do backend. Rotas pessoais são vinculadas ao usuário autenticado e não confiam em identidade enviada pelo navegador.
 
-- Painel e pendências
-- Provas publicadas para o próprio setor ou para Todos
+## Módulos principais
+
+- Equipe / Colaboradores
+- Cronograma mensal e anual
+- planejamento em massa e recorrências
+- Banco de Questões
+- Provas e tentativas
+- assinatura eletrônica e evidências
+- certificados e validação
 - Treinamentos
-- Progresso e certificados
 - Teste Rápido
 - Simulador
 - Stress Test
 - Desafio Diário
-- Avaliação Prática própria
-- Ocorrências próprias
+- XP e nível
+- Avaliações Práticas
+- Ocorrências
+- Base de Conhecimento
 - Meu Perfil
+- Auditoria administrativa
 
-## Cronograma
+## Segurança no modo MySQL/API
 
-O Cronograma é um dos módulos centrais do sistema e oferece:
+Os principais controles implementados incluem:
 
-- Lista agrupada por colaborador
-- Calendário mensal
-- Visão anual
-- Gestão completa de registros
-- Planejamento em massa
-- Gerador anual
-- Importação de resultados por Excel
-- Banco de Questões
-- Avaliações práticas planejadas e recorrentes
-- Suspensões e ausências
-- Relatório PDF mensal
-- Lista de presença em PDF
-- Sincronização com resultados de provas
+- credenciais MySQL exclusivamente no servidor;
+- sessão assinada reconstruída a partir do banco a cada requisição protegida;
+- bloqueio de conta ou colaborador inativo;
+- autorização administrativa validada no backend;
+- identidade funcional derivada da sessão/banco;
+- correção de provas no servidor;
+- gabaritos removidos das respostas entregues ao Operador;
+- XP e nível calculados no servidor;
+- operações críticas protegidas por transação quando aplicável;
+- assinatura vinculada à tentativa do próprio usuário;
+- evidências armazenadas fora do banco em storage privado;
+- códigos de ativação com hash, expiração e uso único;
+- CORS com origens explícitas;
+- cookies seguros exigidos em produção;
+- suporte a TLS/CA corporativa para MySQL;
+- auditoria de operações críticas.
 
-## Segurança
+## MySQL e migrations
 
-A autorização de dados é aplicada no Supabase por Row Level Security (RLS), além da proteção de rotas no frontend.
+O baseline MySQL está em:
 
-Controles relevantes:
+```text
+database/mysql/001_schema.sql
+```
 
-- perfis administrativos via `user_roles`;
-- leitura de dados do Operador limitada aos próprios registros quando aplicável;
-- provas publicadas filtradas por setor no próprio banco;
-- assinatura eletrônica armazenada em bucket privado;
-- assinatura da prova por RPC restrita (`sign_exam_attempt`), sem UPDATE genérico da tentativa;
-- códigos únicos de validação para aprovações;
-- certificado formal liberado apenas após aprovação e assinatura eletrônica;
-- XP de atividades concedido por RPC no servidor;
-- limite diário de recompensa para atividades repetíveis;
-- Desafio Diário limitado a uma execução por usuário/dia;
-- logs de auditoria exclusivos da Inspetoria.
+O runner de migrations mantém versão, checksum e histórico, rejeitando divergências ou lacunas. O schema foi preparado para MySQL 8, InnoDB, `utf8mb4`, foreign keys e índices críticos.
 
-O filtro de acesso por IP/VPN não está implementado na arquitetura atual e não deve ser considerado um controle ativo.
+## Validação do ambiente corporativo
 
-## Desenvolvimento local
+Dentro de `server/`, a sequência de homologação prevista é:
 
-O projeto usa Bun e o lockfile deve ser respeitado.
+```bash
+npm ci
+npm run preflight
+npm run migrate
+npm run bootstrap-admin   # somente na preparação do primeiro Inspetor, quando necessário
+npm run smoke
+npm run cutover:audit
+npm start
+```
 
-```sh
-git clone <URL-DO-REPOSITORIO>
-cd app-reimagined
+O `preflight` valida o ambiente antes da migration. O `smoke` valida o schema depois da migration. O `cutover:audit` valida integridade funcional depois da carga dos dados.
+
+## Backend
+
+A documentação específica da API está em:
+
+- [`server/README.md`](server/README.md)
+- [`server/.env.example`](server/.env.example)
+
+Secrets reais nunca devem ser versionados.
+
+## Documentação de migração e homologação
+
+- [`MYSQL_MIGRATION_PLAN.md`](MYSQL_MIGRATION_PLAN.md) — plano técnico da migração para MySQL;
+- [`CORPORATE_HOMOLOGATION_CHECKLIST.md`](CORPORATE_HOMOLOGATION_CHECKLIST.md) — checklist para TI e gestão durante a homologação;
+- [`PRODUCTION_CHECKLIST.md`](PRODUCTION_CHECKLIST.md) — checklist geral de publicação.
+
+## Desenvolvimento do frontend
+
+```bash
 bun install --frozen-lockfile
 bun run dev
 ```
 
-Build de produção:
+Validações locais:
 
-```sh
+```bash
+bun run typecheck
+bun run lint
 bun run build
 ```
-
-Lint:
-
-```sh
-bun run lint
-```
-
-## Variáveis de ambiente
-
-O frontend utiliza somente URL/identificador do projeto Supabase e publishable key. Nunca adicionar `service_role`, senha do banco ou outro segredo privilegiado ao frontend.
-
-Variáveis utilizadas atualmente:
-
-```text
-SUPABASE_PROJECT_ID
-SUPABASE_PUBLISHABLE_KEY
-SUPABASE_URL
-VITE_SUPABASE_PROJECT_ID
-VITE_SUPABASE_PUBLISHABLE_KEY
-VITE_SUPABASE_URL
-```
-
-Para produção, preferir configuração de variáveis no provedor de deploy em vez de manter `.env` versionado.
-
-## Migrations
-
-As migrations estão em:
-
-```text
-supabase/migrations/
-```
-
-A ordem dos arquivos faz parte da integridade do projeto. Não aplicar mudanças de schema diretamente em produção sem também versionar a migration correspondente.
-
-Antes de publicar uma nova versão:
-
-1. confirmar que o histórico `supabase_migrations.schema_migrations` corresponde ao repositório;
-2. validar RLS e funções `SECURITY DEFINER`;
-3. executar build de produção;
-4. executar a bateria de integridade;
-5. testar os fluxos críticos com Inspetor e Operador.
 
 ## CI
 
-O GitHub Actions executa em push/PR para `main`:
+O workflow `.github/workflows/ci.yml` valida continuamente o projeto no GitHub Actions. Entre os controles estão sintaxe do backend, configuração segura de produção, migrations, typecheck, lint e build do frontend.
 
-```text
-bun install --frozen-lockfile
-bun run build
-```
+O GitHub é a fonte versionada oficial do código e da documentação técnica do SEGEMPAT.
 
-Arquivo: `.github/workflows/ci.yml`.
+## Critério de conclusão
 
-## Homologação
+O marco de código para conexão com o MySQL corporativo está atendido.
 
-O projeto possui validações estruturais para:
+O status **SEGEMPAT HOMOLOGADO NO MYSQL DA EMPRESA** só poderá ser declarado após:
 
-- duplicidades do Cronograma;
-- relações órfãs;
-- provas publicadas sem questões;
-- certificados/códigos inconsistentes;
-- assinaturas incompletas;
-- ciclos inválidos;
-- módulos inválidos;
-- duplicidade do Desafio Diário;
-- políticas RLS;
-- índices de consultas críticas.
-
-O checklist de publicação está em `PRODUCTION_CHECKLIST.md`.
-
-## Regra de manutenção
-
-O GitHub é a fonte versionada do código e das migrations. Alterações devem ser pequenas, rastreáveis e validadas no preview antes de novos commits funcionais serem empilhados.
+1. conexão com o MySQL real de homologação;
+2. `preflight`, migrations e `smoke` aprovados;
+3. dados e evidências migrados;
+4. `cutover:audit` aprovado;
+5. testes ponta a ponta com Inspetor e Operador;
+6. validação de TLS, CORS, cookies, firewall, storage, backup e permissões;
+7. aprovação do plano de rollback/cutover.
