@@ -1,3 +1,5 @@
+import path from "node:path";
+
 const required = ["MYSQL_HOST", "MYSQL_DATABASE", "MYSQL_USER", "MYSQL_PASSWORD", "SEGEMPAT_SESSION_SECRET"];
 
 const missing = required.filter((key) => !process.env[key]);
@@ -82,6 +84,22 @@ if (nodeEnv === "production" && origins.length === 0) {
   process.exit(1);
 }
 
+const storageDriver = String(process.env["SEGEMPAT_STORAGE_DRIVER"] || "filesystem").trim().toLowerCase();
+if (storageDriver !== "filesystem") {
+  console.error(`[segempat-api] SEGEMPAT_STORAGE_DRIVER não suportado: ${storageDriver || "vazio"}. Use filesystem`);
+  process.exit(1);
+}
+
+const storagePath = String(process.env["SEGEMPAT_STORAGE_PATH"] || "./storage").trim();
+if (!storagePath) {
+  console.error("[segempat-api] SEGEMPAT_STORAGE_PATH não pode ficar vazio");
+  process.exit(1);
+}
+if (nodeEnv === "production" && !path.isAbsolute(storagePath)) {
+  console.error("[segempat-api] SEGEMPAT_STORAGE_PATH deve ser absoluto em produção");
+  process.exit(1);
+}
+
 export const config = {
   port: positiveInteger("PORT", 8787, { min: 1, max: 65535 }),
   nodeEnv,
@@ -103,8 +121,8 @@ export const config = {
     secure: secureSession,
   },
   storage: {
-    driver: process.env["SEGEMPAT_STORAGE_DRIVER"] || "filesystem",
-    path: process.env["SEGEMPAT_STORAGE_PATH"] || "./storage",
+    driver: storageDriver,
+    path: storagePath,
   },
   // Origens do frontend autorizadas a enviar cookie de sessão.
   allowedOrigins: origins,
