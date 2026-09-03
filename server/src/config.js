@@ -36,6 +36,21 @@ function sameSiteValue() {
   return value;
 }
 
+function timezoneValue() {
+  const value = String(process.env["SEGEMPAT_TIMEZONE"] || "America/Maceio").trim();
+  if (!value) {
+    console.error("[segempat-api] SEGEMPAT_TIMEZONE não pode ficar vazio");
+    process.exit(1);
+  }
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value }).format(new Date(0));
+  } catch {
+    console.error(`[segempat-api] SEGEMPAT_TIMEZONE inválido: ${value}`);
+    process.exit(1);
+  }
+  return value;
+}
+
 function allowedOrigins() {
   const origins = String(process.env["SEGEMPAT_ALLOWED_ORIGINS"] || "")
     .split(",")
@@ -131,5 +146,5 @@ export const config = {
   },
   // Origens do frontend autorizadas a enviar cookie de sessão.
   allowedOrigins: origins,
-  timezone: process.env["SEGEMPAT_TIMEZONE"] || "America/Maceio",
+  timezone: timezoneValue(),
 };
