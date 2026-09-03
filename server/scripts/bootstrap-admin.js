@@ -23,8 +23,13 @@ function fail(message) {
 }
 
 if (!matricula) fail("MATRICULA é obrigatória");
+if (matricula.length > 64) fail("MATRICULA excede 64 caracteres");
 if (!nome) fail("NOME é obrigatório");
+if (nome.length > 255) fail("NOME excede 255 caracteres");
+if (!setor) fail("SETOR é obrigatório");
+if (setor.length > 80) fail("SETOR excede 80 caracteres");
 if (senha.length < 8) fail("SENHA deve ter ao menos 8 caracteres");
+if (senha.length > 128) fail("SENHA excede 128 caracteres");
 
 try {
   const result = await withTransaction(async (connection) => {
@@ -41,14 +46,14 @@ try {
       await connection.execute(
         `INSERT INTO employees (id, full_name, matricula, sector, access_profile, status,
                                 level, points, first_access, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 'Inspetor', 'Ativo', 1, 0, 1, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
+         VALUES (?, ?, ?, ?, 'Inspetor', 'Ativo', 1, 0, 0, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
         [employeeId, nome, matricula, setor],
       );
       employee = { id: employeeId, matricula, full_name: nome };
     } else {
       await connection.execute(
         `UPDATE employees SET full_name = ?, sector = ?, access_profile = 'Inspetor',
-                              status = 'Ativo', updated_at = UTC_TIMESTAMP(3)
+                              status = 'Ativo', first_access = 0, updated_at = UTC_TIMESTAMP(3)
           WHERE id = ?`,
         [nome, setor, employee.id],
       );
@@ -63,8 +68,8 @@ try {
     let userId = accounts[0]?.id;
     if (userId) {
       await connection.execute(
-        `UPDATE app_users SET password_hash = ?, status = 'Ativo', updated_at = UTC_TIMESTAMP(3) WHERE id = ?`,
-        [passwordHash, userId],
+        `UPDATE app_users SET matricula = ?, password_hash = ?, status = 'Ativo', updated_at = UTC_TIMESTAMP(3) WHERE id = ?`,
+        [employee.matricula, passwordHash, userId],
       );
     } else {
       userId = randomUUID();
@@ -75,12 +80,32 @@ try {
       );
     }
 
-    await connection.execute(
-      `INSERT INTO profiles (id, matricula, nome, created_at, updated_at)
-       VALUES (?, ?, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))
-       ON DUPLICATE KEY UPDATE matricula = VALUES(matricula), nome = VALUES(nome), updated_at = UTC_TIMESTAMP(3)`,
-      [userId, employee.matricula, nome],
+    const [profilesByMatricula] = await connection.execute(
+      `SELECT id FROM profiles WHERE LOWER(TRIM(matricula)) = ? LIMIT 1 FOR UPDATE`,
+      [key],
     );
+    const conflictingProfile = profilesByMatricula[0];
+    if (conflictingProfile && conflictingProfile.id !== userId) {
+      throw new Error(`matrícula ${employee.matricula} já está vinculada ao profile de outro usuário (${conflictingProfile.id})`);
+    }
+
+    const [profilesByUser] = await connection.execute(
+      `SELECT id, matricula FROM profiles WHERE id = ? LIMIT 1 FOR UPDATE`,
+      [userId],
+    );
+    const currentProfile = profilesByUser[0];
+    if (currentProfile) {
+      await connection.execute(
+        `UPDATE profiles SET matricula = ?, nome = ?, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`,
+        [employee.matricula, nome, userId],
+      );
+    } else {
+      await connection.execute(
+        `INSERT INTO profiles (id, matricula, nome, created_at, updated_at)
+         VALUES (?, ?, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
+        [userId, employee.matricula, nome],
+      );
+    }
 
     await connection.execute(
       `INSERT IGNORE INTO user_roles (id, user_id, role)
@@ -89,9 +114,21 @@ try {
     );
 
     await connection.execute(
+      `UPDATE registration_activation_codes
+          SET used_at = COALESCE(used_at, UTC_TIMESTAMP(3))
+        WHERE employee_id = ?`,
+      [employee.id],
+    );
+
+    await connection.execute(
       `INSERT INTO audit_logs (id, actor_id, action, entity, entity_id, details, created_at)
        VALUES (?, ?, 'BOOTSTRAP_ADMIN', 'app_users', ?, ?, UTC_TIMESTAMP(3))`,
-      [randomUUID(), userId, userId, JSON.stringify({ matricula: employee.matricula, via: "scripts/bootstrap-admin.js" })],
+      [randomUUID(), userId, userId, JSON.stringify({
+        matricula: employee.matricula,
+        employee_id: employee.id,
+        via: "scripts/bootstrap-admin.js",
+        activation_codes_revoked: true,
+      })],
     );
 
     return { userId, employeeId: employee.id, matricula: employee.matricula };
