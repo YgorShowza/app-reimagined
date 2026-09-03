@@ -57,6 +57,15 @@ if (!["production", "development", "test"].includes(nodeEnv)) {
   process.exit(1);
 }
 
+function rejectProductionPlaceholder(name, value, placeholders) {
+  if (nodeEnv !== "production") return;
+  const normalized = String(value || "").trim().toLowerCase();
+  if (placeholders.some((placeholder) => normalized === placeholder.toLowerCase())) {
+    console.error(`[segempat-api] ${name} ainda contém valor de exemplo/placeholder; configure um secret real em produção`);
+    process.exit(1);
+  }
+}
+
 function allowedOrigins() {
   const origins = String(process.env["SEGEMPAT_ALLOWED_ORIGINS"] || "")
     .split(",")
@@ -85,6 +94,11 @@ if (Buffer.byteLength(sessionSecret, "utf8") < 32) {
   console.error("[segempat-api] SEGEMPAT_SESSION_SECRET deve possuir pelo menos 32 bytes");
   process.exit(1);
 }
+rejectProductionPlaceholder("SEGEMPAT_SESSION_SECRET", sessionSecret, [
+  "CHANGE_ME_TO_A_LONG_RANDOM_SECRET_32_BYTES_MINIMUM",
+  "CHANGE_ME",
+]);
+rejectProductionPlaceholder("MYSQL_PASSWORD", process.env["MYSQL_PASSWORD"], ["CHANGE_ME"]);
 
 const sessionCookieName = String(process.env["SEGEMPAT_SESSION_COOKIE"] || "segempat_session").trim();
 if (!/^[A-Za-z0-9_.-]{1,80}$/.test(sessionCookieName)) {
