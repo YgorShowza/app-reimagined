@@ -51,6 +51,12 @@ function timezoneValue() {
   return value;
 }
 
+const nodeEnv = String(process.env["NODE_ENV"] || "production").trim().toLowerCase();
+if (!["production", "development", "test"].includes(nodeEnv)) {
+  console.error("[segempat-api] NODE_ENV inválido: use production, development ou test");
+  process.exit(1);
+}
+
 function allowedOrigins() {
   const origins = String(process.env["SEGEMPAT_ALLOWED_ORIGINS"] || "")
     .split(",")
@@ -65,18 +71,13 @@ function allowedOrigins() {
     try {
       const parsed = new URL(origin);
       if (!/^https?:$/.test(parsed.protocol) || parsed.origin !== origin.replace(/\/$/, "")) throw new Error("invalid origin");
+      if (nodeEnv === "production" && parsed.protocol !== "https:") throw new Error("production requires https");
     } catch {
-      console.error(`[segempat-api] Origem CORS inválida: ${origin}`);
+      console.error(`[segempat-api] Origem CORS inválida${nodeEnv === "production" ? " ou sem HTTPS em produção" : ""}: ${origin}`);
       process.exit(1);
     }
   }
   return origins.map((origin) => origin.replace(/\/$/, ""));
-}
-
-const nodeEnv = String(process.env["NODE_ENV"] || "production").trim().toLowerCase();
-if (!["production", "development", "test"].includes(nodeEnv)) {
-  console.error("[segempat-api] NODE_ENV inválido: use production, development ou test");
-  process.exit(1);
 }
 
 const sessionSecret = String(process.env["SEGEMPAT_SESSION_SECRET"] || "");
@@ -95,6 +96,10 @@ const secureSession = booleanValue("SEGEMPAT_SESSION_SECURE", true);
 const sessionSameSite = sameSiteValue();
 if (sessionSameSite === "none" && !secureSession) {
   console.error("[segempat-api] SameSite=None exige SEGEMPAT_SESSION_SECURE=true");
+  process.exit(1);
+}
+if (nodeEnv === "production" && !secureSession) {
+  console.error("[segempat-api] SEGEMPAT_SESSION_SECURE deve ser true em produção");
   process.exit(1);
 }
 
