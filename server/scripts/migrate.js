@@ -21,6 +21,10 @@ function migrationVersion(fileName) {
   return match ? match[1] : null;
 }
 
+function numericVersion(version) {
+  return BigInt(version);
+}
+
 function checksum(content) {
   return crypto.createHash("sha256").update(content, "utf8").digest("hex");
 }
@@ -71,21 +75,34 @@ async function detectPreRunnerBaseline(connection) {
 }
 
 async function loadMigrationFiles() {
-  const names = (await fs.readdir(migrationsDir))
-    .filter((name) => migrationVersion(name))
-    .sort((a, b) => a.localeCompare(b, "en"));
+  const parsed = (await fs.readdir(migrationsDir))
+    .map((fileName) => ({ fileName, version: migrationVersion(fileName) }))
+    .filter((entry) => entry.version)
+    .map((entry) => ({ ...entry, numeric: numericVersion(entry.version) }))
+    .sort((a, b) => a.numeric < b.numeric ? -1 : a.numeric > b.numeric ? 1 : a.fileName.localeCompare(b.fileName, "en"));
 
-  const versions = new Set();
+  const rawVersions = new Set();
+  const numericVersions = new Map();
   const migrations = [];
-  for (const fileName of names) {
-    const version = migrationVersion(fileName);
-    if (versions.has(version)) throw new Error(`Versão de migration duplicada: ${version}`);
-    versions.add(version);
+  for (const { fileName, version, numeric } of parsed) {
+    if (rawVersions.has(version)) throw new Error(`Versão de migration duplicada: ${version}`);
+    rawVersions.add(version);
+
+    const numericKey = numeric.toString();
+    const existingNumeric = numericVersions.get(numericKey);
+    if (existingNumeric) {
+      throw new Error(
+        `Versões de migration numericamente duplicadas: ${existingNumeric.version} (${existingNumeric.fileName}) e ${version} (${fileName})`,
+      );
+    }
+    numericVersions.set(numericKey, { version, fileName });
+
     const filePath = path.join(migrationsDir, fileName);
     const sql = await fs.readFile(filePath, "utf8");
-    migrations.push({ version, fileName, sql, checksum: checksum(sql) });
+    migrations.push({ version, numeric, fileName, sql, checksum: checksum(sql) });
   }
   if (!migrations.length) throw new Error("Nenhuma migration MySQL encontrada em database/mysql");
+  if (migrations[0].numeric !== 1n) throw new Error(`A primeira migration MySQL deve ser a versão 001; encontrada ${migrations[0].version}`);
   return migrations;
 }
 
@@ -109,13 +126,13 @@ async function main() {
 
     const migrations = await loadMigrationFiles();
     const [appliedRows] = await connection.query(
-      `SELECT version, file_name, checksum_sha256 FROM schema_migrations ORDER BY version ASC`,
+      `SELECT version, file_name, checksum_sha256 FROM schema_migrations ORDER BY CAST(version AS UNSIGNED) ASC, version ASC`,
     );
     const applied = new Map(appliedRows.map((row) => [String(row.version), row]));
 
     // Compatibilidade com instalações que receberam o 001_schema.sql antes do runner versionado.
     // Só registra o baseline automaticamente quando um conjunto representativo do schema 001 está completo.
-    if (applied.size === 0 && migrations[0]?.version === "001") {
+    if (applied.size === 0 && migrations[0]?.numeric === 1n) {
       const baselineState = await detectPreRunnerBaseline(connection);
       if (baselineState.state === "partial") {
         throw new Error(
