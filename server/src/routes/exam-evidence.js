@@ -30,10 +30,12 @@ examEvidenceRouter.get(
       `SELECT a.id, a.exam_id, a.user_id, a.matricula, a.score, a.passed, a.certificate_code,
               a.signature_path, a.signature_name, a.signature_agreed, a.signed_at, a.finished_at, a.created_at,
               e.title AS exam_title, e.exam_type,
+              c.id AS certificate_id, c.verification_code, c.revoked, c.revoked_at, c.revoked_reason,
               COALESCE(emp.full_name, a.signature_name, a.matricula, 'Colaborador') AS employee_name,
               COALESCE(emp.sector, '—') AS employee_sector
          FROM exam_attempts a
          JOIN exams e ON e.id = a.exam_id
+         LEFT JOIN certificates c ON c.attempt_id = a.id
          LEFT JOIN employees emp ON LOWER(TRIM(emp.matricula)) = LOWER(TRIM(a.matricula))
          ${where}
         ORDER BY a.finished_at DESC`,
@@ -45,7 +47,16 @@ examEvidenceRouter.get(
         score: Number(row.score ?? 0),
         passed: asBool(row.passed),
         signature_agreed: asBool(row.signature_agreed),
-        formally_issued: Boolean(asBool(row.passed) && row.certificate_code && asBool(row.signature_agreed) && row.signature_path && row.signed_at),
+        certificate_revoked: asBool(row.revoked),
+        formally_issued: Boolean(
+          asBool(row.passed)
+          && row.certificate_code
+          && asBool(row.signature_agreed)
+          && row.signature_path
+          && row.signed_at
+          && row.certificate_id
+          && row.verification_code === row.certificate_code
+        ),
       })),
     );
   }),
@@ -62,9 +73,15 @@ examEvidenceRouter.get(
     }
 
     const evidence = await queryOne(
-      `SELECT id, signature_path, signature_agreed, signed_at
-         FROM exam_attempts
-        WHERE signature_path = ?
+      `SELECT a.id, a.signature_path, a.signature_agreed, a.signed_at
+         FROM exam_attempts a
+         JOIN certificates c ON c.attempt_id = a.id
+        WHERE a.signature_path = ?
+          AND a.passed = 1
+          AND a.signature_agreed = 1
+          AND a.signed_at IS NOT NULL
+          AND a.certificate_code IS NOT NULL
+          AND c.verification_code = a.certificate_code
         LIMIT 1`,
       [requested],
     );
