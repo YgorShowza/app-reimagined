@@ -2,9 +2,9 @@ import path from "node:path";
 
 const required = ["MYSQL_HOST", "MYSQL_DATABASE", "MYSQL_USER", "MYSQL_PASSWORD", "SEGEMPAT_SESSION_SECRET"];
 
-const missing = required.filter((key) => !process.env[key]);
+const missing = required.filter((key) => String(process.env[key] ?? "").trim() === "");
 if (missing.length > 0) {
-  console.error(`[segempat-api] Variáveis de ambiente obrigatórias ausentes: ${missing.join(", ")}`);
+  console.error(`[segempat-api] Variáveis de ambiente obrigatórias ausentes ou vazias: ${missing.join(", ")}`);
   process.exit(1);
 }
 
@@ -89,6 +89,22 @@ function allowedOrigins() {
   return origins.map((origin) => origin.replace(/\/$/, ""));
 }
 
+const mysqlHost = String(process.env["MYSQL_HOST"]).trim();
+const mysqlDatabase = String(process.env["MYSQL_DATABASE"]).trim();
+const mysqlUser = String(process.env["MYSQL_USER"]).trim();
+const mysqlPassword = String(process.env["MYSQL_PASSWORD"]);
+const mysqlSsl = booleanValue("MYSQL_SSL", false);
+const mysqlCaPath = String(process.env["MYSQL_SSL_CA_PATH"] || "").trim() || null;
+
+if (mysqlCaPath && !mysqlSsl) {
+  console.error("[segempat-api] MYSQL_SSL_CA_PATH foi informado, mas MYSQL_SSL=false");
+  process.exit(1);
+}
+if (nodeEnv === "production" && mysqlCaPath && !path.isAbsolute(mysqlCaPath)) {
+  console.error("[segempat-api] MYSQL_SSL_CA_PATH deve ser absoluto em produção");
+  process.exit(1);
+}
+
 const sessionSecret = String(process.env["SEGEMPAT_SESSION_SECRET"] || "");
 if (Buffer.byteLength(sessionSecret, "utf8") < 32) {
   console.error("[segempat-api] SEGEMPAT_SESSION_SECRET deve possuir pelo menos 32 bytes");
@@ -98,7 +114,7 @@ rejectProductionPlaceholder("SEGEMPAT_SESSION_SECRET", sessionSecret, [
   "CHANGE_ME_TO_A_LONG_RANDOM_SECRET_32_BYTES_MINIMUM",
   "CHANGE_ME",
 ]);
-rejectProductionPlaceholder("MYSQL_PASSWORD", process.env["MYSQL_PASSWORD"], ["CHANGE_ME"]);
+rejectProductionPlaceholder("MYSQL_PASSWORD", mysqlPassword, ["CHANGE_ME"]);
 
 const sessionCookieName = String(process.env["SEGEMPAT_SESSION_COOKIE"] || "segempat_session").trim();
 if (!/^[A-Za-z0-9_.-]{1,80}$/.test(sessionCookieName)) {
@@ -143,13 +159,13 @@ export const config = {
   port: positiveInteger("PORT", 8787, { min: 1, max: 65535 }),
   nodeEnv,
   db: {
-    host: process.env["MYSQL_HOST"],
+    host: mysqlHost,
     port: positiveInteger("MYSQL_PORT", 3306, { min: 1, max: 65535 }),
-    database: process.env["MYSQL_DATABASE"],
-    user: process.env["MYSQL_USER"],
-    password: process.env["MYSQL_PASSWORD"],
-    ssl: booleanValue("MYSQL_SSL", false),
-    caPath: process.env["MYSQL_SSL_CA_PATH"] || null,
+    database: mysqlDatabase,
+    user: mysqlUser,
+    password: mysqlPassword,
+    ssl: mysqlSsl,
+    caPath: mysqlCaPath,
     poolSize: positiveInteger("MYSQL_POOL_SIZE", 10, { min: 1, max: 100 }),
   },
   session: {
