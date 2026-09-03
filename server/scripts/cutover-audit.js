@@ -5,6 +5,7 @@ import { pool, query, queryOne } from "../src/db.js";
 
 const failures = [];
 const warnings = [];
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 function fail(message) {
   failures.push(message);
@@ -143,6 +144,7 @@ async function checkStoredSignatureFiles() {
   let missing = 0;
   let invalidPath = 0;
   let invalidPng = 0;
+  let invalidSize = 0;
   for (const row of rows) {
     const relativePath = String(row.signature_path || "").trim();
     const absolutePath = path.resolve(storageRoot, relativePath);
@@ -151,13 +153,16 @@ async function checkStoredSignatureFiles() {
       continue;
     }
     try {
+      const stat = await fs.stat(absolutePath);
+      if (!stat.isFile() || stat.size < 100 || stat.size > 1_500_000) {
+        invalidSize += 1;
+        continue;
+      }
       const handle = await fs.open(absolutePath, "r");
       try {
-        const header = Buffer.alloc(8);
-        const { bytesRead } = await handle.read(header, 0, 8, 0);
-        if (bytesRead < 8 || header[0] !== 0x89 || header[1] !== 0x50 || header[2] !== 0x4e || header[3] !== 0x47) {
-          invalidPng += 1;
-        }
+        const header = Buffer.alloc(PNG_SIGNATURE.length);
+        const { bytesRead } = await handle.read(header, 0, header.length, 0);
+        if (bytesRead !== PNG_SIGNATURE.length || !header.equals(PNG_SIGNATURE)) invalidPng += 1;
       } finally {
         await handle.close();
       }
@@ -169,7 +174,8 @@ async function checkStoredSignatureFiles() {
 
   if (invalidPath > 0) fail(`${invalidPath} assinatura(s) possuem caminho inválido fora do storage configurado`);
   if (missing > 0) fail(`${missing} arquivo(s) de assinatura registrados no MySQL não existem no storage`);
-  if (invalidPng > 0) fail(`${invalidPng} arquivo(s) de assinatura registrados não possuem cabeçalho PNG válido`);
+  if (invalidSize > 0) fail(`${invalidSize} arquivo(s) de assinatura possuem tamanho inválido ou não são arquivos regulares`);
+  if (invalidPng > 0) fail(`${invalidPng} arquivo(s) de assinatura registrados não possuem assinatura PNG completa`);
   console.log(`[cutover] evidências assinaturas_registradas=${rows.length}`);
 }
 
@@ -182,7 +188,13 @@ async function checkExamEvidence() {
          OR a.signature_agreed <> 1
          OR a.signed_at IS NULL
          OR a.signature_path IS NULL
-         OR c.verification_code <> a.certificate_code`,
+         OR a.signature_name IS NULL
+         OR a.certificate_code IS NULL
+         OR c.verification_code <> a.certificate_code
+         OR c.user_id <> a.user_id
+         OR c.exam_id <> a.exam_id
+         OR COALESCE(c.matricula, '') <> COALESCE(a.matricula, '')
+         OR c.score <> a.score`,
   );
   const signedWithoutCertificate = await scalar(
     `SELECT COUNT(*) AS total
@@ -192,6 +204,7 @@ async function checkExamEvidence() {
         AND a.signature_agreed = 1
         AND a.signed_at IS NOT NULL
         AND a.signature_path IS NOT NULL
+        AND a.signature_name IS NOT NULL
         AND a.certificate_code IS NOT NULL
         AND c.id IS NULL`,
   );
@@ -199,7 +212,7 @@ async function checkExamEvidence() {
     `SELECT COUNT(*) AS total
        FROM certificates
       WHERE (revoked = 1 AND revoked_at IS NULL)
-         OR (revoked = 0 AND revoked_at IS NOT NULL)`,
+         OR (revoked = 0 AND (revoked_at IS NOT NULL OR revoked_reason IS NOT NULL))`,
   );
 
   if (malformedCertificates > 0) fail(`${malformedCertificates} certificado(s) divergem da tentativa assinada/aprovada`);
