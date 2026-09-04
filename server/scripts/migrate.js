@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import mysql from "mysql2/promise";
 import { config } from "../src/config.js";
@@ -8,6 +9,12 @@ import { config } from "../src/config.js";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const migrationsDir = path.resolve(here, "../../database/mysql");
 const MIGRATION_LOCK_NAME = "segempat:migrations";
+const BASELINE_VALIDATORS = [
+  "check-existing-baseline-storage.js",
+  "check-existing-baseline-columns.js",
+  "check-existing-baseline-primary-keys.js",
+  "validate-existing-baseline.js",
+];
 const BASELINE_TABLES = [
   "app_users",
   "employees",
@@ -42,6 +49,23 @@ function numericVersion(version) {
 
 function checksum(content) {
   return crypto.createHash("sha256").update(content, "utf8").digest("hex");
+}
+
+function runLockedBaselineValidators() {
+  for (const fileName of BASELINE_VALIDATORS) {
+    const scriptPath = path.join(here, fileName);
+    console.log(`[segempat-api] revalidando baseline legado sob lock: ${fileName}`);
+    try {
+      execFileSync(process.execPath, [scriptPath], {
+        cwd: path.resolve(here, ".."),
+        env: process.env,
+        stdio: "inherit",
+      });
+    } catch (error) {
+      const status = Number.isInteger(error?.status) ? ` (exit ${error.status})` : "";
+      throw new Error(`Validação protegida do baseline legado falhou em ${fileName}${status}`);
+    }
+  }
 }
 
 async function migrationSslOptions() {
@@ -270,7 +294,8 @@ async function main() {
     const applied = new Map(appliedRows.map((row) => [String(row.version), row]));
 
     // Compatibilidade com instalações que receberam o 001_schema.sql antes do runner versionado.
-    // O baseline só é registrado automaticamente quando todas as tabelas do schema 001 estão presentes.
+    // A validação estrutural é repetida enquanto o lock de migrations está mantido, evitando que
+    // dois runners concorrentes validem e registrem o baseline em estados diferentes.
     if (applied.size === 0 && migrations[0]?.numeric === 1n) {
       const baselineState = await detectPreRunnerBaseline(connection);
       if (baselineState.state === "partial") {
@@ -280,6 +305,7 @@ async function main() {
         );
       }
       if (baselineState.state === "complete") {
+        runLockedBaselineValidators();
         const baseline = migrations[0];
         await connection.execute(
           `INSERT INTO schema_migrations (version, file_name, checksum_sha256, applied_at)
@@ -291,7 +317,7 @@ async function main() {
           file_name: baseline.fileName,
           checksum_sha256: baseline.checksum,
         });
-        console.log(`[segempat-api] baseline existente validado e registrado: ${baseline.fileName}`);
+        console.log(`[segempat-api] baseline existente validado sob lock e registrado: ${baseline.fileName}`);
       }
     }
 
