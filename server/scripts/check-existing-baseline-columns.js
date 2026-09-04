@@ -269,6 +269,12 @@ async function main() {
         continue;
       }
 
+      const expectedNames = new Set(expectedColumns.map(({ name }) => name));
+      const unexpectedColumns = [...actualColumns.keys()].filter((name) => !expectedNames.has(name));
+      if (unexpectedColumns.length > 0) {
+        problems.push(`${tableName}: colunas inesperadas [${unexpectedColumns.join(", ")}]`);
+      }
+
       for (const expected of expectedColumns) {
         const actual = actualColumns.get(expected.name);
         if (!actual) {
@@ -288,7 +294,7 @@ async function main() {
 
     console.log(
       `[segempat-api] definições de colunas do baseline legado OK; ${expectedByTable.size} tabelas e ` +
-      `${expectedColumnCount} colunas compatíveis`,
+      `${expectedColumnCount} colunas exatas`,
     );
   } finally {
     await connection.end();
