@@ -6,6 +6,9 @@ import { config } from "../src/config.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const baselinePath = path.resolve(here, "../../database/mysql/001_schema.sql");
+const BASELINE_CHARACTER_SET = "utf8mb4";
+const BASELINE_COLLATION = "utf8mb4_unicode_ci";
+const TEXTUAL_TYPES = new Set(["char", "varchar", "tinytext", "text", "mediumtext", "longtext"]);
 
 function splitTopLevelDefinitions(body) {
   const parts = [];
@@ -59,6 +62,10 @@ function normalizeColumnType(value) {
     .toLowerCase();
 }
 
+function baseColumnType(columnType) {
+  return String(columnType || "").split("(", 1)[0].toLowerCase();
+}
+
 function normalizeDefault(value) {
   if (value == null) return null;
   return String(value)
@@ -76,6 +83,7 @@ function parseExpectedColumn(tableName, definition) {
 
   const name = columnMatch[1] || columnMatch[2];
   const columnType = normalizeColumnType(columnMatch[3]);
+  const textual = TEXTUAL_TYPES.has(baseColumnType(columnType));
   const remainder = String(columnMatch[4] || "");
   const generated = /\bGENERATED\s+ALWAYS\s+AS\s*\(/i.test(remainder);
   const storedGenerated = generated && /\bSTORED\b/i.test(remainder);
@@ -95,6 +103,8 @@ function parseExpectedColumn(tableName, definition) {
     generated,
     storedGenerated,
     onUpdate,
+    characterSet: textual ? BASELINE_CHARACTER_SET : null,
+    collation: textual ? BASELINE_COLLATION : null,
   };
 }
 
@@ -138,6 +148,8 @@ function describeActual(row) {
     defaultValue: normalizeDefault(row.column_default),
     extra: String(row.extra || "").toLowerCase(),
     generationExpression: String(row.generation_expression || "").trim(),
+    characterSet: row.character_set_name == null ? null : String(row.character_set_name).toLowerCase(),
+    collation: row.collation_name == null ? null : String(row.collation_name).toLowerCase(),
   };
 }
 
@@ -149,6 +161,17 @@ function validateColumnDefinition(tableName, expected, actual, problems) {
   }
   if (!expected.generated && actual.nullable !== expected.nullable) {
     problems.push(`${label}: nullable=${actual.nullable ? "YES" : "NO"}; esperado ${expected.nullable ? "YES" : "NO"}`);
+  }
+
+  if (actual.characterSet !== expected.characterSet) {
+    problems.push(
+      `${label}: charset=${actual.characterSet ?? "ausente"}; esperado ${expected.characterSet ?? "ausente"}`,
+    );
+  }
+  if (actual.collation !== expected.collation) {
+    problems.push(
+      `${label}: collation=${actual.collation ?? "ausente"}; esperado ${expected.collation ?? "ausente"}`,
+    );
   }
 
   const actualGenerated = actual.extra.includes("generated") || Boolean(actual.generationExpression);
@@ -238,7 +261,9 @@ async function main() {
               is_nullable,
               column_default,
               extra,
-              generation_expression
+              generation_expression,
+              character_set_name,
+              collation_name
          FROM information_schema.columns
         WHERE table_schema = DATABASE()
           AND table_name IN (${placeholders})
@@ -294,7 +319,7 @@ async function main() {
 
     console.log(
       `[segempat-api] definições de colunas do baseline legado OK; ${expectedByTable.size} tabelas e ` +
-      `${expectedColumnCount} colunas exatas`,
+      `${expectedColumnCount} colunas exatas, inclusive charset/collation`,
     );
   } finally {
     await connection.end();
