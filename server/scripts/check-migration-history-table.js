@@ -2,11 +2,12 @@ import fs from "node:fs/promises";
 import mysql from "mysql2/promise";
 import { config } from "../src/config.js";
 
+const EXPECTED_TABLE_COLLATION = "utf8mb4_unicode_ci";
 const EXPECTED_COLUMNS = new Map([
-  ["version", { dataType: "varchar", maxLength: 32, nullable: false }],
-  ["file_name", { dataType: "varchar", maxLength: 255, nullable: false }],
-  ["checksum_sha256", { dataType: "char", maxLength: 64, nullable: false }],
-  ["applied_at", { dataType: "datetime", precision: 3, nullable: false }],
+  ["version", { dataType: "varchar", maxLength: 32, nullable: false, characterSet: "utf8mb4", collation: EXPECTED_TABLE_COLLATION }],
+  ["file_name", { dataType: "varchar", maxLength: 255, nullable: false, characterSet: "utf8mb4", collation: EXPECTED_TABLE_COLLATION }],
+  ["checksum_sha256", { dataType: "char", maxLength: 64, nullable: false, characterSet: "utf8mb4", collation: EXPECTED_TABLE_COLLATION }],
+  ["applied_at", { dataType: "datetime", precision: 3, nullable: false, defaultValue: "current_timestamp(3)" }],
 ]);
 
 async function sslOptions() {
@@ -16,9 +17,19 @@ async function sslOptions() {
   return { ca, rejectUnauthorized: true };
 }
 
+function normalizeDefault(value) {
+  if (value == null) return null;
+  return String(value).trim().replace(/\s+/g, "").toLowerCase();
+}
+
 function validateColumns(rows) {
   const byName = new Map(rows.map((row) => [String(row.column_name), row]));
   const problems = [];
+
+  const unexpectedColumns = [...byName.keys()].filter((columnName) => !EXPECTED_COLUMNS.has(columnName));
+  if (unexpectedColumns.length > 0) {
+    problems.push(`colunas inesperadas [${unexpectedColumns.join(", ")}]`);
+  }
 
   for (const [columnName, expected] of EXPECTED_COLUMNS) {
     const actual = byName.get(columnName);
@@ -47,6 +58,43 @@ function validateColumns(rows) {
     const nullable = String(actual.is_nullable || "").toUpperCase() === "YES";
     if (nullable !== expected.nullable) {
       problems.push(`${columnName}: nullable=${nullable}; esperado ${expected.nullable}`);
+    }
+
+    if (expected.characterSet != null) {
+      const characterSet = String(actual.character_set_name || "").toLowerCase();
+      if (characterSet !== expected.characterSet) {
+        problems.push(
+          `${columnName}: charset=${characterSet || "desconhecido"}; esperado ${expected.characterSet}`,
+        );
+      }
+    }
+
+    if (expected.collation != null) {
+      const collation = String(actual.collation_name || "").toLowerCase();
+      if (collation !== expected.collation) {
+        problems.push(
+          `${columnName}: collation=${collation || "desconhecida"}; esperado ${expected.collation}`,
+        );
+      }
+    }
+
+    if (Object.hasOwn(expected, "defaultValue")) {
+      const actualDefault = normalizeDefault(actual.column_default);
+      if (actualDefault !== expected.defaultValue) {
+        problems.push(
+          `${columnName}: default=${actualDefault ?? "NULL"}; esperado ${expected.defaultValue}`,
+        );
+      }
+    } else if (actual.column_default !== null) {
+      problems.push(`${columnName}: possui default inesperado ${actual.column_default}`);
+    }
+
+    const extra = String(actual.extra || "").toLowerCase();
+    if (/\bon update\b/i.test(extra)) {
+      problems.push(`${columnName}: possui ON UPDATE inesperado`);
+    }
+    if (extra.includes("generated") && !extra.includes("default_generated")) {
+      problems.push(`${columnName}: possui atributo GENERATED inesperado (${actual.extra})`);
     }
   }
 
@@ -122,9 +170,10 @@ async function main() {
     if (String(table.engine || "").toUpperCase() !== "INNODB") {
       throw new Error(`schema_migrations exige InnoDB; detectado ${table.engine || "desconhecido"}`);
     }
-    if (!String(table.table_collation || "").toLowerCase().startsWith("utf8mb4")) {
+    const tableCollation = String(table.table_collation || "").toLowerCase();
+    if (tableCollation !== EXPECTED_TABLE_COLLATION) {
       throw new Error(
-        `schema_migrations exige collation utf8mb4; detectado ${table.table_collation || "desconhecida"}`,
+        `schema_migrations exige collation ${EXPECTED_TABLE_COLLATION}; detectado ${table.table_collation || "desconhecida"}`,
       );
     }
 
@@ -133,10 +182,15 @@ async function main() {
               data_type,
               character_maximum_length,
               datetime_precision,
-              is_nullable
+              is_nullable,
+              column_default,
+              character_set_name,
+              collation_name,
+              extra
          FROM information_schema.columns
         WHERE table_schema = DATABASE()
-          AND table_name = 'schema_migrations'`,
+          AND table_name = 'schema_migrations'
+        ORDER BY ordinal_position`,
     );
     validateColumns(columnRows);
 
@@ -151,7 +205,9 @@ async function main() {
     validateIndex(indexes, "PRIMARY", ["version"]);
     validateIndex(indexes, "schema_migrations_file_name_key", ["file_name"]);
 
-    console.log("[segempat-api] schema_migrations validada: storage, colunas, PK e índice UNIQUE corretos");
+    console.log(
+      "[segempat-api] schema_migrations validada: storage, colunas exatas, defaults, charset/collation, PK e índice UNIQUE corretos",
+    );
   } finally {
     await connection.end();
   }
