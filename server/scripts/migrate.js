@@ -16,6 +16,7 @@ const LOCKED_VALIDATORS = [
   "check-existing-baseline-primary-keys.js",
   "check-existing-baseline-check-constraints.js",
   "validate-existing-baseline.js",
+  "check-existing-baseline-orphans.js",
 ];
 const BASELINE_TABLES = [
   "app_users",
