@@ -7,13 +7,24 @@ import { config } from "../src/config.js";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const baselinePath = path.resolve(here, "../../database/mysql/001_schema.sql");
 
-function extractBaselineTableNames(sql) {
-  const names = [];
-  for (const match of sql.matchAll(/\bCREATE\s+TABLE\s+([A-Za-z0-9_]+)/gi)) {
-    const name = String(match[1]);
-    if (name !== "schema_migrations") names.push(name);
+function extractBaselineStorage(sql) {
+  const tables = new Map();
+  const pattern = /\bCREATE\s+TABLE\s+([A-Za-z0-9_]+)\s*\([\s\S]*?\)\s*ENGINE\s*=\s*([A-Za-z0-9_]+)\s+DEFAULT\s+CHARSET\s*=\s*([A-Za-z0-9_]+)\s+COLLATE\s*=\s*([A-Za-z0-9_]+)\s*;/gi;
+
+  for (const match of sql.matchAll(pattern)) {
+    const tableName = String(match[1]);
+    if (tableName === "schema_migrations") continue;
+    if (tables.has(tableName)) {
+      throw new Error(`Tabela duplicada no baseline ao extrair storage: ${tableName}`);
+    }
+    tables.set(tableName, {
+      engine: String(match[2]),
+      charset: String(match[3]),
+      collation: String(match[4]),
+    });
   }
-  return [...new Set(names)];
+
+  return tables;
 }
 
 async function sslOptions() {
@@ -37,9 +48,10 @@ async function tableExists(connection, tableName) {
 
 async function main() {
   const sql = await fs.readFile(baselinePath, "utf8");
-  const baselineTables = extractBaselineTableNames(sql);
+  const expectedByTable = extractBaselineStorage(sql);
+  const baselineTables = [...expectedByTable.keys()];
   if (baselineTables.length === 0) {
-    throw new Error("Não foi possível extrair as tabelas do baseline 001_schema.sql");
+    throw new Error("Não foi possível extrair as configurações de storage do baseline 001_schema.sql");
   }
 
   const connection = await mysql.createConnection({
@@ -64,11 +76,16 @@ async function main() {
 
     const placeholders = baselineTables.map(() => "?").join(",");
     const [rows] = await connection.execute(
-      `SELECT table_name, engine, table_collation
-         FROM information_schema.tables
-        WHERE table_schema = DATABASE()
-          AND table_name IN (${placeholders})
-        ORDER BY table_name`,
+      `SELECT t.table_name,
+              t.engine,
+              t.table_collation,
+              c.character_set_name
+         FROM information_schema.tables AS t
+         LEFT JOIN information_schema.collation_character_set_applicability AS c
+           ON c.collation_name = t.table_collation
+        WHERE t.table_schema = DATABASE()
+          AND t.table_name IN (${placeholders})
+        ORDER BY t.table_name`,
       baselineTables,
     );
 
@@ -89,26 +106,39 @@ async function main() {
     const problems = [];
     for (const row of rows) {
       const tableName = String(row.table_name);
+      const expected = expectedByTable.get(tableName);
+      if (!expected) {
+        problems.push(`${tableName}: tabela não mapeada no baseline`);
+        continue;
+      }
+
       const engine = String(row.engine || "");
       const collation = String(row.table_collation || "");
+      const charset = String(row.character_set_name || "");
 
-      if (engine.toUpperCase() !== "INNODB") {
-        problems.push(`${tableName}: engine=${engine || "desconhecido"}; esperado InnoDB`);
+      if (engine.toLowerCase() !== expected.engine.toLowerCase()) {
+        problems.push(`${tableName}: engine=${engine || "desconhecido"}; esperado ${expected.engine}`);
       }
-      if (!collation.toLowerCase().startsWith("utf8mb4")) {
-        problems.push(`${tableName}: collation=${collation || "desconhecida"}; esperado utf8mb4`);
+      if (charset.toLowerCase() !== expected.charset.toLowerCase()) {
+        problems.push(`${tableName}: charset=${charset || "desconhecido"}; esperado ${expected.charset}`);
+      }
+      if (collation.toLowerCase() !== expected.collation.toLowerCase()) {
+        problems.push(`${tableName}: collation=${collation || "desconhecida"}; esperado ${expected.collation}`);
       }
     }
 
     if (problems.length > 0) {
       throw new Error(
-        `Baseline MySQL legado possui configuração de storage incompatível: ${problems.join("; ")}. ` +
+        `Baseline MySQL legado possui configuração de storage divergente do 001_schema.sql: ${problems.join("; ")}. ` +
         "O runner não deve registrar 001_schema.sql automaticamente nesse estado.",
       );
     }
 
+    const settings = [...new Set(
+      [...expectedByTable.values()].map(({ engine, charset, collation }) => `${engine}/${charset}/${collation}`),
+    )];
     console.log(
-      `[segempat-api] storage do baseline legado OK; ${baselineTables.length} tabelas em InnoDB e utf8mb4`,
+      `[segempat-api] storage do baseline legado OK; ${baselineTables.length} tabelas com configuração exata: ${settings.join(", ")}`,
     );
   } finally {
     await connection.end();
