@@ -16,11 +16,145 @@ function extractBaselineTableNames(sql) {
   return [...new Set(names)];
 }
 
+function splitIdentifiers(value) {
+  return String(value)
+    .split(",")
+    .map((item) => item.trim().replace(/^`|`$/g, ""))
+    .filter(Boolean);
+}
+
+function extractRule(definition, rule) {
+  const match = new RegExp(`\\bON\\s+${rule}\\s+(CASCADE|SET\\s+NULL|RESTRICT|NO\\s+ACTION)\\b`, "i").exec(definition);
+  return match ? match[1].replace(/\s+/g, " ").toUpperCase() : "RESTRICT";
+}
+
 function extractBaselineForeignKeys(sql) {
-  return [...new Set(
-    [...sql.matchAll(/\bCONSTRAINT\s+([A-Za-z0-9_]+)\s+FOREIGN\s+KEY\b/gi)]
-      .map((match) => String(match[1])),
-  )];
+  const foreignKeys = [];
+  const tablePattern = /\bCREATE\s+TABLE\s+([A-Za-z0-9_]+)\s*\(([\s\S]*?)\)\s*ENGINE\s*=/gi;
+
+  for (const tableMatch of sql.matchAll(tablePattern)) {
+    const tableName = String(tableMatch[1]);
+    const body = String(tableMatch[2]);
+    const constraintPattern = /\bCONSTRAINT\s+([A-Za-z0-9_]+)\s+FOREIGN\s+KEY\s*\(([^)]+)\)\s+REFERENCES\s+([A-Za-z0-9_]+)\s*\(([^)]+)\)([^,\n]*)/gi;
+
+    for (const match of body.matchAll(constraintPattern)) {
+      const columns = splitIdentifiers(match[2]);
+      const referencedColumns = splitIdentifiers(match[4]);
+      if (columns.length === 0 || columns.length !== referencedColumns.length) {
+        throw new Error(`Foreign key ${match[1]} do baseline possui definição de colunas inválida`);
+      }
+
+      foreignKeys.push({
+        constraintName: String(match[1]),
+        tableName,
+        referencedTableName: String(match[3]),
+        columns: columns.map((columnName, index) => ({
+          columnName,
+          referencedColumnName: referencedColumns[index],
+        })),
+        deleteRule: extractRule(match[5], "DELETE"),
+        updateRule: extractRule(match[5], "UPDATE"),
+      });
+    }
+  }
+
+  const byName = new Map();
+  for (const foreignKey of foreignKeys) {
+    if (byName.has(foreignKey.constraintName)) {
+      throw new Error(`Foreign key duplicada no baseline: ${foreignKey.constraintName}`);
+    }
+    byName.set(foreignKey.constraintName, foreignKey);
+  }
+  return [...byName.values()];
+}
+
+function groupActualForeignKeys(rows) {
+  const grouped = new Map();
+  for (const row of rows) {
+    const name = String(row.constraint_name);
+    if (!grouped.has(name)) {
+      grouped.set(name, {
+        constraintName: name,
+        tableName: String(row.table_name),
+        referencedTableName: String(row.referenced_table_name),
+        deleteRule: String(row.delete_rule || "").toUpperCase(),
+        updateRule: String(row.update_rule || "").toUpperCase(),
+        columns: [],
+      });
+    }
+    grouped.get(name).columns.push({
+      columnName: String(row.column_name),
+      referencedColumnName: String(row.referenced_column_name),
+      ordinalPosition: Number(row.ordinal_position),
+    });
+  }
+
+  return new Map(
+    [...grouped.entries()].map(([name, foreignKey]) => [
+      name,
+      {
+        ...foreignKey,
+        columns: foreignKey.columns
+          .sort((a, b) => a.ordinalPosition - b.ordinalPosition)
+          .map(({ columnName, referencedColumnName }) => ({ columnName, referencedColumnName })),
+      },
+    ]),
+  );
+}
+
+function validateForeignKeyDefinitions(expectedForeignKeys, actualByName) {
+  const problems = [];
+
+  for (const expected of expectedForeignKeys) {
+    const actual = actualByName.get(expected.constraintName);
+    if (!actual) {
+      problems.push(`${expected.constraintName}: ausente`);
+      continue;
+    }
+
+    const sameColumns =
+      actual.columns.length === expected.columns.length &&
+      actual.columns.every((column, index) =>
+        column.columnName === expected.columns[index].columnName &&
+        column.referencedColumnName === expected.columns[index].referencedColumnName,
+      );
+
+    if (
+      actual.tableName !== expected.tableName ||
+      actual.referencedTableName !== expected.referencedTableName ||
+      !sameColumns
+    ) {
+      const actualColumns = actual.columns
+        .map(({ columnName, referencedColumnName }) => `${columnName}->${referencedColumnName}`)
+        .join(",");
+      const expectedColumns = expected.columns
+        .map(({ columnName, referencedColumnName }) => `${columnName}->${referencedColumnName}`)
+        .join(",");
+      problems.push(
+        `${expected.constraintName}: definição divergente ` +
+        `(${actual.tableName}[${actualColumns}] -> ${actual.referencedTableName}; ` +
+        `esperado ${expected.tableName}[${expectedColumns}] -> ${expected.referencedTableName})`,
+      );
+    }
+
+    if (actual.deleteRule !== expected.deleteRule) {
+      problems.push(
+        `${expected.constraintName}: ON DELETE ${actual.deleteRule || "desconhecido"}; esperado ${expected.deleteRule}`,
+      );
+    }
+    if (actual.updateRule !== expected.updateRule) {
+      problems.push(
+        `${expected.constraintName}: ON UPDATE ${actual.updateRule || "desconhecido"}; esperado ${expected.updateRule}`,
+      );
+    }
+  }
+
+  if (problems.length > 0) {
+    throw new Error(
+      `Baseline MySQL legado possui foreign keys divergentes do 001_schema.sql: ${problems.join("; ")}. ` +
+      "O runner não deve registrar o baseline automaticamente nesse estado.",
+    );
+  }
 }
 
 async function sslOptions() {
@@ -102,25 +236,34 @@ async function main() {
       );
     }
 
-    const foundForeignKeys = await existingNames(
-      connection,
-      `SELECT DISTINCT constraint_name AS name
-         FROM information_schema.key_column_usage
-        WHERE constraint_schema = DATABASE()
-          AND referenced_table_name IS NOT NULL
-          AND constraint_name IN (__NAMES__)`,
-      baselineForeignKeys,
+    const foreignKeyNames = baselineForeignKeys.map(({ constraintName }) => constraintName);
+    const placeholders = foreignKeyNames.map(() => "?").join(",");
+    const [foreignKeyRows] = await connection.execute(
+      `SELECT kcu.constraint_name,
+              kcu.table_name,
+              kcu.column_name,
+              kcu.referenced_table_name,
+              kcu.referenced_column_name,
+              kcu.ordinal_position,
+              rc.delete_rule,
+              rc.update_rule
+         FROM information_schema.key_column_usage AS kcu
+         JOIN information_schema.referential_constraints AS rc
+           ON rc.constraint_schema = kcu.constraint_schema
+          AND rc.constraint_name = kcu.constraint_name
+          AND rc.table_name = kcu.table_name
+        WHERE kcu.constraint_schema = DATABASE()
+          AND kcu.referenced_table_name IS NOT NULL
+          AND kcu.constraint_name IN (${placeholders})
+        ORDER BY kcu.constraint_name, kcu.ordinal_position`,
+      foreignKeyNames,
     );
-    const missingForeignKeys = baselineForeignKeys.filter((name) => !foundForeignKeys.has(name));
-    if (missingForeignKeys.length > 0) {
-      throw new Error(
-        `Baseline MySQL legado possui tabelas completas, mas foreign keys críticas ausentes: ${missingForeignKeys.join(", ")}. ` +
-        "O runner não deve registrar 001_schema.sql automaticamente nesse estado.",
-      );
-    }
+
+    validateForeignKeyDefinitions(baselineForeignKeys, groupActualForeignKeys(foreignKeyRows));
 
     console.log(
-      `[segempat-api] baseline legado pré-validado: ${baselineTables.length} tabelas e ${baselineForeignKeys.length} foreign keys presentes`,
+      `[segempat-api] baseline legado pré-validado: ${baselineTables.length} tabelas e ` +
+      `${baselineForeignKeys.length} foreign keys com definições e regras referenciais corretas`,
     );
   } finally {
     await connection.end();
