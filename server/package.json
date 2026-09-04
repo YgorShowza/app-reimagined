@@ -13,8 +13,8 @@
     "preflight": "node scripts/preflight.js",
     "migrate": "node scripts/validate-existing-baseline.js && node scripts/migrate.js",
     "bootstrap-admin": "node scripts/bootstrap-admin.js",
-    "smoke": "node scripts/smoke.js && node scripts/check-fk-orphans.js",
-    "cutover:audit": "node scripts/check-fk-orphans.js && node scripts/cutover-audit.js"
+    "smoke": "node scripts/smoke.js && node scripts/check-critical-index-definitions.js && node scripts/check-fk-orphans.js",
+    "cutover:audit": "node scripts/check-critical-index-definitions.js && node scripts/check-fk-orphans.js && node scripts/cutover-audit.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
