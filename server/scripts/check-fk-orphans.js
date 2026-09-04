@@ -38,6 +38,7 @@ const REQUIRED_FOREIGN_KEYS = [
   referencedTableName,
   referencedColumnName,
   deleteRule,
+  updateRule: "RESTRICT",
 }));
 
 function quoteIdentifier(value) {
@@ -54,6 +55,7 @@ function groupForeignKeys(rows) {
         tableName: String(row.table_name),
         referencedTableName: String(row.referenced_table_name),
         deleteRule: String(row.delete_rule || "").toUpperCase(),
+        updateRule: String(row.update_rule || "").toUpperCase(),
         columns: [],
       });
     }
@@ -103,6 +105,11 @@ function validateRequiredForeignKeys(foreignKeys) {
         `${expected.constraintName}: ON DELETE ${actual.deleteRule || "desconhecido"}; esperado ${expected.deleteRule}`,
       );
     }
+    if (actual.updateRule !== expected.updateRule) {
+      problems.push(
+        `${expected.constraintName}: ON UPDATE ${actual.updateRule || "desconhecido"}; esperado ${expected.updateRule}`,
+      );
+    }
   }
 
   if (problems.length > 0) {
@@ -121,7 +128,8 @@ async function main() {
               kcu.referenced_table_name,
               kcu.referenced_column_name,
               kcu.ordinal_position,
-              rc.delete_rule
+              rc.delete_rule,
+              rc.update_rule
          FROM information_schema.key_column_usage AS kcu
          JOIN information_schema.referential_constraints AS rc
            ON rc.constraint_schema = kcu.constraint_schema
@@ -176,7 +184,7 @@ async function main() {
 
     console.log(
       `[segempat-api] integridade referencial OK; ${foreignKeys.length} foreign key(s) auditada(s); ` +
-      `${REQUIRED_FOREIGN_KEYS.length} foreign key(s) crítica(s) com definição e ON DELETE corretos; nenhum registro órfão`,
+      `${REQUIRED_FOREIGN_KEYS.length} foreign key(s) crítica(s) com definição, ON DELETE e ON UPDATE corretos; nenhum registro órfão`,
     );
   } finally {
     await pool.end();
