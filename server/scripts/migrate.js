@@ -9,7 +9,8 @@ import { config } from "../src/config.js";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const migrationsDir = path.resolve(here, "../../database/mysql");
 const MIGRATION_LOCK_NAME = "segempat:migrations";
-const BASELINE_VALIDATORS = [
+const LOCKED_VALIDATORS = [
+  "check-migration-history-table.js",
   "check-existing-baseline-storage.js",
   "check-existing-baseline-columns.js",
   "check-existing-baseline-primary-keys.js",
@@ -51,10 +52,10 @@ function checksum(content) {
   return crypto.createHash("sha256").update(content, "utf8").digest("hex");
 }
 
-function runLockedBaselineValidators() {
-  for (const fileName of BASELINE_VALIDATORS) {
+function runLockedValidators() {
+  for (const fileName of LOCKED_VALIDATORS) {
     const scriptPath = path.join(here, fileName);
-    console.log(`[segempat-api] revalidando baseline legado sob lock: ${fileName}`);
+    console.log(`[segempat-api] validação MySQL sob lock: ${fileName}`);
     try {
       execFileSync(process.execPath, [scriptPath], {
         cwd: path.resolve(here, ".."),
@@ -63,7 +64,7 @@ function runLockedBaselineValidators() {
       });
     } catch (error) {
       const status = Number.isInteger(error?.status) ? ` (exit ${error.status})` : "";
-      throw new Error(`Validação protegida do baseline legado falhou em ${fileName}${status}`);
+      throw new Error(`Validação MySQL protegida por lock falhou em ${fileName}${status}`);
     }
   }
 }
@@ -286,6 +287,7 @@ async function main() {
     await acquireMigrationLock(connection);
     lockAcquired = true;
     await ensureMigrationTable(connection);
+    runLockedValidators();
 
     const migrations = await loadMigrationFiles();
     const [appliedRows] = await connection.query(
@@ -294,8 +296,8 @@ async function main() {
     const applied = new Map(appliedRows.map((row) => [String(row.version), row]));
 
     // Compatibilidade com instalações que receberam o 001_schema.sql antes do runner versionado.
-    // A validação estrutural é repetida enquanto o lock de migrations está mantido, evitando que
-    // dois runners concorrentes validem e registrem o baseline em estados diferentes.
+    // As validações estruturais são executadas enquanto o lock de migrations está mantido, evitando
+    // que dois runners concorrentes validem e registrem o baseline em estados diferentes.
     if (applied.size === 0 && migrations[0]?.numeric === 1n) {
       const baselineState = await detectPreRunnerBaseline(connection);
       if (baselineState.state === "partial") {
@@ -305,7 +307,6 @@ async function main() {
         );
       }
       if (baselineState.state === "complete") {
-        runLockedBaselineValidators();
         const baseline = migrations[0];
         await connection.execute(
           `INSERT INTO schema_migrations (version, file_name, checksum_sha256, applied_at)
