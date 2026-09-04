@@ -7,6 +7,18 @@ import { config } from "../src/config.js";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const baselinePath = path.resolve(here, "../../database/mysql/001_schema.sql");
 
+const REQUIRED_UNIQUE_INDEXES = [
+  ["app_users", "app_users_matricula_key", ["matricula"]],
+  ["employees", "employees_matricula_key", ["matricula"]],
+  ["profiles", "profiles_matricula_key", ["matricula"]],
+  ["user_roles", "user_roles_user_id_role_key", ["user_id", "role"]],
+  ["exam_attempts", "exam_attempts_certificate_code_uidx", ["certificate_code"]],
+  ["certificates", "certificates_attempt_id_key", ["attempt_id"]],
+  ["certificates", "certificates_verification_code_key", ["verification_code"]],
+  ["training_activity_attempts", "training_activity_daily_challenge_unique_idx", ["daily_challenge_guard"]],
+  ["training_schedules", "training_schedules_employee_id_key", ["employee_id"]],
+];
+
 function extractBaselineTableNames(sql) {
   const names = [];
   for (const match of sql.matchAll(/\bCREATE\s+TABLE\s+([A-Za-z0-9_]+)/gi)) {
@@ -157,6 +169,75 @@ function validateForeignKeyDefinitions(expectedForeignKeys, actualByName) {
   }
 }
 
+function groupActualIndexes(rows) {
+  const grouped = new Map();
+  for (const row of rows) {
+    const key = `${row.table_name}\u0000${row.index_name}`;
+    if (!grouped.has(key)) {
+      grouped.set(key, {
+        tableName: String(row.table_name),
+        indexName: String(row.index_name),
+        nonUnique: Number(row.non_unique),
+        columns: [],
+      });
+    }
+    grouped.get(key).columns.push({
+      columnName: String(row.column_name),
+      sequence: Number(row.seq_in_index),
+      prefixLength: row.sub_part == null ? null : Number(row.sub_part),
+    });
+  }
+
+  return new Map(
+    [...grouped.entries()].map(([key, index]) => [
+      key,
+      { ...index, columns: index.columns.sort((a, b) => a.sequence - b.sequence) },
+    ]),
+  );
+}
+
+function validateCriticalUniqueIndexes(actualByKey) {
+  const problems = [];
+
+  for (const [tableName, indexName, expectedColumns] of REQUIRED_UNIQUE_INDEXES) {
+    const actual = actualByKey.get(`${tableName}\u0000${indexName}`);
+    if (!actual) {
+      problems.push(`${tableName}.${indexName}: ausente`);
+      continue;
+    }
+    if (actual.nonUnique !== 0) {
+      problems.push(`${tableName}.${indexName}: não é UNIQUE`);
+    }
+
+    const actualColumns = actual.columns.map(({ columnName }) => columnName);
+    const exactColumns =
+      actualColumns.length === expectedColumns.length &&
+      actualColumns.every((columnName, index) => columnName === expectedColumns[index]);
+    if (!exactColumns) {
+      problems.push(
+        `${tableName}.${indexName}: colunas [${actualColumns.join(",")}] divergentes; ` +
+        `esperado [${expectedColumns.join(",")}]`,
+      );
+    }
+
+    const prefixed = actual.columns.filter(({ prefixLength }) => prefixLength !== null);
+    if (prefixed.length > 0) {
+      problems.push(
+        `${tableName}.${indexName}: possui prefixo parcial em ${prefixed
+          .map(({ columnName, prefixLength }) => `${columnName}(${prefixLength})`)
+          .join(",")}`,
+      );
+    }
+  }
+
+  if (problems.length > 0) {
+    throw new Error(
+      `Baseline MySQL legado possui índices UNIQUE críticos divergentes: ${problems.join("; ")}. ` +
+      "O runner não deve registrar o baseline automaticamente nesse estado.",
+    );
+  }
+}
+
 async function sslOptions() {
   if (!config.db.ssl) return undefined;
   if (!config.db.caPath) return { rejectUnauthorized: true };
@@ -261,9 +342,30 @@ async function main() {
 
     validateForeignKeyDefinitions(baselineForeignKeys, groupActualForeignKeys(foreignKeyRows));
 
+    const indexTables = [...new Set(REQUIRED_UNIQUE_INDEXES.map(([tableName]) => tableName))];
+    const indexNames = [...new Set(REQUIRED_UNIQUE_INDEXES.map(([, indexName]) => indexName))];
+    const indexTablePlaceholders = indexTables.map(() => "?").join(",");
+    const indexNamePlaceholders = indexNames.map(() => "?").join(",");
+    const [indexRows] = await connection.execute(
+      `SELECT table_name,
+              index_name,
+              non_unique,
+              seq_in_index,
+              column_name,
+              sub_part
+         FROM information_schema.statistics
+        WHERE table_schema = DATABASE()
+          AND table_name IN (${indexTablePlaceholders})
+          AND index_name IN (${indexNamePlaceholders})
+        ORDER BY table_name, index_name, seq_in_index`,
+      [...indexTables, ...indexNames],
+    );
+
+    validateCriticalUniqueIndexes(groupActualIndexes(indexRows));
+
     console.log(
-      `[segempat-api] baseline legado pré-validado: ${baselineTables.length} tabelas e ` +
-      `${baselineForeignKeys.length} foreign keys com definições e regras referenciais corretas`,
+      `[segempat-api] baseline legado pré-validado: ${baselineTables.length} tabelas, ` +
+      `${baselineForeignKeys.length} foreign keys e ${REQUIRED_UNIQUE_INDEXES.length} índices UNIQUE críticos corretos`,
     );
   } finally {
     await connection.end();
