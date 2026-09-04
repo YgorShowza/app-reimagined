@@ -86,6 +86,32 @@ jobs:
           fi
           echo "Migrations MySQL verificadas: ${#files[@]} arquivo(s), versões numericamente únicas e ordenáveis."
 
+      - name: Keep MySQL FK audit aligned with baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t schema_fks < <(
+            sed -nE 's/^[[:space:]]*CONSTRAINT[[:space:]]+([A-Za-z0-9_]+)[[:space:]]+FOREIGN KEY.*/\1/p' database/mysql/001_schema.sql | sort
+          )
+          mapfile -t audit_fks < <(
+            sed -nE 's/^[[:space:]]*\["([A-Za-z0-9_]+)",.*/\1/p' server/scripts/check-fk-orphans.js | sort
+          )
+
+          if [[ "${#schema_fks[@]}" -eq 0 ]]; then
+            echo "::error::Nenhuma foreign key foi extraída do baseline MySQL"
+            exit 1
+          fi
+          if [[ "${#audit_fks[@]}" -eq 0 ]]; then
+            echo "::error::Nenhuma foreign key crítica foi extraída da auditoria MySQL"
+            exit 1
+          fi
+
+          if ! diff -u <(printf '%s\n' "${schema_fks[@]}") <(printf '%s\n' "${audit_fks[@]}"); then
+            echo "::error::A lista de foreign keys da auditoria diverge do baseline 001_schema.sql"
+            exit 1
+          fi
+          echo "Auditoria de integridade alinhada ao baseline: ${#schema_fks[@]} foreign key(s)."
+
       - name: Setup Node for MySQL API validation
         uses: actions/setup-node@v4
         with:
