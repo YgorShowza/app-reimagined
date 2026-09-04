@@ -14,6 +14,7 @@ const LOCKED_VALIDATORS = [
   "check-existing-baseline-storage.js",
   "check-existing-baseline-columns.js",
   "check-existing-baseline-primary-keys.js",
+  "check-existing-baseline-check-constraints.js",
   "validate-existing-baseline.js",
 ];
 const BASELINE_TABLES = [
