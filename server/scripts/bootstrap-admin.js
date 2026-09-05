@@ -1,13 +1,17 @@
 /**
  * Cria (ou reabilita) o primeiro Inspetor do SEGEMPAT direto no MySQL.
  *
- * Uso:
- *   CONFIRM_BOOTSTRAP_ADMIN=SIM MATRICULA=970 NOME="Nome do Inspetor" SETOR=Administrativo SENHA='...' node scripts/bootstrap-admin.js
+ * Uso recomendado (senha via stdin, sem gravá-la no histórico do shell):
+ *   read -rsp 'Senha temporária: ' SENHA_TMP; echo
+ *   printf '%s' "$SENHA_TMP" | CONFIRM_BOOTSTRAP_ADMIN=SIM SENHA_STDIN=SIM \
+ *     MATRICULA=970 NOME="Nome do Inspetor" SETOR=Administrativo node scripts/bootstrap-admin.js
+ *   unset SENHA_TMP
  *
+ * Para automação controlada, SENHA continua suportada como variável de ambiente,
+ * mas nunca deve ser escrita em documentação, issue, commit ou log compartilhado.
  * A senha nunca é gravada em texto: apenas o hash bcrypt vai para app_users.
- * Depois do primeiro acesso, novos usuários devem ser criados pela tela de
- * Acessos (código de ativação), não por este script.
  */
+import fs from "node:fs";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
 import { pool, withTransaction } from "../src/db.js";
@@ -16,12 +20,22 @@ const confirmation = String(process.env["CONFIRM_BOOTSTRAP_ADMIN"] || "").trim()
 const matricula = String(process.env["MATRICULA"] || "").trim();
 const nome = String(process.env["NOME"] || "").trim();
 const setor = String(process.env["SETOR"] || "Administrativo").trim();
-const senha = String(process.env["SENHA"] || "");
+const senhaStdin = String(process.env["SENHA_STDIN"] || "").trim().toUpperCase() === "SIM";
 
 function fail(message) {
   console.error(`[bootstrap-admin] ${message}`);
   process.exit(1);
 }
+
+function readPassword() {
+  const envPassword = String(process.env["SENHA"] || "");
+  if (senhaStdin && envPassword) fail("use SENHA_STDIN=SIM ou SENHA, nunca os dois ao mesmo tempo");
+  if (!senhaStdin) return envPassword;
+  if (process.stdin.isTTY) fail("SENHA_STDIN=SIM exige que a senha seja enviada por pipe/stdin");
+  return fs.readFileSync(0, "utf8").replace(/[\r\n]+$/, "");
+}
+
+const senha = readPassword();
 
 if (confirmation !== "SIM") {
   fail("operação privilegiada bloqueada; defina CONFIRM_BOOTSTRAP_ADMIN=SIM para confirmar conscientemente o bootstrap do Inspetor");
