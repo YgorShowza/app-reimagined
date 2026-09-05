@@ -117,6 +117,9 @@ jobs:
         with:
           node-version: 20
 
+      - name: Install MySQL API dependencies
+        run: npm ci --prefix server --ignore-scripts
+
       - name: Validate MySQL API syntax
         shell: bash
         run: |
@@ -211,6 +214,7 @@ jobs:
           grep -F 'parts.length !== 2' server/src/session.js >/dev/null
           grep -F 'consumeAuthAttempt' server/src/routes/auth.js >/dev/null
           grep -F 'SENHA_STDIN' server/scripts/bootstrap-admin.js >/dev/null
+          grep -Eq '^MYSQL_SSL_CA_PATH=$' server/.env.example
 
           node --input-type=module <<'NODE'
           const { createSessionToken, readSessionToken } = await import('./server/src/session.js');
