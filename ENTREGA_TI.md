@@ -87,16 +87,27 @@ Com container, o equivalente está comentado no topo de
 
 ## Ligar o aplicativo à API
 
-Depois que a API estiver publicada, informe a URL. Basta uma variável no
-frontend:
+Depois que a API estiver publicada, o frontend corporativo deve receber **duas**
+variáveis:
 
 ```text
 VITE_SEGEMPAT_API_URL=https://api.segempat.empresa.local
+VITE_SEGEMPAT_REQUIRE_API=true
 ```
 
-Com ela configurada, o aplicativo passa a ler e gravar **tudo** no MySQL da
-empresa. O `SEGEMPAT_ALLOWED_ORIGINS` da API deve conter exatamente a origem do
-frontend (sem `*`, porque a sessão usa cookie).
+`VITE_SEGEMPAT_REQUIRE_API=true` é um controle de segurança do cutover. Quando
+ativado, o frontend **não aceita** a ausência da URL da API e não volta
+silenciosamente para o backend legado. Assim, uma publicação corporativa com
+configuração incompleta falha de forma explícita em vez de gravar dados no lugar
+errado.
+
+Em build de produção, `VITE_SEGEMPAT_API_URL` deve ser uma URL HTTPS absoluta,
+sem usuário/senha, query string ou fragmento. O `SEGEMPAT_ALLOWED_ORIGINS` da API
+deve conter exatamente a origem do frontend (sem `*`, porque a sessão usa cookie).
+
+O preview/transição atual pode continuar usando a compatibilidade legada enquanto
+`VITE_SEGEMPAT_REQUIRE_API` não estiver ativado. Isso permite preservar a interface
+existente até o ambiente MySQL corporativo estar disponível para homologação.
 
 ## Homologação antes do corte definitivo
 
@@ -127,6 +138,7 @@ O detalhamento e as regras de parada estão em `MYSQL_CORPORATE_HANDOFF.md` e
 - Trilha de auditoria em `audit_logs`.
 - Restrições por IP/VPN/firewall aplicadas no proxy reverso.
 - Credenciais reais e secrets nunca versionados no GitHub.
+- Build corporativo usa `VITE_SEGEMPAT_REQUIRE_API=true` para impedir fallback silencioso.
 
 ## Status correto antes da conexão real
 
