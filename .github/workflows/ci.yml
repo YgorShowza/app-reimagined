@@ -183,6 +183,17 @@ jobs:
           expect_rejected "CA MySQL informada com TLS desabilitado" MYSQL_SSL=false MYSQL_SSL_CA_PATH=/tmp/mysql-ca.pem
           expect_rejected "CA MySQL relativa em produção" MYSQL_SSL=true MYSQL_SSL_CA_PATH=./mysql-ca.pem
 
+      - name: Validate corporate frontend cutover contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Eq '^VITE_SEGEMPAT_API_URL="https://[^\"]+"$' .env.mysql.example
+          grep -Eq '^VITE_SEGEMPAT_REQUIRE_API="true"$' .env.mysql.example
+          grep -F 'VITE_SEGEMPAT_REQUIRE_API' src/lib/backend/api-client.ts >/dev/null
+          grep -F 'import.meta.env.PROD && url.protocol !== "https:"' src/lib/backend/api-client.ts >/dev/null
+          grep -F 'SEGEMPAT API é obrigatória neste ambiente' src/lib/backend/api-client.ts >/dev/null
+          echo "Contrato de cutover do frontend corporativo validado."
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -197,5 +208,8 @@ jobs:
       - name: Lint
         run: bun run lint
 
-      - name: Production build
+      - name: Production build in corporate API-only mode
+        env:
+          VITE_SEGEMPAT_API_URL: https://segempat-api.example.test
+          VITE_SEGEMPAT_REQUIRE_API: "true"
         run: bun run build
