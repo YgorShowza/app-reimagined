@@ -78,6 +78,29 @@ Critérios:
 - [ ] nenhuma migration já aplicada foi alterada;
 - [ ] nenhuma lacuna de versão detectada.
 
+### Gate de compatibilidade do baseline legado
+
+Se o banco já contiver as tabelas funcionais antes do primeiro registro em `schema_migrations`, o runner mantém um lock exclusivo de migration e só registra o baseline `001` depois que a estrutura existente for aprovada pelos validadores do código.
+
+A validação cobre, antes do registro automático:
+
+- [ ] definição e integridade de `schema_migrations`;
+- [ ] engine, charset e collation das tabelas;
+- [ ] conjunto exato de colunas, tipos, nulabilidade e defaults;
+- [ ] charset/collation das colunas textuais;
+- [ ] atributos de coluna como `AUTO_INCREMENT` e `INVISIBLE`;
+- [ ] chaves primárias;
+- [ ] índices secundários explícitos, ordem, prefixo e unicidade;
+- [ ] ausência de índices `UNIQUE` adicionais não declarados no baseline;
+- [ ] expressões e modo das colunas geradas;
+- [ ] `CHECK constraints`, incluindo ausência de regras extras;
+- [ ] ausência de triggers legados não declarados;
+- [ ] foreign keys, colunas relacionadas e regras `ON DELETE`/`ON UPDATE`;
+- [ ] ausência de foreign keys adicionais não declaradas;
+- [ ] ausência de registros órfãos nas relações do baseline.
+
+Qualquer divergência impede o registro automático do `001` e exige correção explícita do schema/dados antes da continuidade. O runner **não deve mascarar uma estrutura legada divergente como homologada**.
+
 ## 5. Smoke test estrutural
 
 Executar:
