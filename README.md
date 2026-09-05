@@ -26,7 +26,14 @@ API SEGEMPAT — Node.js / Express
 
 O navegador **nunca acessa o MySQL diretamente** e não recebe host, usuário ou senha do banco.
 
-Durante a transição existe código legado do Supabase para compatibilidade de preview quando `VITE_SEGEMPAT_API_URL` não está configurada. Com a API corporativa configurada, os fluxos migrados utilizam o backend SEGEMPAT/MySQL.
+Durante a transição existe código legado do Supabase para compatibilidade de preview quando `VITE_SEGEMPAT_API_URL` não está configurada. No build corporativo devem ser configuradas **as duas variáveis** abaixo:
+
+```text
+VITE_SEGEMPAT_API_URL=https://api.segempat.empresa.local
+VITE_SEGEMPAT_REQUIRE_API=true
+```
+
+Com `VITE_SEGEMPAT_REQUIRE_API=true`, a aplicação falha explicitamente se a URL da API corporativa estiver ausente, evitando fallback silencioso para o backend legado.
 
 ## Stack principal
 
@@ -102,7 +109,8 @@ Os principais controles implementados incluem:
 - CORS com origens explícitas;
 - cookies seguros exigidos em produção;
 - suporte a TLS/CA corporativa para MySQL;
-- auditoria de operações críticas.
+- auditoria de operações críticas;
+- modo corporativo do frontend com API obrigatória e HTTPS.
 
 ## MySQL e migrations
 
@@ -115,6 +123,8 @@ database/mysql/001_schema.sql
 O runner de migrations mantém versão, checksum e histórico, rejeitando divergências ou lacunas. O schema foi preparado para MySQL 8, InnoDB, `utf8mb4`, foreign keys e índices críticos.
 
 ## Validação do ambiente corporativo
+
+Antes de executar qualquer comando no ambiente da empresa, a TI deve preencher os dados de infraestrutura solicitados em [`MYSQL_TI_INPUTS.md`](MYSQL_TI_INPUTS.md). Senhas reais não devem ser colocadas no GitHub, em documentação ou no frontend.
 
 Dentro de `server/`, a sequência de homologação prevista é:
 
@@ -141,10 +151,12 @@ Secrets reais nunca devem ser versionados.
 
 ## Documentação de migração e homologação
 
+- [`MYSQL_TI_INPUTS.md`](MYSQL_TI_INPUTS.md) — dados que a TI precisa fornecer/configurar antes da conexão real;
 - [`MYSQL_MIGRATION_PLAN.md`](MYSQL_MIGRATION_PLAN.md) — plano técnico da migração para MySQL;
 - [`MYSQL_CORPORATE_HANDOFF.md`](MYSQL_CORPORATE_HANDOFF.md) — roteiro operacional para a TI executar a conexão e os gates no ambiente real;
 - [`CORPORATE_HOMOLOGATION_CHECKLIST.md`](CORPORATE_HOMOLOGATION_CHECKLIST.md) — checklist para TI e gestão durante a homologação;
-- [`PRODUCTION_CHECKLIST.md`](PRODUCTION_CHECKLIST.md) — checklist geral de publicação.
+- [`PRODUCTION_CHECKLIST.md`](PRODUCTION_CHECKLIST.md) — checklist geral de publicação;
+- [`HOMOLOGATION_STATUS.md`](HOMOLOGATION_STATUS.md) — registro histórico da etapa anterior baseada em Supabase; **não é evidência de homologação MySQL**.
 
 ## Desenvolvimento do frontend
 
@@ -163,7 +175,7 @@ bun run build
 
 ## CI
 
-O workflow `.github/workflows/ci.yml` valida continuamente o projeto no GitHub Actions. Entre os controles estão sintaxe do backend, configuração segura de produção, migrations, typecheck, lint e build do frontend.
+O workflow `.github/workflows/ci.yml` valida continuamente o projeto no GitHub Actions. Entre os controles estão sintaxe do backend, configuração segura de produção, migrations, contrato do frontend API-only, imagem Docker, manifesto de implantação, Nginx/systemd, typecheck, lint e build do frontend.
 
 O GitHub é a fonte versionada oficial do código e da documentação técnica do SEGEMPAT.
 
