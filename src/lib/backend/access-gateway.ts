@@ -23,14 +23,14 @@ export interface ActivationCodeStatus {
 
 export async function listActivationCodes(): Promise<ActivationCodeStatus[]> {
   if (isSegempatApiConfigured()) {
-    return apiRequest<ActivationCodeStatus[]>("/api/admin/activation-codes");
+    return apiRequest<ActivationCodeStatus[]>("/api/access/activation-codes");
   }
   return [];
 }
 
 export async function generateActivationCode(employeeId: string): Promise<GeneratedAccess> {
   if (isSegempatApiConfigured()) {
-    return apiRequest<GeneratedAccess>(`/api/admin/activation-codes/${encodeURIComponent(employeeId)}`, {
+    return apiRequest<GeneratedAccess>(`/api/access/activation-codes/${encodeURIComponent(employeeId)}`, {
       method: "POST",
     });
   }
@@ -44,7 +44,7 @@ export async function generateActivationCode(employeeId: string): Promise<Genera
 
 export async function revokeActivationCode(employeeId: string): Promise<void> {
   if (isSegempatApiConfigured()) {
-    await apiRequest<void>(`/api/admin/activation-codes/${encodeURIComponent(employeeId)}`, {
+    await apiRequest<void>(`/api/access/activation-codes/${encodeURIComponent(employeeId)}`, {
       method: "DELETE",
     });
     return;
