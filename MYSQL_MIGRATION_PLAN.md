@@ -1,185 +1,139 @@
-# SEGEMPAT — Plano de Migração para MySQL 8.0
+# SEGEMPAT — Plano de Migração para MySQL 8
 
 ## Objetivo
 
-Operar o SEGEMPAT sobre o MySQL da empresa sem expor credenciais do banco ao navegador e sem depender do Supabase quando a API corporativa estiver configurada.
+Operar o SEGEMPAT sobre o MySQL corporativo sem expor credenciais ao navegador e sem fallback silencioso para o backend legado durante o cutover.
 
 ## Arquitetura alvo
 
 ```text
-Navegador / SEGEMPAT React
-        |
-        | HTTPS / JSON
-        v
-SEGEMPAT Backend API (Node/Express)
-        |
-        +--> MySQL 8.0 da empresa
-        +--> armazenamento privado de assinaturas/evidências
-        +--> autenticação/sessão assinada
+Frontend SEGEMPAT
+      |
+      | HTTPS / JSON / cookie HTTP-only
+      v
+API SEGEMPAT — Node.js / Express
+      |
+      +--> MySQL 8 corporativo via TLS
+      +--> storage privado persistente
 ```
 
-**Regra obrigatória:** o navegador nunca recebe host, usuário ou senha do MySQL. Credenciais MySQL existem somente no servidor.
-
-Durante a transição, o frontend mantém fallback legado para Supabase somente quando `VITE_SEGEMPAT_API_URL` não está configurado. Em modo API, os fluxos migrados usam a API SEGEMPAT.
+O navegador nunca recebe host, usuário, senha ou CA do MySQL.
 
 ## Status atual
 
 **PARTE DO MYSQL NO CÓDIGO CONCLUÍDA — PRONTO PARA CONECTAR AO BANCO DA EMPRESA.**
 
-Esse status significa que a camada de código local necessária para conexão, autenticação, autorização, migrations, smoke test, readiness, storage e principais fluxos operacionais está preparada. Ele **não significa homologação de produção**: a homologação só poderá ser declarada depois da conexão com o MySQL real da empresa e dos testes ponta a ponta no ambiente corporativo.
+Esse status significa que a parte local de código, schema, API, validações, segurança, deploy e CI está preparada. A homologação final depende obrigatoriamente do ambiente real da empresa.
 
-## Situação atual do código
+## Implementado
 
-### Implementado
+- schema base MySQL em `database/mysql/001_schema.sql`;
+- runner de migrations com versão, checksum, detecção de lacunas e compatibilidade rígida de baseline;
+- validações de engine, charset/collation, colunas, defaults, índices, CHECKs, triggers, foreign keys e órfãos;
+- pool MySQL com UTC, modo SQL estrito, `FOREIGN_KEY_CHECKS=1`, `utf8mb4` e TLS;
+- `npm run preflight` antes de qualquer migration;
+- `npm run smoke` depois das migrations;
+- `npm run cutover:audit` depois da carga de dados/evidências;
+- autenticação MySQL, primeiro acesso, troca de senha e autorização Inspetor/Operador;
+- sessão assinada, versionada e revalidada contra conta/colaborador a cada requisição;
+- invalidação de sessões antigas após troca de senha;
+- proteção de operações de escrita por `Origin` autorizada;
+- limitação de tentativas de login/ativação na aplicação;
+- Equipe, Cronograma, Banco de Questões, Provas, assinatura, certificados, Treinamentos, gamificação, Avaliação Prática, Ocorrências, Base de Conhecimento e Auditoria via API;
+- storage privado controlado pelo backend;
+- Docker, Compose, Nginx e systemd de referência;
+- `/health` para liveness e `/health/ready` para readiness real;
+- CI com sintaxe da API, configuração segura, migrations, frontend API-only, imagem Docker e hardening de deploy.
 
-- [x] schema base MySQL 8 em `database/mysql/001_schema.sql`;
-- [x] runner versionado de migrations MySQL com histórico, checksum, ordem numérica e detecção segura de baseline existente;
-- [x] rejeição de histórico de migrations inválido, divergente ou com lacunas;
-- [x] pool MySQL com UTC, `utf8mb4`, transações e suporte a TLS/CA corporativa;
-- [x] preflight não destrutivo para validar conexão MySQL, versão, database selecionado, TLS e escrita/leitura real no storage;
-- [x] smoke test exigindo MySQL 8+, tabelas essenciais, InnoDB, `utf8mb4`, baseline registrada, `FOREIGN_KEY_CHECKS=1`, foreign keys críticas, índices UNIQUE críticos, sessão em UTC e modo SQL estrito;
-- [x] auditoria de cutover não destrutiva para identidade, profiles, privilégios administrativos, cobertura do Banco de Questões por setor, coerência de certificados/revogação e existência/assinatura PNG das evidências no storage;
-- [x] validação rígida das variáveis de ambiente críticas antes da inicialização da API;
-- [x] `NODE_ENV` restrito a `production`, `development` ou `test`;
-- [x] sessão assinada no backend e reconstrução de autorização a cada requisição;
-- [x] segredo de sessão com tamanho mínimo e cookies configuráveis com regras seguras;
-- [x] CORS por allowlist explícita e obrigatório em produção;
-- [x] login, primeiro acesso, troca de senha e logout via MySQL;
-- [x] código de ativação com hash, expiração, uso único e auditoria;
-- [x] autorização administrativa vinculada a role `admin` + perfil funcional atual `Inspetor`;
-- [x] Equipe/Colaboradores via API MySQL;
-- [x] Cronograma via API MySQL, incluindo bulk atômico, recorrência, suspensões e sincronização com provas;
-- [x] Banco de Questões via API MySQL;
-- [x] Provas/tentativas com correção server-side;
-- [x] assinatura de prova em storage privado controlado pelo backend;
-- [x] storage de produção restrito ao driver implementado e caminho absoluto;
-- [x] readiness verificando MySQL, migrations, schema e capacidade real de escrita/leitura no storage;
-- [x] certificados e evidências via API;
-- [x] Treinamentos, Simulador, Stress Test, Teste Rápido e Desafio Diário via API;
-- [x] XP/nível calculados no servidor e protegidos por transação;
-- [x] Avaliação Prática e modelos de avaliação via API;
-- [x] Ocorrências e Base de Conhecimento via API;
-- [x] auditoria administrativa via backend;
-- [x] rotas pessoais separadas de rotas administrativas quando necessário;
-- [x] rotas `/api/me` auditadas para permanecerem estritamente vinculadas ao usuário autenticado;
-- [x] payloads do frontend sanitizados para não confiar em nome, matrícula, setor, criador, avaliador ou assinante enviados pelo navegador;
-- [x] geração de Cronograma em modo API limitada a operações atômicas de até 1000 lançamentos;
-- [x] Teste Rápido conferido com o comportamento do frontend: usa 5 questões ativas e compatíveis com o setor, sem exigir um `bank_type` exclusivo;
-- [x] CI validando migrations, sintaxe do backend, configuração de produção, typecheck, lint e build.
+## Fallback legado e corte corporativo
 
-### Ainda depende da infraestrutura real da empresa
+Durante o desenvolvimento/preview, o código legado pode continuar disponível quando a API corporativa não está configurada.
 
-- [ ] receber e configurar host/porta/database do MySQL de homologação;
-- [ ] configurar usuário MySQL de privilégio mínimo;
-- [ ] configurar TLS/SSL e CA corporativa, se exigido;
-- [ ] disponibilizar a API SEGEMPAT em ambiente acessível pelo frontend;
-- [ ] definir e montar o storage corporativo definitivo para assinaturas/evidências;
-- [ ] aplicar migrations no MySQL de homologação;
-- [ ] migrar os dados existentes;
-- [ ] executar homologação ponta a ponta;
-- [ ] executar cutover de produção e rollback planejado.
-
-## Modelo de identidade
-
-O MySQL usa `app_users` para conta/senha e `employees` como cadastro funcional.
+No build corporativo é obrigatório usar:
 
 ```text
-employees (cadastro funcional)
-   |
-   +-- matrícula
-   |
-app_users (conta/senha/sessão)
-   |
-profiles + user_roles
+VITE_SEGEMPAT_API_URL=https://<api-corporativa>
+VITE_SEGEMPAT_REQUIRE_API=true
 ```
 
-Uma pessoa pode existir em `employees` antes de receber acesso ao sistema.
+Com `VITE_SEGEMPAT_REQUIRE_API=true`, a ausência da URL da API é erro explícito; o sistema não deve voltar silenciosamente para o backend legado.
 
-## Conversões PostgreSQL -> MySQL
+## Conversões conceituais
 
-| PostgreSQL/Supabase | MySQL 8.0 |
+| Arquitetura anterior | MySQL/API corporativa |
 | --- | --- |
-| `uuid` | `CHAR(36)` |
-| `jsonb` | `JSON` |
-| `boolean` | `TINYINT(1)` |
-| `timestamptz` | `DATETIME(3)` em UTC |
-| `uuid[]` | `JSON` |
+| Supabase Auth | `app_users` + sessão assinada |
 | RLS | autorização no backend |
-| RPC `SECURITY DEFINER` | serviço/endpoint no backend |
+| RPC `SECURITY DEFINER` | endpoints/serviços da API |
 | Supabase Storage | storage privado do backend |
-| `auth.users` | `app_users` |
+| PostgreSQL `uuid` | `CHAR(36)` |
+| `jsonb` | `JSON` |
+| `timestamptz` | `DATETIME(3)` em UTC |
 
-## Segurança preservada no backend MySQL
+## Ordem oficial da homologação
 
-- Operador só consulta dados próprios quando aplicável;
-- conteúdo, provas e questões são filtrados por setor;
-- Inspetor depende de autorização administrativa explícita e perfil funcional atual;
-- colaborador inativo perde acesso mesmo com cookie ainda válido;
-- notas de provas são calculadas no servidor;
-- XP e nível são calculados no servidor;
-- gabaritos não são enviados antes da conclusão;
-- identidade funcional é derivada do banco/sessão, não do navegador;
-- assinatura é vinculada a tentativa registrada no MySQL;
-- códigos de ativação possuem hash, expiração e uso único;
-- operações críticas usam transações sempre que o MySQL permite atomicidade;
-- auditoria é escrita pelo servidor;
-- TLS MySQL pode exigir CA corporativa com validação de certificado ativa;
-- readiness impede considerar a API pronta quando MySQL, schema ou storage não estiverem utilizáveis.
+1. TI fornece/configura host, porta, database, usuário, TLS/CA, rede, API, frontend e storage;
+2. secrets são cadastrados somente no servidor/cofre;
+3. `npm ci`;
+4. `npm run preflight`;
+5. `npm run migrate`;
+6. `npm run smoke`;
+7. migração/carga dos dados e evidências;
+8. `npm run cutover:audit`;
+9. `npm run bootstrap-admin` somente se a carga não trouxer um Inspetor válido;
+10. subir a API;
+11. manter `GET /health/ready` verde;
+12. publicar frontend com `VITE_SEGEMPAT_REQUIRE_API=true`;
+13. executar E2E Inspetor + Operador;
+14. validar TLS, CORS, cookies, firewall/VPN, backup, restore e rollback;
+15. aprovar o cutover.
 
-## Migrations MySQL
+Se `preflight`, `migrate`, `smoke`, `cutover:audit` ou `/health/ready` falharem, a sequência deve parar e a causa deve ser corrigida. Não mascarar divergências para fazer o gate passar.
 
-As migrations ficam em `database/mysql` e seguem o padrão:
+## Migração de dados
 
-```text
-001_schema.sql
-002_descricao.sql
-003_descricao.sql
-...
-```
+A carga deve preservar, no mínimo:
 
-O runner:
+- UUIDs e matrículas;
+- contas, profiles e roles coerentes;
+- colaboradores;
+- Cronograma;
+- provas, tentativas e respostas;
+- certificados e códigos de verificação;
+- Banco de Questões;
+- treinamentos/atividades/XP;
+- avaliações práticas;
+- ocorrências;
+- Base de Conhecimento;
+- auditoria aplicável;
+- assinaturas/evidências e seus vínculos.
 
-1. ordena versões numericamente;
-2. rejeita versões duplicadas, inclusive variações numericamente equivalentes;
-3. registra checksum SHA-256;
-4. não permite alterar uma migration já registrada;
-5. reconhece instalação anterior ao runner somente quando o baseline representativo está completo;
-6. bloqueia automaticamente baseline parcial para evitar mascarar banco incompleto;
-7. rejeita histórico registrado divergente dos arquivos atuais ou com lacunas de versão.
+Registrar contagem antes/depois por entidade crítica e conferir amostras funcionais/históricas.
 
-**Observação:** DDL do MySQL pode fazer auto-commit. Migrations incrementais devem ser pequenas, previsíveis e, quando possível, idempotentes.
+## Segurança de migração
 
-## Sequência recomendada na homologação corporativa
+- MySQL não deve ser acessível pelo navegador;
+- produção exige TLS MySQL;
+- usuário de aplicação deve ter privilégio mínimo;
+- secrets reais não entram no GitHub;
+- operações HTTP de escrita exigem origem autorizada;
+- bootstrap de Inspetor deve receber senha por canal seguro, preferencialmente stdin;
+- em múltiplas réplicas, complementar o rate limiting local com proxy/WAF central;
+- `trust proxy=1` deve ser conferido contra a topologia corporativa real.
 
-Dentro da pasta `server`, após configurar as variáveis de ambiente do ambiente de homologação:
-
-```text
-npm run preflight
-npm run migrate
-npm run smoke
-npm run cutover:audit
-npm start
-```
-
-- `npm run preflight`: não altera o banco; confirma MySQL 8+, database correto, negociação TLS quando exigida e storage realmente gravável/legível.
-- `npm run migrate`: aplica somente migrations ainda não registradas e valida histórico/checksums.
-- `npm run smoke`: valida schema, engines, charset, migration registrada, `FOREIGN_KEY_CHECKS`, foreign keys críticas, índices UNIQUE indispensáveis, sessão em UTC e modo SQL estrito (`STRICT_TRANS_TABLES` ou `STRICT_ALL_TABLES`).
-- `npm run cutover:audit`: deve ser executado depois da migração de dados; valida vínculos entre contas/profiles/colaboradores, privilégio administrativo, cobertura funcional das questões de treinamento, coerência de certificados e se as assinaturas registradas realmente existem como PNG no storage corporativo.
-- `npm start`: somente depois dos checks anteriores aprovados no ambiente de homologação.
-
-A rota `GET /health/ready` deve permanecer verde depois que a API estiver em execução e pode ser usada pelo balanceador/orquestrador.
-
-## Variáveis de ambiente
+## Variáveis principais
 
 ### Frontend
 
 ```text
-VITE_SEGEMPAT_API_URL=https://segempat-api.empresa.local
+VITE_SEGEMPAT_API_URL=https://<api-corporativa>
+VITE_SEGEMPAT_REQUIRE_API=true
 ```
 
 ### Servidor
 
 ```text
+NODE_ENV=production
 MYSQL_HOST=
 MYSQL_PORT=3306
 MYSQL_DATABASE=
@@ -188,58 +142,18 @@ MYSQL_PASSWORD=
 MYSQL_SSL=true
 MYSQL_SSL_CA_PATH=
 SEGEMPAT_SESSION_SECRET=
+SEGEMPAT_SESSION_SECURE=true
+SEGEMPAT_SESSION_SAMESITE=lax
 SEGEMPAT_ALLOWED_ORIGINS=
 SEGEMPAT_STORAGE_DRIVER=filesystem
 SEGEMPAT_STORAGE_PATH=
+SEGEMPAT_TIMEZONE=America/Maceio
 ```
 
-Secrets reais devem ser cadastrados diretamente no ambiente de deploy, não incluídos no código ou em arquivos versionados.
+## Critério final
 
-## Dados que precisamos da TI para homologação
+O código está pronto para conexão quando o CI do HEAD final estiver verde e não houver pendência conhecida que dependa apenas de alteração local.
 
-- versão exata do MySQL;
-- host/IP interno;
-- porta;
-- database/schema;
-- exigência de TLS/SSL e certificado CA;
-- firewall/VPN/allowlist;
-- usuário da aplicação e permissões concedidas;
-- ambiente de homologação separado de produção;
-- local definitivo para storage de assinaturas/evidências;
-- URL/host onde a API SEGEMPAT será executada.
+O sistema só recebe o status abaixo depois dos testes reais:
 
-## Fase de migração de dados
-
-Antes do cutover será necessário:
-
-- exportar os dados atuais pelo procedimento autorizado;
-- preservar UUIDs e vínculos funcionais;
-- migrar tabelas operacionais para MySQL;
-- tratar contas/senhas conforme política aprovada pela empresa;
-- copiar assinaturas/evidências;
-- comparar contagens e integridade por tabela;
-- executar `npm run cutover:audit` após a carga;
-- validar amostras funcionais e históricas.
-
-## Critério de “código pronto para conectar ao MySQL da empresa”
-
-A parte de código é considerada concluída quando:
-
-1. os fluxos necessários em modo API não dependem de Supabase em runtime;
-2. CI estiver verde no commit final;
-3. migrations, smoke test, autenticação, permissões e storage estiverem preparados para configuração corporativa;
-4. não houver pendência conhecida de consistência que dependa apenas de alteração de código local.
-
-**Status atual: atendido no código.**
-
-## Critério de “SEGEMPAT homologado no MySQL da empresa”
-
-Só será considerado pronto para produção depois de:
-
-1. API conectada ao MySQL real de homologação;
-2. preflight, migrations e smoke test aprovados;
-3. dados migrados, `cutover:audit` aprovado e integridade conferida;
-4. login Inspetor e Operador testados;
-5. Equipe, Cronograma, Provas, Banco de Questões, Treinamentos, Avaliação Prática, Ocorrências, assinatura, certificados, relatórios e auditoria testados ponta a ponta;
-6. TLS, CORS, cookies, firewall e permissões validados no ambiente real;
-7. plano de rollback aprovado para o cutover.
+**SEGEMPAT HOMOLOGADO NO MYSQL DA EMPRESA.**
