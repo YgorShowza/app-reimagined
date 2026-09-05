@@ -116,6 +116,7 @@ function groupActualForeignKeys(rows) {
 
 function validateForeignKeyDefinitions(expectedForeignKeys, actualByName) {
   const problems = [];
+  const expectedNames = new Set(expectedForeignKeys.map(({ constraintName }) => constraintName));
 
   for (const expected of expectedForeignKeys) {
     const actual = actualByName.get(expected.constraintName);
@@ -157,6 +158,18 @@ function validateForeignKeyDefinitions(expectedForeignKeys, actualByName) {
     if (actual.updateRule !== expected.updateRule) {
       problems.push(
         `${expected.constraintName}: ON UPDATE ${actual.updateRule || "desconhecido"}; esperado ${expected.updateRule}`,
+      );
+    }
+  }
+
+  for (const actual of actualByName.values()) {
+    if (!expectedNames.has(actual.constraintName)) {
+      const columns = actual.columns
+        .map(({ columnName, referencedColumnName }) => `${columnName}->${referencedColumnName}`)
+        .join(",");
+      problems.push(
+        `${actual.constraintName}: foreign key inesperada ` +
+        `(${actual.tableName}[${columns}] -> ${actual.referencedTableName})`,
       );
     }
   }
@@ -317,8 +330,7 @@ async function main() {
       );
     }
 
-    const foreignKeyNames = baselineForeignKeys.map(({ constraintName }) => constraintName);
-    const placeholders = foreignKeyNames.map(() => "?").join(",");
+    const tablePlaceholders = baselineTables.map(() => "?").join(",");
     const [foreignKeyRows] = await connection.execute(
       `SELECT kcu.constraint_name,
               kcu.table_name,
@@ -335,9 +347,9 @@ async function main() {
           AND rc.table_name = kcu.table_name
         WHERE kcu.constraint_schema = DATABASE()
           AND kcu.referenced_table_name IS NOT NULL
-          AND kcu.constraint_name IN (${placeholders})
+          AND kcu.table_name IN (${tablePlaceholders})
         ORDER BY kcu.constraint_name, kcu.ordinal_position`,
-      foreignKeyNames,
+      baselineTables,
     );
 
     validateForeignKeyDefinitions(baselineForeignKeys, groupActualForeignKeys(foreignKeyRows));
@@ -365,7 +377,7 @@ async function main() {
 
     console.log(
       `[segempat-api] baseline legado pré-validado: ${baselineTables.length} tabelas, ` +
-      `${baselineForeignKeys.length} foreign keys e ${REQUIRED_UNIQUE_INDEXES.length} índices UNIQUE críticos corretos`,
+      `${baselineForeignKeys.length} foreign keys exatas (sem extras) e ${REQUIRED_UNIQUE_INDEXES.length} índices UNIQUE críticos corretos`,
     );
   } finally {
     await connection.end();
