@@ -6,7 +6,13 @@ guardar todos os dados no MySQL corporativo**.
 ## Como funciona
 
 ```text
-Navegador do usuário  ──HTTPS──>  API SEGEMPAT (este repositório, pasta server/)  ──rede interna──>  MySQL da empresa
+Navegador do usuário
+        |  HTTPS (rede corporativa)
+        v
+API SEGEMPAT  (este repositório, pasta server/)
+        |  conexão interna
+        v
+MySQL da empresa
 ```
 
 - O navegador **nunca** fala com o MySQL e nunca recebe senha de banco.
