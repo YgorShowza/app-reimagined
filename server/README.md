@@ -1,13 +1,14 @@
 # API SEGEMPAT sobre MySQL corporativo
 
-Este diretório contém o backend que permite ao SEGEMPAT operar sobre o MySQL corporativo. O navegador conversa somente com esta API; as credenciais do banco permanecem no servidor, que também aplica autenticação, autorização, regras de negócio, auditoria e acesso ao storage privado.
+Backend corporativo do SEGEMPAT. O navegador conversa somente com esta API; credenciais do banco permanecem no servidor, que aplica autenticação, autorização, regras de negócio, auditoria e acesso ao storage privado.
 
 ## Requisitos
 
 - Node.js 20+
-- MySQL 8.0+
-- acesso de rede do servidor da API ao MySQL
-- HTTPS no proxy reverso da empresa
+- MySQL 8.x
+- TLS para MySQL em produção
+- acesso de rede da API ao banco
+- HTTPS no proxy reverso
 - volume persistente para assinaturas/evidências
 
 ## Instalação
@@ -18,88 +19,119 @@ npm ci
 cp .env.example .env
 ```
 
-Preencha `.env` **somente no servidor da empresa**. Nunca publique esse arquivo e nunca use variáveis `VITE_` para credenciais ou secrets do backend.
+Preencha `.env` somente no servidor/cofre de secrets. Nunca use variáveis `VITE_*` para credenciais do backend.
 
-## Sequência do primeiro ambiente de homologação
+## Ordem oficial do primeiro ambiente
 
-1. Crie o database e o usuário de aplicação com privilégio mínimo para o database do SEGEMPAT.
-2. Configure rede, TLS/SSL, CA corporativa, storage persistente, CORS e sessão segura.
-3. Antes de qualquer migration, execute:
+1. Criar database e usuário MySQL de privilégio mínimo.
+2. Configurar TLS/CA, rede, storage, CORS e sessão segura.
+3. Executar:
 
 ```bash
 npm run preflight
 ```
 
-O `preflight` é não destrutivo. Ele valida a conexão real, MySQL 8+, database selecionado, sessão UTC, modo SQL estrito, `utf8mb4`, InnoDB, `FOREIGN_KEY_CHECKS=1`, negociação TLS quando exigida e leitura/escrita real no storage.
+Se falhar, não executar migrations.
 
-4. Somente com o preflight aprovado, aplique o schema:
+4. Com preflight aprovado:
 
 ```bash
 npm run migrate
-```
-
-5. Valide a estrutura criada:
-
-```bash
 npm run smoke
 ```
 
-O `smoke` valida o schema MySQL: tabelas críticas, engines, charset, histórico de migrations, foreign keys, índices UNIQUE, sessão UTC, modo SQL estrito e demais invariantes indispensáveis ao funcionamento da API.
-
-6. Crie o primeiro Inspetor somente depois de schema e smoke aprovados:
-
-```bash
-CONFIRM_BOOTSTRAP_ADMIN=SIM MATRICULA=970 NOME="Nome do Inspetor" SETOR=Administrativo SENHA='senha-forte' npm run bootstrap-admin
-```
-
-O comando é deliberadamente protegido por `CONFIRM_BOOTSTRAP_ADMIN=SIM`, porque ele cria ou reabilita uma identidade com privilégio de Inspetor. A operação é transacional, grava somente o hash bcrypt da senha, invalida código de ativação pendente da matrícula e registra o bootstrap em auditoria. Depois desse bootstrap inicial, os demais acessos devem seguir o fluxo normal de cadastro/código de ativação do sistema.
-
-7. Depois da migração dos dados existentes e da cópia das evidências para o storage corporativo, execute:
+5. Migrar/cargar os dados oficiais e copiar evidências para o storage corporativo.
+6. Executar:
 
 ```bash
 npm run cutover:audit
 ```
 
-O `cutover:audit` é a verificação pós-carga: confere vínculos de identidade, privilégios administrativos, cobertura funcional do Banco de Questões, coerência entre tentativas e certificados, revogações e existência/validade das assinaturas no storage.
+7. Somente se a carga não trouxer um Inspetor válido, executar bootstrap com senha via stdin:
 
-8. Somente depois dos checks aprovados, suba a API:
+```bash
+read -rsp 'Senha temporária: ' SENHA_TMP; echo
+printf '%s' "$SENHA_TMP" | \
+  CONFIRM_BOOTSTRAP_ADMIN=SIM SENHA_STDIN=SIM \
+  MATRICULA=<MATRICULA> NOME="<NOME>" SETOR=Administrativo \
+  npm run bootstrap-admin
+unset SENHA_TMP
+```
+
+8. Subir a API:
 
 ```bash
 npm start
 ```
 
-Mantenha `GET /health/ready` verde no ambiente de homologação antes e durante os testes ponta a ponta.
-
-## Publicação
-
-Execute a API atrás de um proxy reverso HTTPS (IIS, Nginx ou infraestrutura equivalente) e permita somente as origens exatas em `SEGEMPAT_ALLOWED_ORIGINS`. Aponte o frontend para a URL pública da API usando `VITE_SEGEMPAT_API_URL`.
-
-Exemplo:
+9. Confirmar:
 
 ```text
-VITE_SEGEMPAT_API_URL=https://api.segempat.empresa.local
+GET /health
+GET /health/ready
 ```
 
-Quando essa variável está configurada, os fluxos migrados usam a API SEGEMPAT. O corte definitivo do backend legado só deve acontecer depois de a TI homologar, no mínimo, login, Equipe, Cronograma, Banco de Questões, Provas, Treinamentos, Avaliação Prática, Ocorrências, assinatura, certificados, relatórios e auditoria.
+`/health/ready` deve permanecer verde antes e durante o E2E.
 
-## Segurança operacional
+## Frontend corporativo
 
-- `MYSQL_PASSWORD`, `SEGEMPAT_SESSION_SECRET` e o CA do MySQL ficam apenas no servidor.
-- `SEGEMPAT_SESSION_SECRET` deve ter pelo menos 32 bytes aleatórios e ser exclusivo por ambiente.
-- Em produção/homologação HTTPS mantenha `SEGEMPAT_SESSION_SECURE=true`.
-- Não use wildcard em `SEGEMPAT_ALLOWED_ORIGINS` com autenticação por cookie.
-- O MySQL nunca deve ser exposto diretamente ao navegador.
-- O usuário MySQL da aplicação deve usar privilégio mínimo.
-- O storage de assinaturas/evidências deve ser persistente, privado e incluído na política de backup.
-- Backups, rotação de secrets, firewall/VPN, logs, monitoramento e restauração fazem parte da homologação corporativa.
-- Os endpoints de healthcheck não devem expor senha, host, database ou detalhes internos de erro.
+Publicar com:
 
-## Documentação de entrega
+```text
+VITE_SEGEMPAT_API_URL=https://<api-corporativa>
+VITE_SEGEMPAT_REQUIRE_API=true
+```
 
-Consulte também:
+`VITE_SEGEMPAT_REQUIRE_API=true` impede fallback silencioso para o backend legado.
 
-- `../MYSQL_MIGRATION_PLAN.md` — arquitetura, status e plano de migração;
-- `../CORPORATE_HOMOLOGATION_CHECKLIST.md` — checklist operacional de homologação com a TI;
-- `.env.example` — modelo das variáveis esperadas, sem secrets reais.
+A API deve receber a origem exata do frontend:
 
-O status **“SEGEMPAT HOMOLOGADO NO MYSQL DA EMPRESA”** só deve ser declarado depois da conexão com a infraestrutura real e da homologação ponta a ponta sem pendência crítica.
+```text
+SEGEMPAT_ALLOWED_ORIGINS=https://<frontend-corporativo>
+```
+
+## Segurança da API
+
+- produção exige `MYSQL_SSL=true`;
+- TLS MySQL usa validação de certificado (`rejectUnauthorized: true`);
+- cookie de sessão é HTTP-only e `Secure=true` em produção;
+- sessão é assinada com HMAC-SHA256 e possui expiração;
+- contexto do usuário é reconstruído do banco a cada requisição protegida;
+- conta/colaborador inativo perde acesso mesmo com cookie ainda válido;
+- Inspetor exige role `admin` + perfil funcional atual `Inspetor`;
+- tokens de sessão incluem versão da conta; troca de senha invalida sessões antigas e rotaciona a atual;
+- operações de escrita em `/api` exigem cabeçalho `Origin` autorizado, além do CORS;
+- a API corporativa aceita payload funcional em JSON e não depende de formulários URL-encoded;
+- login e ativação possuem limitação local de tentativas por IP + matrícula;
+- em múltiplas réplicas, complementar com rate limiting central no proxy/WAF;
+- o padrão `trust proxy=1` pressupõe um proxy confiável à frente da API; revisar se a topologia corporativa tiver mais/menos hops;
+- storage deve ser privado, persistente e incluído em backup/restore.
+
+## Deploy
+
+Arquivos de referência:
+
+- `Dockerfile`
+- `docker-compose.yml`
+- `deploy/segempat-api.service`
+- `deploy/nginx-segempat-api.conf`
+
+O container usa usuário não-root e `/health/ready` como healthcheck. O Compose de referência publica a API apenas em `127.0.0.1:8787`, para ser exposta por proxy HTTPS.
+
+## Gates
+
+- `npm run preflight`: ambiente/conexão/storage antes de migration;
+- `npm run migrate`: aplica e registra migrations;
+- `npm run smoke`: valida schema/invariantes;
+- `npm run cutover:audit`: valida integridade depois da carga;
+- `/health/ready`: valida DB, TLS, migration atual, schema e storage em runtime.
+
+## Documentação
+
+- `../MYSQL_TI_INPUTS.md`
+- `../MYSQL_CORPORATE_HANDOFF.md`
+- `../CORPORATE_HOMOLOGATION_CHECKLIST.md`
+- `../PRODUCTION_CHECKLIST.md`
+- `../SECURITY_AUDIT.md`
+
+O status **SEGEMPAT HOMOLOGADO NO MYSQL DA EMPRESA** só pode ser declarado após os gates reais e o teste ponta a ponta sem pendência crítica.
