@@ -1,59 +1,79 @@
-# SEGEMPAT API — contrato para backend MySQL
+# SEGEMPAT API — contrato implementado para MySQL
 
-Base URL configurada no frontend por `VITE_SEGEMPAT_API_URL`.
+Este documento descreve a superfície HTTP efetivamente montada pela API corporativa atual.
 
-A sessão deve usar cookie `HttpOnly`, `Secure` e `SameSite=Lax`/`Strict` conforme política da empresa. Não armazenar senha, token de banco ou segredo privilegiado no navegador.
+Base URL do frontend:
 
-## Auth
+```text
+VITE_SEGEMPAT_API_URL=https://<api-corporativa>
+VITE_SEGEMPAT_REQUIRE_API=true
+```
 
-### POST `/api/auth/login`
+## Regras gerais
+
+- sessão em cookie `HttpOnly`;
+- `Secure=true` obrigatório em produção;
+- requests funcionais de escrita usam JSON (`Content-Type: application/json`);
+- toda escrita em `/api` exige cabeçalho `Origin` presente e exatamente autorizado em `SEGEMPAT_ALLOWED_ORIGINS`;
+- o frontend usa `credentials: include`;
+- não armazenar senha, segredo de sessão ou credencial MySQL no navegador;
+- erros seguem, em geral:
+
+```json
+{ "error": "Mensagem segura", "code": "SOME_CODE", "details": null }
+```
+
+## Health
+
+- `GET /health` — liveness do processo HTTP;
+- `GET /health/ready` — readiness de MySQL/TLS/migration/schema/storage.
+
+## Auth — `/api/auth`
+
+- `POST /api/auth/login`
+- `POST /api/auth/activate`
+- `GET /api/auth/me`
+- `POST /api/auth/change-password`
+- `POST /api/auth/logout`
+
+### Login
 
 ```json
 { "matricula": "000", "password": "..." }
 ```
 
-Resposta 200:
+Resposta de sessão:
 
 ```json
-{ "id":"uuid", "matricula":"000", "nome":"Nome", "setor":"CFTV", "isAdmin":true }
+{ "id": "uuid", "matricula": "000", "nome": "Nome", "setor": "CFTV", "isAdmin": true }
 ```
 
-### POST `/api/auth/activate`
+Login e ativação possuem limitação local de tentativas. A troca de senha rotaciona a sessão atual e invalida tokens antigos por versão da conta.
 
-```json
-{ "matricula":"000", "activationCode":"12345678", "password":"..." }
-```
+`logout` remove o cookie no dispositivo atual. Como a sessão é stateless, um token copiado não é mantido em uma tabela de revogação; ele deixa de ser aceito ao expirar, quando a conta é alterada/inativada ou quando a credencial é modificada.
 
-O backend valida colaborador ativo, código não usado/não expirado, hash do código e cria a conta em transação.
+## Colaboradores — `/api/employees`
 
-### GET `/api/auth/me`
+- `GET /api/employees` — Inspetor recebe a coleção administrativa; Operador recebe somente colaboradores ativos compatíveis com seu setor;
+- `GET /api/employees/me` — cadastro funcional do usuário autenticado;
+- `POST /api/employees` — Inspetor;
+- `PATCH /api/employees/:id` — Inspetor;
+- `DELETE /api/employees/:id` — Inspetor, bloqueado quando existe conta/histórico.
 
-Retorna o usuário autenticado e o contexto de autorização.
+## Acessos — `/api/access`
 
-### POST `/api/auth/logout`
-
-Invalida a sessão no servidor e expira o cookie.
-
-## Employees
-
-- `GET /api/employees`
-- `POST /api/employees`
-- `PATCH /api/employees/:id`
-- `DELETE /api/employees/:id`
-
-Escrita exclusiva de Inspetor. Não permitir excluir cadastro que tenha conta/histórico; usar inativação.
-
-## Access activation
+Somente Inspetor:
 
 - `GET /api/access/activation-codes`
 - `POST /api/access/activation-codes/:employeeId`
 - `DELETE /api/access/activation-codes/:employeeId`
+- `GET /api/access/audit?limit=&offset=`
 
-Somente Inspetor. Código puro é retornado uma única vez na geração; banco armazena somente hash adaptativo.
+O código puro de primeiro acesso é devolvido somente na emissão; o MySQL guarda apenas hash bcrypt.
 
-## Exams
+## Provas — administração `/api/exams`
 
-### Administração
+Somente Inspetor:
 
 - `GET /api/exams`
 - `GET /api/exams/:id`
@@ -61,110 +81,117 @@ Somente Inspetor. Código puro é retornado uma única vez na geração; banco a
 - `PATCH /api/exams/:id`
 - `DELETE /api/exams/:id`
 
-Somente Inspetor recebe gabarito/chave de correção.
+## Provas — usuário autenticado `/api/me`
 
-### Operador
+- `GET /api/me/exams` — metadados de provas publicadas compatíveis com setor/data;
+- `GET /api/me/exams/:id` — prova sanitizada, sem `correct_index` e `model_answer`;
+- `GET /api/me/exam-attempts`
+- `GET /api/me/exam-attempts/year/:year`
+- `POST /api/me/exams/:id/attempts` — servidor recalcula nota/aprovação;
+- `POST /api/me/exam-attempts/:attemptId/signature` — assinatura da própria tentativa aprovada.
 
-- `GET /api/me/exams` — somente metadados de provas publicadas para `Todos` ou setor do usuário.
-- `GET /api/me/exams/:id` — questões sanitizadas, sem `correct_index`/`model_answer`.
-- `POST /api/me/exams/:id/attempts` — body contém somente respostas. O servidor recalcula nota/aprovação.
-- `POST /api/me/exam-attempts/:attemptId/signature` — upload/evidência da própria tentativa.
+## Evidências administrativas — `/api/admin`
 
-## Cronograma
+Somente Inspetor:
+
+- `GET /api/admin/exam-attempts?year=`
+- `GET /api/admin/exam-signatures?path=`
+
+A leitura de assinatura exige vínculo formal, caminho confinado ao storage e arquivo PNG válido.
+
+## Cronograma — `/api/cronograma`
+
+Leitura autenticada; escrita administrativa:
 
 - `GET /api/cronograma?month=YYYY-MM`
-- `GET /api/cronograma/year/:year/summary`
+- `GET /api/cronograma/year/:year`
 - `POST /api/cronograma`
+- `POST /api/cronograma/bulk`
 - `PATCH /api/cronograma/:id`
 - `DELETE /api/cronograma/:id`
-- `POST /api/cronograma/bulk`
-- `POST /api/cronograma/import-results`
-- `GET/POST/PATCH/DELETE /api/cronograma/recurring-models`
-- `GET/POST/PATCH/DELETE /api/cronograma/suspensions`
+- `POST /api/cronograma/sync-exam-attempts`
 
-Escrita administrativa. Operador recebe somente o que for necessário ao próprio painel/progresso.
+O mesmo router contém as operações versionadas de importação, recorrências e suspensões usadas pelo frontend. Identidade funcional e vínculos de questões são derivados/validados no servidor.
 
-## Question bank
+## Banco de Questões — `/api/question-bank`
 
-Admin:
+- `GET /api/question-bank` — Inspetor, inclui dados administrativos;
+- `GET /api/question-bank/operational` — usuário autenticado, somente questões ativas/setoriais e sem gabarito;
+- `POST /api/question-bank` — Inspetor;
+- `PATCH /api/question-bank/:id` — Inspetor;
+- `DELETE /api/question-bank/:id` — Inspetor.
 
-- `GET /api/question-bank`
-- `POST /api/question-bank`
-- `PATCH /api/question-bank/:id`
-- `DELETE /api/question-bank/:id`
+## Treinamentos
 
-Operador nunca recebe gabarito. Atividades rápidas são servidas por endpoints sanitizados.
+### Leitura de módulos — `/api/training`
 
-## Training activities
+- `GET /api/training/modules`
 
-- `GET /api/me/training-activities/:type/questions`
-- `POST /api/me/training-activities/:type/attempts`
+Operador recebe módulos ativos compatíveis com setor; Inspetor pode receber a coleção administrativa.
 
-O servidor valida IDs, setor, tipo, dificuldade e recalcula score/XP. O valor de score enviado pelo navegador não é autoridade.
+### Administração — `/api/admin/training`
 
-## Training modules / cycles
+Somente Inspetor:
 
-- `GET /api/training-modules`
-- CRUD administrativo em `/api/admin/training-modules`
-- `GET /api/me/training-schedule`
-- CRUD administrativo em `/api/admin/training-schedules`
+- `POST /api/admin/training/modules`
+- `PATCH /api/admin/training/modules/:id`
+- `DELETE /api/admin/training/modules/:id`
+- `GET /api/admin/training/schedules`
+- `POST /api/admin/training/schedules`
+- `PATCH /api/admin/training/schedules/:id`
+- `DELETE /api/admin/training/schedules/:id`
 
-## Practical evaluations
+### Usuário — `/api/me/training`
+
+- `GET /api/me/training/schedule`
+- `GET /api/me/training/activities`
+- `POST /api/me/training/activities/:type/attempts`
+
+Tipos aceitos no backend: `Simulador`, `Stress Test`, `Desafio Diário` e `Teste Rápido`. O servidor revalida questões, setor, tipo/dificuldade, calcula score, aprovação e XP.
+
+## Operações — `/api/operations`
+
+### Base de Conhecimento
+
+- `GET /api/operations/knowledge` — autenticado, filtrado para Operador;
+- `POST /api/operations/knowledge` — Inspetor;
+- `PATCH /api/operations/knowledge/:id` — Inspetor;
+- `DELETE /api/operations/knowledge/:id` — Inspetor.
+
+### Ocorrências
+
+- `GET /api/operations/occurrences` — Inspetor vê tudo; Operador vê somente registros próprios/vinculados;
+- `POST /api/operations/occurrences` — autenticado; identidade do Operador é derivada da sessão;
+- `PATCH /api/operations/occurrences/:id` — Inspetor;
+- `DELETE /api/operations/occurrences/:id` — Inspetor.
+
+### Avaliações Práticas
+
+Administração:
+
+- `GET /api/operations/practical-evaluations`
+- `POST /api/operations/practical-evaluations`
+- `PATCH /api/operations/practical-evaluations/:id`
+- `DELETE /api/operations/practical-evaluations/:id`
+- `GET /api/operations/practical-templates`
+- `POST /api/operations/practical-templates`
+- `PATCH /api/operations/practical-templates/:id`
+- `DELETE /api/operations/practical-templates/:id`
+
+Consulta pessoal:
 
 - `GET /api/me/practical-evaluations`
-- CRUD administrativo em `/api/admin/practical-evaluations`
-- CRUD de modelos em `/api/admin/practical-evaluation-templates`
 
-## Occurrences
+### Auditoria operacional
 
-- `GET /api/me/occurrences`
-- `POST /api/me/occurrences`
-- `GET /api/admin/occurrences`
-- `PATCH /api/admin/occurrences/:id`
-- `DELETE /api/admin/occurrences/:id`
-
-## Certificates
-
-- `GET /api/me/certificates`
-- `GET /api/admin/certificates`
-- `GET /api/admin/certificates/validate/:code`
-
-Certificado formal válido exige tentativa aprovada e assinatura completa.
-
-## Reports / analytics
-
-- `GET /api/admin/dashboard`
-- `GET /api/admin/analytics`
-- `GET /api/admin/risk`
-- `GET /api/admin/reports/monthly?month=YYYY-MM`
-- `GET /api/admin/employees/:id/analysis`
-
-Preferir agregação SQL no backend para reduzir transferência de coleções grandes ao navegador.
-
-## Audit
-
-- `GET /api/admin/audit?cursor=...`
-
-A escrita de auditoria acontece no backend dentro ou imediatamente após operações críticas; o cliente nunca cria logs confiáveis diretamente.
+- `GET /api/operations/audit?limit=` — Inspetor.
 
 ## Storage
 
-Assinaturas/evidências nunca são públicas.
+O driver **implementado atualmente é somente `filesystem` privado**. A configuração rejeita outros drivers. O MySQL guarda metadados/caminhos e a API controla leitura/escrita das evidências.
 
-Opções suportáveis:
+Adicionar S3 ou outro storage no futuro exige implementação explícita no backend e nova homologação; não deve ser tratado como opção já suportada.
 
-1. filesystem privado em servidor corporativo;
-2. storage S3 compatível interno;
-3. storage aprovado pela TI.
+## Segurança de resposta
 
-O MySQL guarda apenas metadados/caminho, não blob base64 de assinatura em tabelas operacionais.
-
-## Erros
-
-Formato comum:
-
-```json
-{ "error":"Mensagem segura", "code":"SOME_CODE", "details":null }
-```
-
-Não retornar stack trace, SQL, host, usuário do banco ou detalhes de infraestrutura ao navegador.
+A API não deve retornar stack trace, SQL, host, usuário do banco ou detalhes internos de infraestrutura ao navegador. Endpoints de health também mantêm respostas operacionais sanitizadas.
