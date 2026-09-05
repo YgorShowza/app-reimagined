@@ -1,4 +1,4 @@
-e# Instalação sem container (Linux + systemd)
+# Instalação sem container (Linux + systemd)
 #
 #   sudo useradd --system --home /opt/segempat --shell /usr/sbin/nologin segempat
 #   sudo mkdir -p /opt/segempat /var/lib/segempat/storage
