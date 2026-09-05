@@ -347,9 +347,12 @@ async function main() {
           AND rc.table_name = kcu.table_name
         WHERE kcu.constraint_schema = DATABASE()
           AND kcu.referenced_table_name IS NOT NULL
-          AND kcu.table_name IN (${tablePlaceholders})
-        ORDER BY kcu.constraint_name, kcu.ordinal_position`,
-      baselineTables,
+          AND (
+            kcu.table_name IN (${tablePlaceholders})
+            OR kcu.referenced_table_name IN (${tablePlaceholders})
+          )
+        ORDER BY kcu.table_name, kcu.constraint_name, kcu.ordinal_position`,
+      [...baselineTables, ...baselineTables],
     );
 
     validateForeignKeyDefinitions(baselineForeignKeys, groupActualForeignKeys(foreignKeyRows));
@@ -377,7 +380,8 @@ async function main() {
 
     console.log(
       `[segempat-api] baseline legado pré-validado: ${baselineTables.length} tabelas, ` +
-      `${baselineForeignKeys.length} foreign keys exatas (sem extras) e ${REQUIRED_UNIQUE_INDEXES.length} índices UNIQUE críticos corretos`,
+      `${baselineForeignKeys.length} foreign keys exatas (sem extras nem referências externas) e ` +
+      `${REQUIRED_UNIQUE_INDEXES.length} índices UNIQUE críticos corretos`,
     );
   } finally {
     await connection.end();
