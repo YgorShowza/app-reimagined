@@ -4,9 +4,7 @@ Este documento é o roteiro operacional de entrega do SEGEMPAT para a TI conecta
 
 ## 1. Objetivo
 
-Concluir a etapa que não pode ser validada apenas pelo código versionado: conexão real com o ambiente corporativo, aplicação controlada do schema, auditoria dos dados e teste ponta a ponta.
-
-A arquitetura esperada é:
+Concluir a etapa que não pode ser validada apenas pelo código versionado: conexão real com o ambiente corporativo, aplicação controlada do schema, auditoria dos dados, corte do frontend para API própria e teste ponta a ponta.
 
 ```text
 Frontend SEGEMPAT
@@ -15,163 +13,95 @@ Frontend SEGEMPAT
       v
 API SEGEMPAT (Node.js / Express)
       |
-      +--> MySQL 8.0+ corporativo
+      +--> MySQL 8.0+ corporativo via TLS
       +--> storage privado persistente
 ```
 
 O navegador não deve receber host, usuário, senha, CA ou qualquer outro segredo do MySQL.
 
-## 2. Dados que a TI deve fornecer
+## 2. Entrada da TI
 
-Preencher fora do repositório, no cofre de secrets ou no ambiente seguro de homologação:
+Usar `MYSQL_TI_INPUTS.md` como formulário oficial de coleta. Senhas, segredo de sessão, certificados privados e conteúdo de CA não devem ser registrados no repositório.
 
-| Item | Valor de homologação |
-| --- | --- |
-| Host/IP MySQL | ______________________________ |
-| Porta | ______________________________ |
-| Database | ______________________________ |
-| Usuário da aplicação | ______________________________ |
-| Senha | **secret — não registrar neste documento** |
-| MySQL exige TLS? | sim / não |
-| Caminho da CA, se aplicável | ______________________________ |
-| Host/URL da API | ______________________________ |
-| URL HTTPS do frontend | ______________________________ |
-| Caminho do storage persistente | ______________________________ |
-| VPN/firewall/allowlist necessários | ______________________________ |
-| Responsável técnico da TI | ______________________________ |
-| Data da homologação | ____/____/________ |
+Em `NODE_ENV=production`, a conexão MySQL deve usar TLS. Se o ambiente corporativo não disponibilizar TLS para a API, a homologação deve parar até a TI definir a solução; não enfraquecer a configuração apenas para passar os gates.
 
 ## 3. Preparação do ambiente
 
 No host da API:
 
-1. instalar Node.js 20 ou superior;
-2. disponibilizar o código do SEGEMPAT a partir da revisão aprovada do GitHub;
-3. entrar na pasta `server`;
-4. executar `npm ci`;
-5. criar as variáveis de ambiente usando `server/.env.example` apenas como referência;
-6. cadastrar credenciais reais como secrets do ambiente;
-7. garantir acesso de rede do host da API ao MySQL;
-8. garantir volume persistente e backup para assinaturas/evidências.
+1. disponibilizar Node.js 20+ ou Docker conforme padrão da TI;
+2. implantar exatamente a revisão aprovada do GitHub;
+3. usar `server/.env.example` somente como modelo;
+4. cadastrar os valores reais em arquivo protegido/secrets manager;
+5. garantir acesso de rede da API ao MySQL;
+6. garantir storage persistente com backup para assinaturas/evidências;
+7. garantir HTTPS no proxy reverso e firewall/allowlist apropriados.
 
-Nunca copiar credenciais reais para arquivos versionados, variáveis `VITE_*`, código do frontend, issues ou commits.
+Nunca copiar credenciais reais para variáveis `VITE_*`, frontend, issues, commits ou documentação versionada.
 
 ## 4. Gate 1 — Preflight
 
-Executar:
-
 ```bash
 cd server
+npm ci
 npm run preflight
 ```
 
-Só continuar se o comando terminar com `OK`.
+Só continuar se terminar com `OK`. O preflight valida, entre outros itens, conexão real, MySQL 8+, database correto, `utf8mb4`, UTC, SQL estrito, InnoDB, `FOREIGN_KEY_CHECKS=1`, TLS negociado e storage gravável.
 
-O preflight deve confirmar, entre outros controles:
+**Regra de parada:** se falhar, não executar migrations.
 
-- conexão com o MySQL configurado;
-- versão MySQL 8.0 ou superior;
-- database correto;
-- charset compatível com `utf8mb4`;
-- sessão em UTC;
-- modo SQL estrito;
-- InnoDB;
-- `FOREIGN_KEY_CHECKS=1`;
-- TLS efetivamente negociado quando habilitado;
-- storage corporativo gravável e legível.
-
-### Regra de parada
-
-Se o preflight falhar, **não executar migrations**. Registrar o erro e corrigir primeiro a infraestrutura/configuração.
-
-## 5. Gate 2 — Migration e compatibilidade do baseline
-
-Com o preflight aprovado:
+## 5. Gate 2 — Migration e baseline
 
 ```bash
 npm run migrate
 ```
 
-O runner protege o histórico de migrations e, quando encontra estrutura legada antes do registro do baseline, exige compatibilidade com `database/mysql/001_schema.sql` antes de aceitar o baseline automaticamente.
+O runner protege histórico/checksums e, quando existe estrutura legada antes do registro do baseline, exige compatibilidade com `database/mysql/001_schema.sql` antes de aceitar o baseline.
 
-Entre os pontos validados estão:
+A validação cobre tabelas, colunas, tipos, nulabilidade, defaults, charset/collation, atributos de coluna, PKs, índices, unicidade, colunas geradas, `CHECK constraints`, triggers, FKs e órfãos.
 
-- tabelas e colunas esperadas;
-- tipos, nulabilidade e defaults;
-- charset/collation;
-- `AUTO_INCREMENT` e atributos de coluna;
-- chaves primárias;
-- índices e unicidade;
-- colunas geradas;
-- `CHECK constraints`;
-- triggers inesperados;
-- foreign keys e regras referenciais;
-- registros órfãos.
-
-### Regra de parada
-
-Qualquer divergência estrutural deve bloquear a continuidade. Não alterar o runner para “aceitar” uma estrutura divergente apenas para fazer a homologação passar.
+**Regra de parada:** qualquer divergência estrutural deve ser corrigida explicitamente; não alterar o runner para mascará-la.
 
 ## 6. Gate 3 — Smoke estrutural
-
-Depois da migration:
 
 ```bash
 npm run smoke
 ```
 
-Só continuar se o smoke terminar sem erro.
-
-Registrar como evidência:
-
-- data/hora;
-- revisão/commit homologado;
-- ambiente;
-- resultado do comando;
-- responsável pela execução.
+Só continuar sem erro. Registrar data/hora, commit implantado, ambiente, resultado e responsável técnico.
 
 ## 7. Carga/migração dos dados
 
-Antes da carga definitiva, a fonte oficial dos dados atuais deve ser definida pela gestão/TI.
+Definir a fonte oficial antes da carga. Preservar UUIDs, matrículas, vínculos de usuários/colaboradores, provas, tentativas, certificados, verificações, treinamentos, registros operacionais e assinaturas/evidências.
 
-Preservar obrigatoriamente:
-
-- UUIDs e matrículas;
-- vínculos entre usuários e colaboradores;
-- provas, tentativas e resultados;
-- certificados e códigos de verificação;
-- treinamentos e registros operacionais;
-- assinaturas/evidências e seus vínculos.
-
-Registrar contagem antes e depois da migração para as entidades críticas.
+Registrar contagens antes/depois e validar amostras críticas.
 
 ## 8. Gate 4 — Auditoria pós-carga
-
-Após carregar os dados:
 
 ```bash
 npm run cutover:audit
 ```
 
-Corrigir qualquer inconsistência antes de liberar usuários para teste.
+Corrigir qualquer inconsistência antes de liberar usuários.
 
 ## 9. Primeiro Inspetor
 
-Somente quando necessário para preparar a primeira conta administrativa:
+Somente se ainda for necessário preparar a primeira conta administrativa e somente depois do schema estar aprovado:
 
 ```bash
 npm run bootstrap-admin
 ```
 
-A criação do primeiro Inspetor deve ocorrer em ambiente controlado, com credenciais temporárias tratadas como secret e troca de senha no primeiro acesso.
+Credenciais temporárias devem ser tratadas como segredo e trocadas no primeiro acesso.
 
 ## 10. Subida da API
-
-Com os gates anteriores aprovados:
 
 ```bash
 npm start
 ```
+
+Ou utilizar o runtime corporativo preparado em `server/docker-compose.yml` / `server/deploy/segempat-api.service`.
 
 Validar:
 
@@ -180,55 +110,69 @@ GET /health
 GET /health/ready
 ```
 
-O endpoint de readiness deve permanecer saudável antes do início do teste funcional.
+`/health/ready` deve permanecer saudável antes do cutover do frontend.
 
-## 11. Teste ponta a ponta
+## 11. Cutover do frontend
 
-Executar pelo menos um ciclo com perfil **Inspetor** e um com perfil **Operador**.
+No build corporativo configurar obrigatoriamente:
 
-Cobertura mínima:
+```text
+VITE_SEGEMPAT_API_URL=<URL HTTPS DA API>
+VITE_SEGEMPAT_REQUIRE_API=true
+```
 
-- login e logout;
-- primeiro acesso e troca de senha;
-- Equipe/Colaboradores;
-- Cronograma;
-- Banco de Questões;
-- Provas, tentativas e correção;
-- assinatura e evidências;
-- certificados e validação;
-- Treinamentos;
-- Simulador;
-- Stress Test;
-- Teste Rápido;
-- Desafio Diário;
-- Avaliação Prática;
-- Ocorrências;
-- Base de Conhecimento;
-- Meu Perfil;
-- Auditoria administrativa.
+`VITE_SEGEMPAT_REQUIRE_API=true` impede fallback silencioso para o backend legado. O build corporativo não deve ser publicado se a URL da API estiver ausente, inválida ou sem HTTPS.
 
-## 12. Evidências da homologação
+Configurar na API `SEGEMPAT_ALLOWED_ORIGINS` com as origens HTTPS exatas do frontend de homologação/produção.
 
-Guardar, em local corporativo apropriado:
+## 12. Teste ponta a ponta
 
-- identificação da revisão/commit implantado;
+Executar pelo menos um ciclo com **Inspetor** e um com **Operador**, cobrindo login/logout, primeiro acesso, Equipe, Cronograma, Banco de Questões, Provas, tentativas/correção, assinatura/evidências, certificados, Treinamentos, Simulador, Stress Test, Teste Rápido, Desafio Diário, Avaliação Prática, Ocorrências, Base de Conhecimento, Meu Perfil e Auditoria.
+
+Também validar CORS, cookies `Secure`, HTTPS, firewall, storage, backup e comportamento de `/health/ready` durante indisponibilidade controlada de dependências quando a TI puder testar isso com segurança.
+
+## 13. Evidências da homologação
+
+Guardar em local corporativo:
+
+- commit/revisão implantado;
 - resultado do `preflight`;
 - resultado da migration;
 - resultado do `smoke`;
+- contagens/evidências da carga;
 - resultado do `cutover:audit`;
 - evidências dos testes Inspetor/Operador;
 - validação de TLS, firewall, CORS e cookies;
 - validação de backup/storage;
-- aprovação do rollback/cutover.
+- plano e aprovação de rollback/cutover.
 
-Não armazenar senha, secret de sessão ou chave privada nas evidências.
+Não armazenar senhas, segredo de sessão ou chaves privadas nas evidências.
 
-## 13. Critério de aceite
+## 14. Ordem oficial resumida
 
-A frase abaixo só pode ser utilizada depois que todos os gates obrigatórios forem aprovados no ambiente real da empresa:
+```text
+TI inputs
+  -> configurar secrets/rede/storage
+  -> npm ci
+  -> preflight
+  -> migrate
+  -> smoke
+  -> migrar dados/evidências
+  -> cutover:audit
+  -> bootstrap-admin (se necessário)
+  -> subir API
+  -> /health/ready verde
+  -> build frontend com REQUIRE_API=true
+  -> E2E Inspetor + Operador
+  -> aceite/rollback
+```
+
+## 15. Critério de aceite
+
+A frase abaixo só pode ser utilizada depois de todos os gates obrigatórios aprovados no ambiente real:
 
 **SEGEMPAT HOMOLOGADO NO MYSQL DA EMPRESA**
 
-Até esse momento, o status correto permanece:
+Até esse momento:
 
 **PARTE DO MYSQL NO CÓDIGO CONCLUÍDA — PRONTO PARA CONECTAR AO BANCO DA EMPRESA.**
