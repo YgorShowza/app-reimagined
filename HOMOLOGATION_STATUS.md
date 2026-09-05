@@ -1,3 +1,8 @@
+> [!IMPORTANT]
+> **DOCUMENTO HISTÓRICO — ARQUITETURA SUPABASE (01/09/2026).**
+> Este arquivo preserva evidências da etapa anterior do SEGEMPAT e **não deve ser usado como evidência de homologação do MySQL corporativo**.
+> Para o estado atual e a homologação no ambiente da empresa, use `README.md`, `MYSQL_TI_INPUTS.md`, `MYSQL_CORPORATE_HANDOFF.md` e `CORPORATE_HOMOLOGATION_CHECKLIST.md`.
+
 # SEGEMPAT · Status de Homologação
 
 Atualizado em 01/09/2026.
