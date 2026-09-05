@@ -134,6 +134,9 @@ function formatColumns(columns) {
 
 function validateIndexes(expectedIndexes, actualByKey) {
   const problems = [];
+  const expectedByKey = new Map(
+    expectedIndexes.map((index) => [`${index.tableName}\u0000${index.indexName}`, index]),
+  );
 
   for (const expected of expectedIndexes) {
     const actual = actualByKey.get(`${expected.tableName}\u0000${expected.indexName}`);
@@ -161,6 +164,14 @@ function validateIndexes(expectedIndexes, actualByKey) {
       problems.push(
         `${expected.tableName}.${expected.indexName}: colunas [${formatColumns(actual.columns)}]; ` +
         `esperado [${formatColumns(expected.columns)}]`,
+      );
+    }
+  }
+
+  for (const [key, actual] of actualByKey) {
+    if (actual.unique && !expectedByKey.has(key)) {
+      problems.push(
+        `${actual.tableName}.${actual.indexName}: índice UNIQUE inesperado em [${formatColumns(actual.columns)}]`,
       );
     }
   }
@@ -233,8 +244,6 @@ async function main() {
       return;
     }
 
-    const indexNames = [...new Set(expectedIndexes.map(({ indexName }) => indexName))];
-    const indexPlaceholders = indexNames.map(() => "?").join(",");
     const [rows] = await connection.execute(
       `SELECT table_name,
               index_name,
@@ -246,14 +255,14 @@ async function main() {
          FROM information_schema.statistics
         WHERE table_schema = DATABASE()
           AND table_name IN (${tablePlaceholders})
-          AND index_name IN (${indexPlaceholders})
+          AND index_name <> 'PRIMARY'
         ORDER BY table_name, index_name, seq_in_index`,
-      [...tableNames, ...indexNames],
+      tableNames,
     );
 
     validateIndexes(expectedIndexes, groupActualIndexes(rows));
     console.log(
-      `[segempat-api] índices secundários explícitos do baseline legado OK; ${expectedIndexes.length} definições exatas`,
+      `[segempat-api] índices secundários explícitos do baseline legado OK; ${expectedIndexes.length} definições exatas e nenhum UNIQUE extra`,
     );
   } finally {
     await connection.end();
