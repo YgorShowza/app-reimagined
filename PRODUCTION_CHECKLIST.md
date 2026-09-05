@@ -1,154 +1,194 @@
-# SEGEMPAT · Checklist de Produção
+# SEGEMPAT · Checklist de Produção — MySQL Corporativo
 
-> `[x]` = comprovado tecnicamente. `[ ]` = ainda exige sessão/dispositivo real, deploy final ou decisão operacional.
+> `[x]` = comprovado no código/CI. `[ ]` = depende do ambiente real da empresa, dados reais ou validação operacional.
 
-## 1. Código e build
-- [x] `main` compila com `bun install --frozen-lockfile`.
-- [x] `bun run build` passa no CI de produção.
-- [x] Lovable sincroniza o `main` e permanece `ready` nos commits homologados.
-- [x] `recharts` removido; `bun.lock` regenerado e validado.
-- [x] `jspdf` isolado como client-only para não quebrar SSR.
-- [x] Tela global de erro está em português e com identidade SEGEMPAT.
-- [x] Nenhuma tela “Em breve” está exposta na navegação de produção.
+## 1. Código, build e artefatos
 
-## 2. Supabase e migrations
-- [x] Todas as mudanças de schema recentes possuem migration versionada.
-- [x] Ordem-base de `training_activity_attempts` foi corrigida para instalações limpas.
-- [x] Migrations recentes usam timestamps únicos; CI bloqueia versões duplicadas.
-- [x] Histórico do ambiente conectado foi confrontado com o schema; a única migration comprovadamente aplicada e ausente (`20260901180000_protect_employee_operational_history.sql`) foi reconciliada após comparação integral.
-- [ ] Executar o runner oficial de migrations no deploy final e confirmar ausência de drift no ambiente de produção.
-- [ ] Realizar backup imediatamente antes do deploy/migration final.
-- [x] Todas as tabelas públicas auditadas possuem RLS habilitada.
-- [x] `anon` não possui acesso direto às tabelas operacionais.
-- [x] Grants de `authenticated` foram reduzidos ao necessário.
-- [x] RPCs privilegiadas usam `SECURITY DEFINER` com `search_path` explícito quando necessário.
-- [x] RPCs operacionais sensíveis não são executáveis por `anon`.
-- [x] Nenhuma chave `service_role` foi encontrada no frontend/repositório.
+- [x] frontend passa por typecheck, lint e build de produção no CI;
+- [x] build corporativo usa `VITE_SEGEMPAT_REQUIRE_API=true`;
+- [x] ausência da API corporativa em modo obrigatório falha explicitamente;
+- [x] API Node.js possui validação de configuração de produção;
+- [x] imagem Docker da API é construída no CI;
+- [x] container roda como usuário não-root;
+- [x] Docker healthcheck usa `/health/ready`;
+- [x] Nginx e systemd de referência possuem hardening validado pelo CI;
+- [ ] HEAD final do deploy registrado pela TI.
 
-## 3. Autenticação e autorização
+## 2. MySQL corporativo
+
+- [ ] versão exata MySQL 8.x registrada;
+- [ ] host/porta/database confirmados;
+- [ ] usuário de aplicação criado com privilégio mínimo;
+- [ ] MySQL acessível somente pela rede necessária;
+- [ ] TLS negociado de verdade;
+- [ ] CA corporativa instalada quando aplicável;
+- [ ] `npm run preflight` aprovado;
+- [ ] `npm run migrate` aprovado;
+- [ ] `npm run smoke` aprovado;
+- [ ] histórico/checksums das migrations coerentes;
+- [ ] `FOREIGN_KEY_CHECKS=1`, UTC, modo SQL estrito, InnoDB e `utf8mb4` confirmados.
+
+## 3. Migração/carga de dados
+
+- [ ] fonte oficial dos dados definida;
+- [ ] backup da fonte realizado antes da migração;
+- [ ] UUIDs, matrículas e vínculos preservados;
+- [ ] contas/perfis tratados conforme plano aprovado;
+- [ ] provas, tentativas, certificados, treinamentos, Cronograma e demais históricos migrados;
+- [ ] assinaturas/evidências copiadas para storage corporativo;
+- [ ] contagens antes/depois registradas por entidade crítica;
+- [ ] amostras históricas conferidas;
+- [ ] `npm run cutover:audit` aprovado sem inconsistência crítica.
+
+## 4. Sessão, autenticação e autorização
+
+- [x] cookie HTTP-only;
+- [x] `Secure=true` obrigatório em produção;
+- [x] CORS por allowlist HTTPS explícita;
+- [x] operações de escrita exigem `Origin` autorizada;
+- [x] login/ativação possuem limitação de tentativas na aplicação;
+- [x] contexto do usuário é reconstruído do MySQL em toda requisição protegida;
+- [x] conta/colaborador inativo perde acesso;
+- [x] Inspetor exige role `admin` + perfil funcional `Inspetor`;
+- [x] troca de senha invalida sessões antigas e rotaciona a sessão atual;
+- [ ] login real de Inspetor validado no domínio final;
+- [ ] login real de Operador validado no domínio final;
+- [ ] primeiro acesso real validado;
+- [ ] troca de senha real validada;
+- [ ] logout real validado;
+- [ ] política de TTL de sessão aprovada pela TI/gestão.
+
+## 5. Frontend corporativo
+
+- [ ] URL HTTPS final do frontend definida;
+- [ ] URL HTTPS final da API definida;
+- [ ] build publicado com:
+
+```text
+VITE_SEGEMPAT_API_URL=https://<api-corporativa>
+VITE_SEGEMPAT_REQUIRE_API=true
+```
+
+- [ ] `SEGEMPAT_ALLOWED_ORIGINS` contém exatamente a origem do frontend;
+- [ ] nenhuma credencial MySQL foi colocada em variável `VITE_*`;
+- [ ] preview legado não é usado como backend da publicação corporativa.
+
+## 6. API, proxy e rede
+
+- [ ] API executando no host corporativo;
+- [ ] `/health` responde;
+- [ ] `/health/ready` permanece verde;
+- [ ] proxy reverso HTTPS configurado;
+- [ ] HTTP redireciona para HTTPS;
+- [ ] TLS 1.2/1.3 conforme política corporativa;
+- [ ] firewall/VPN/allowlist aplicados conforme decisão da TI;
+- [ ] `trust proxy` revisado contra a topologia real; o código padrão assume um proxy confiável;
+- [ ] rate limiting central do proxy/WAF configurado se houver múltiplas réplicas da API;
+- [ ] logs e monitoramento ativos.
+
+## 7. Storage e evidências
+
+- [ ] caminho absoluto persistente configurado;
+- [ ] usuário do processo possui somente as permissões necessárias;
+- [ ] `preflight` confirma criar/ler/remover arquivo de teste;
+- [ ] storage incluído em backup;
+- [ ] restauração do storage testada;
+- [ ] assinaturas migradas conferidas pelo `cutover:audit`;
+- [ ] evidência de assinatura real validada em navegador.
+
+## 8. Teste funcional ponta a ponta
+
 ### Inspetor
-- [ ] Login por matrícula validado manualmente no domínio final.
-- [ ] Dashboard validado manualmente em sessão real.
-- [x] Rotas administrativas são protegidas por role `admin`.
-- [x] Auditoria é restrita por rota + RLS.
-- [x] Colaborador `Ativo + Inspetor` com conta vinculada recebe role administrativa.
-- [x] Mudança para Operacional/Inativo remove role administrativa funcional.
-- [x] Matrícula `000` foi reconciliada como Inspetor/admin; conta técnica `970` foi preservada.
+
+- [ ] Dashboard/Analytics;
+- [ ] Equipe/Colaboradores;
+- [ ] geração/revogação de primeiro acesso;
+- [ ] Cronograma individual e em massa;
+- [ ] Banco de Questões;
+- [ ] criação/publicação de Provas;
+- [ ] Treinamentos;
+- [ ] Avaliação Prática;
+- [ ] Ocorrências;
+- [ ] Certificados/validação;
+- [ ] Auditoria administrativa.
 
 ### Operador
-- [ ] Login validado manualmente com conta real de Operador.
-- [x] Rotas administrativas bloqueiam não-admin antes de renderizar.
-- [x] Usuário comum sem colaborador ativo é bloqueado na sessão e no banco.
-- [x] Dados próprios/setoriais possuem RLS compatível com o perfil.
-- [x] Provas, Banco de Questões, Módulos e Conteúdos respeitam setor/`Todos` no banco.
 
-### Primeiro acesso
-- [x] Só matrícula de colaborador ativo pode ativar conta.
-- [x] Exige código de ativação de 8 dígitos emitido pela Inspetoria.
-- [x] Código expira em 24h e é de uso único.
-- [x] Novos códigos usam hash adaptativo bcrypt com salt; nenhum código é armazenado em texto puro.
-- [x] Geração usa RNG criptográfico.
-- [x] Geração/revogação é bloqueada para não-admin.
-- [x] Fluxo completo de ativação foi testado de forma transacional e sem resíduos.
-- [x] `profiles` e `user_roles` são somente leitura para o cliente.
-- [x] Matrícula vinculada não pode ser alterada diretamente; colaborador com conta/histórico deve ser inativado, não excluído.
-- [ ] Primeiro acesso completo validado manualmente com um Operador real.
+- [ ] primeiro acesso;
+- [ ] login/logout;
+- [ ] visualização de conteúdo permitido pelo setor;
+- [ ] realização de Prova;
+- [ ] correção server-side conferida;
+- [ ] assinatura real;
+- [ ] certificado após aprovação + assinatura;
+- [ ] Teste Rápido;
+- [ ] Simulador;
+- [ ] Stress Test;
+- [ ] Desafio Diário;
+- [ ] Meu Perfil/progresso.
 
-## 4. Cronograma
-- [x] Lista, Calendário e Ano usam a mesma base de dados e lógica homologada.
-- [x] Índice único bloqueia duplicidade exata.
-- [x] Testes transacionais validaram criação, sincronização para Realizado e operações atômicas sem resíduos.
-- [x] `Novo Registro` abre o formulário existente via `/cronograma-gestao?novo=true`, sem duplicar CRUD.
-- [x] Importação Excel usa RPC atômica e valida matrícula operacional ativa, mês, data e nota.
-- [x] Homologação atômica validou `updated=1`, `ignored=1` para duplicado do arquivo e zero resíduos.
-- [x] Gerador/lote usa criação atômica server-side; não salva blocos parciais.
-- [x] Teste de atomicidade confirmou que lote com linha inválida não persiste linhas anteriores.
-- [x] Consulta de escala foi testada com 12.000 lançamentos sintéticos; consulta mensal indexada de 1.000 registros ~2,2 ms no banco testado.
-- [x] PDFs do Cronograma são client-only, paginados, repetem cabeçalho e rodapé.
-- [x] Lista de presença bloqueia exportação sem lançamentos.
-- [ ] Lista/Calendário/Ano validados visualmente com massa operacional real.
-- [ ] Edição/exclusão validadas manualmente em sessão real.
-- [ ] Importação validada com arquivo Excel operacional real.
-- [ ] Gerador Anual validado visualmente com equipe real.
-- [ ] PDF e Lista de Presença conferidos/impressos no navegador operacional.
+## 9. Navegadores, dispositivos e impressão
 
-## 5. Provas, assinatura e certificados
-- [x] Nota e aprovação são calculadas no servidor por `submit_exam_attempt`; INSERT direto em `exam_attempts` é bloqueado.
-- [x] Operador recebe prova sanitizada sem `correct_index`/`model_answer`.
-- [x] Coluna `questions` de `exams` não possui SELECT para `authenticated`; somente metadados seguros possuem grant por coluna.
-- [x] Inspetor acessa prova completa por RPC administrativa.
-- [x] Prova publicada respeita setor/`Todos` no banco.
-- [x] Homologação E2E transacional passou: prova → correção server-side → Cronograma `Realizado` → assinatura → certificado formal → validação; zero resíduos.
-- [x] Certificado formal só existe/é válido após aprovação + assinatura completa.
-- [x] Fluxo legado de `certificates/validate_certificate` foi alinhado à mesma regra e não é público.
-- [x] Bucket `exam-signatures` é privado, PNG, 512 KB e vinculado ao usuário ativo.
-- [x] Assinatura só altera tentativa do próprio usuário e exige arquivo no diretório correto.
-- [ ] Criar/realizar prova manualmente com Inspetor + Operador reais.
-- [ ] Assinatura validada com mouse.
-- [ ] Assinatura validada em touchscreen.
-- [ ] Certificado/PDF conferido visualmente e impresso.
+- [ ] desktop corporativo;
+- [ ] Android real;
+- [ ] iPhone/iOS real, quando aplicável;
+- [ ] assinatura por mouse;
+- [ ] assinatura por touchscreen;
+- [ ] PDFs conferidos visualmente;
+- [ ] impressão conferida na impressora/navegador operacional;
+- [ ] tema Claro/Escuro/Auto revisado nas telas principais.
 
-## 6. Treinamento e gamificação
-- [x] Banco operacional é entregue por RPC sanitizada; `correct_index/correct_answer` não chegam ao Operador.
-- [x] Chaves de correção do `question_bank` não são legíveis diretamente pelo cliente operacional.
-- [x] Score de Teste Rápido, Desafio Diário, Simulador e Stress Test é recalculado no servidor.
-- [x] IDs, setor, tipo, dificuldade e quantidade esperada são validados pelo servidor.
-- [x] Teste Rápido/Simulador/Stress concedem XP apenas na primeira conclusão do tipo no dia.
-- [x] Desafio Diário permite uma execução por dia.
-- [x] Homologação transacional dos quatro modos passou: Teste Rápido `8.0/+10 XP`, repetição `10.0/0 XP`, Simulador `7.5/+20`, Stress `8.0/+25`, Desafio `6.7/+15` e repetição diária bloqueada; zero resíduos.
-- [x] Simulador, Stress Test e Desafio Diário possuem loading, erro inicial e retry.
-- [ ] Os quatro modos validados manualmente em sessão real de Operador.
+## 10. Backup, restauração e rollback
 
-## 7. Ciclos, avaliação prática e ocorrências
-- [x] Ciclos recalculam status a partir das datas atuais.
-- [x] Unicidade de ciclo e janelas inválidas foram auditadas.
-- [x] Avaliação prática possui RLS por perfil e estrutura de tarefas/nota/recorrência.
-- [x] Ocorrências preenchem `created_by` e restringem Operador a registros próprios/vinculados.
-- [ ] Avaliação prática concluída com evidência real.
-- [ ] Ocorrência criada por Operador real.
+- [ ] backup do MySQL imediatamente antes do cutover;
+- [ ] backup do storage imediatamente antes do cutover;
+- [ ] procedimento de restauração documentado;
+- [ ] teste de restore executado em ambiente seguro;
+- [ ] commit anterior estável registrado;
+- [ ] commit de produção registrado;
+- [ ] plano de retorno do frontend/API definido;
+- [ ] impacto de rollback de schema avaliado antes de qualquer reversão;
+- [ ] responsável técnico pelo rollback definido.
 
-## 8. Relatórios, auditoria e performance
-- [x] Dashboard não exibe zeros falsos durante loading.
-- [x] Analytics e Zona de Risco distinguem erro de ausência de dados.
-- [x] Análise Individual trata falha de consulta separadamente.
-- [x] Auditoria pagina 50 registros e usa `America/Maceio`.
-- [x] Banco de Questões possui paginação.
-- [x] React Query usa cache e reduz refetch desnecessário.
-- [x] Índices críticos de Cronograma, tentativas, auditoria, ocorrências e avaliações foram revisados.
-- [ ] Relatório Mensal validado com massa real.
+## 11. Bootstrap do primeiro Inspetor
 
-## 9. Tema, responsividade e experiência
-- [x] Tema sincroniza `data-theme`, `.dark` e `color-scheme`.
-- [x] Modo Auto reage à preferência do sistema.
-- [x] Tema é aplicado antes do primeiro paint.
-- [x] Hero escuro usa texto explicitamente claro, evitando desaparecimento no tema claro.
-- [x] Sidebar desktop, drawer mobile e navegação do Operador usam shell responsivo.
-- [x] Barra inferior do Operador respeita `safe-area-inset-bottom` em iPhone/iOS.
-- [x] Cronograma Lista/Calendário/Ano possui comportamento mobile: controles empilháveis, visão anual responsiva e calendário com scroll horizontal em vez de compressão das 7 colunas.
-- [x] Análise Individual empilha painel de colaboradores e análise abaixo de `lg`, evitando largura fixa no mobile.
-- [ ] Varredura visual final Claro ↔ Escuro em todas as telas com sessão autenticada real.
-- [ ] Desktop real validado.
-- [ ] Android real validado.
-- [ ] iPhone/iOS real validado quando aplicável.
+Executar somente se a carga de dados não trouxer uma conta administrativa válida e depois de schema/dados estarem coerentes. Preferir senha via `stdin`, sem digitá-la na linha de comando/histórico:
 
-## 10. Integridade de dados
-Últimas baterias: **zero inconsistências conhecidas** em duplicidade exata do Cronograma, vínculos órfãos, aprovação sem código, prova publicada vazia, assinatura incompleta marcada como formal, ciclo inválido, módulo com nota/ordem inválida e Desafio Diário duplicado.
+```bash
+read -rsp 'Senha temporária: ' SENHA_TMP; echo
+printf '%s' "$SENHA_TMP" | \
+  CONFIRM_BOOTSTRAP_ADMIN=SIM SENHA_STDIN=SIM \
+  MATRICULA=<MATRICULA> NOME="<NOME>" SETOR=Administrativo \
+  npm run bootstrap-admin
+unset SENHA_TMP
+```
 
-## 11. Publicação
-- [ ] Variáveis Supabase configuradas no ambiente final.
-- [ ] Remover `.env` versionado somente após confirmar injeção de variáveis no deploy.
-- [ ] Domínio/URL final definido.
-- [ ] URLs permitidas do Supabase Auth configuradas para produção.
-- [ ] Runner oficial de migrations executado e histórico conferido no ambiente final.
-- [ ] Backup pré-publicação concluído.
-- [ ] Conta Inspetor testada no domínio final.
-- [ ] Conta Operador testada no domínio final.
-- [ ] PDFs/impressão validados no navegador usado pela operação.
+- [ ] necessidade do bootstrap confirmada;
+- [ ] execução registrada como evidência sem guardar senha;
+- [ ] senha temporária trocada no primeiro acesso.
 
-## 12. Infraestrutura
-- [ ] Definir se haverá restrição por IP/VPN.
+## 12. Ordem oficial do cutover
 
-**Importante:** IP/VPN ainda não é um controle ativo e não deve ser apresentado como implementado.
+1. receber dados da TI e preparar secrets/rede/storage;
+2. `npm ci`;
+3. `npm run preflight`;
+4. `npm run migrate`;
+5. `npm run smoke`;
+6. migrar dados e evidências;
+7. `npm run cutover:audit`;
+8. bootstrap do primeiro Inspetor somente se necessário;
+9. subir API e manter `/health/ready` verde;
+10. publicar frontend com `VITE_SEGEMPAT_REQUIRE_API=true`;
+11. executar E2E Inspetor + Operador;
+12. validar backup, restore e rollback;
+13. aprovar o cutover.
 
-## 13. Rollback
-Antes da publicação registrar: commit estável anterior, commit publicado, backup do banco, migrations da versão e procedimento de rollback do frontend/schema quando tecnicamente seguro.
+## 13. Critério final
+
+Antes de todos os itens corporativos obrigatórios acima estarem aprovados, o status permanece:
+
+**PARTE DO MYSQL NO CÓDIGO CONCLUÍDA — PRONTO PARA CONECTAR AO BANCO DA EMPRESA.**
+
+Somente após os gates e testes reais:
+
+**SEGEMPAT HOMOLOGADO NO MYSQL DA EMPRESA.**
