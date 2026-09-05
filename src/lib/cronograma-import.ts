@@ -1,5 +1,6 @@
 import { createCronogramaEntries, listCronogramaEntries, updateCronogramaEntry } from "@/lib/cronograma";
 import { listEmployees } from "@/lib/employees";
+import { apiRequest, isSegempatApiConfigured } from "@/lib/backend/api-client";
 
 export type AtomicCronogramaImportRow = {
   matricula: string;
@@ -22,6 +23,15 @@ function normalize(value: string) {
 export async function importCronogramaResultsAtomic(rows: AtomicCronogramaImportRow[]): Promise<AtomicCronogramaImportResult> {
   if (!rows.length) return { updated: 0, created: 0, ignored: 0 };
 
+  if (isSegempatApiConfigured()) {
+    return apiRequest<AtomicCronogramaImportResult>("/api/cronograma/import-results", {
+      method: "POST",
+      body: JSON.stringify({ rows }),
+    });
+  }
+
+  // Compatibilidade temporária do preview legado. O modo corporativo não entra
+  // neste ramo e executa a importação inteira em uma única transação MySQL.
   const employees = await listEmployees();
   const employeeByMatricula = new Map(employees.map((employee) => [normalize(employee.matricula), employee]));
   const months = [...new Set(rows.map((row) => row.month))];
