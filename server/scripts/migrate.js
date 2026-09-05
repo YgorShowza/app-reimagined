@@ -17,6 +17,7 @@ const LOCKED_VALIDATORS = [
   "check-existing-baseline-secondary-indexes.js",
   "check-existing-baseline-generated-columns.js",
   "check-existing-baseline-check-constraints.js",
+  "check-existing-baseline-triggers.js",
   "validate-existing-baseline.js",
   "check-existing-baseline-orphans.js",
 ];
