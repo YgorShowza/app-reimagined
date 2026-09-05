@@ -13,6 +13,7 @@ const LOCKED_VALIDATORS = [
   "check-migration-history-table.js",
   "check-existing-baseline-storage.js",
   "check-existing-baseline-columns.js",
+  "check-existing-baseline-column-attributes.js",
   "check-existing-baseline-primary-keys.js",
   "check-existing-baseline-secondary-indexes.js",
   "check-existing-baseline-generated-columns.js",
