@@ -48,6 +48,7 @@ const READINESS_TABLES = [
   "audit_logs",
 ];
 
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 let expectedMigrationPromise = null;
 
 function migrationVersion(fileName) {
@@ -97,6 +98,19 @@ async function verifyStorageReadiness() {
   }
 }
 
+function enforceTrustedWriteOrigin(req, _res, next) {
+  if (SAFE_METHODS.has(req.method)) return next();
+
+  const origin = String(req.get("origin") || "").trim();
+  if (!origin) {
+    return next(new HttpError(403, "Origem da requisição é obrigatória para operações de escrita", "ORIGIN_REQUIRED"));
+  }
+  if (!config.allowedOrigins.includes(origin)) {
+    return next(new HttpError(403, "Origem não autorizada", "ORIGIN_FORBIDDEN"));
+  }
+  return next();
+}
+
 export function createApp() {
   const app = express();
 
@@ -115,8 +129,7 @@ export function createApp() {
       allowedHeaders: ["Content-Type", "Accept"],
     }),
   );
-  app.use(express.json({ limit: "2mb" }));
-  app.use(express.urlencoded({ extended: false, limit: "2mb" }));
+  app.use(express.json({ limit: "2mb", type: "application/json" }));
   app.use(cookieParser());
   app.use(attachUser);
 
@@ -219,6 +232,10 @@ export function createApp() {
       });
     }
   });
+
+  // Operações de escrita autenticadas por cookie exigem Origin explícita e autorizada.
+  // Isso protege o modo SameSite=None e evita depender apenas do CORS para mitigar CSRF.
+  app.use("/api", enforceTrustedWriteOrigin);
 
   app.use("/api/auth", authRouter);
   app.use("/api/employees", employeesRouter);
