@@ -194,6 +194,24 @@ jobs:
           grep -F 'SEGEMPAT API é obrigatória neste ambiente' src/lib/backend/api-client.ts >/dev/null
           echo "Contrato de cutover do frontend corporativo validado."
 
+      - name: Validate corporate reverse proxy and systemd hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          nginx_cfg=server/deploy/nginx-segempat-api.conf
+          service_cfg=server/deploy/segempat-api.service
+          grep -F 'listen 443 ssl;' "$nginx_cfg" >/dev/null
+          grep -F 'ssl_protocols       TLSv1.2 TLSv1.3;' "$nginx_cfg" >/dev/null
+          grep -F 'proxy_pass http://127.0.0.1:8787/health/ready;' "$nginx_cfg" >/dev/null
+          grep -F 'return 301 https://$host$request_uri;' "$nginx_cfg" >/dev/null
+          grep -F 'User=segempat' "$service_cfg" >/dev/null
+          grep -F 'NoNewPrivileges=true' "$service_cfg" >/dev/null
+          grep -F 'ProtectSystem=strict' "$service_cfg" >/dev/null
+          grep -F 'ProtectHome=true' "$service_cfg" >/dev/null
+          grep -F 'ReadWritePaths=/var/lib/segempat/storage' "$service_cfg" >/dev/null
+          grep -F 'RestrictSUIDSGID=true' "$service_cfg" >/dev/null
+          echo "Proxy reverso e serviço systemd corporativos validados."
+
       - name: Validate corporate API deployment image
         shell: bash
         run: |
