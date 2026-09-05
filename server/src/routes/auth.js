@@ -86,7 +86,12 @@ authRouter.post(
     );
 
     const genericFailure = unauthorized("Matrícula ou senha inválida");
-    if (!account) throw genericFailure;
+    if (!account) {
+      // Mantém custo criptográfico semelhante ao caminho de uma matrícula existente,
+      // reduzindo o sinal de enumeração de contas por tempo de resposta.
+      await bcrypt.hash(password || "segempat-invalid-login", 12);
+      throw genericFailure;
+    }
     if (!(await bcrypt.compare(password, account.password_hash))) throw genericFailure;
 
     const context = await loadAuthContext(account.id);
