@@ -9,6 +9,8 @@
 #   docker compose -f server/docker-compose.yml run --rm api npm run preflight
 #   docker compose -f server/docker-compose.yml run --rm api npm run migrate
 #   docker compose -f server/docker-compose.yml run --rm api npm run smoke
+#
+# Após migration/smoke, o healthcheck do Docker exige /health/ready verde.
 
 services:
   api:
@@ -18,6 +20,7 @@ services:
     image: segempat-api:1.0.0
     container_name: segempat-api
     restart: unless-stopped
+    init: true
     env_file:
       - ./.env
     # Publique apenas na interface interna; o TLS fica no proxy reverso da empresa.
@@ -28,6 +31,10 @@ services:
     # Necessário quando o MySQL corporativo está no host da própria VM.
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     logging:
       driver: json-file
       options:
