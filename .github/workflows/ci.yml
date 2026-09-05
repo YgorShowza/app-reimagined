@@ -194,6 +194,23 @@ jobs:
           grep -F 'SEGEMPAT API é obrigatória neste ambiente' src/lib/backend/api-client.ts >/dev/null
           echo "Contrato de cutover do frontend corporativo validado."
 
+      - name: Validate corporate API deployment image
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F "/health/ready" server/Dockerfile >/dev/null
+          grep -F "no-new-privileges:true" server/docker-compose.yml >/dev/null
+          grep -F "cap_drop:" server/docker-compose.yml >/dev/null
+          grep -F -- "- ALL" server/docker-compose.yml >/dev/null
+          cp server/.env.example server/.env
+          trap 'rm -f server/.env' EXIT
+          docker compose -f server/docker-compose.yml config >/tmp/segempat-compose.yml
+          docker build -f server/Dockerfile -t segempat-api:ci .
+          docker image inspect segempat-api:ci --format '{{.Config.User}} {{json .Config.Healthcheck.Test}}' | tee /tmp/segempat-image.txt
+          grep -F 'node' /tmp/segempat-image.txt >/dev/null
+          grep -F '/health/ready' /tmp/segempat-image.txt >/dev/null
+          echo "Imagem e manifesto de deploy corporativo validados."
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
