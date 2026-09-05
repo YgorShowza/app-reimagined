@@ -40,7 +40,9 @@ O navegador não recebe host, usuário, senha ou CA do MySQL. A autorização qu
 - contexto funcional é reconstruído do MySQL em toda requisição protegida;
 - conta e colaborador precisam permanecer `Ativo`;
 - privilégio administrativo exige simultaneamente role `admin` e perfil funcional atual `Inspetor`;
-- o token contém uma versão derivada de `app_users.updated_at`; troca de senha ou atualização privilegiada da conta invalida tokens antigos;
+- o token contém uma versão opaca derivada por HMAC da credencial armazenada, sem expor o bcrypt; troca de senha invalida tokens antigos;
+- alterações de conta, vínculo funcional e role continuam sendo reavaliadas diretamente no MySQL a cada requisição, sem depender do conteúdo antigo do cookie;
+- `last_login_at` e outros updates não relacionados à credencial não invalidam acidentalmente a sessão recém-criada;
 - após troca de senha, a sessão atual é rotacionada e as demais sessões antigas deixam de ser aceitas;
 - tokens malformados, com segmentos extras, sem versão, expirados ou excessivamente grandes são rejeitados.
 
@@ -55,7 +57,7 @@ O navegador não recebe host, usuário, senha ou CA do MySQL. A autorização qu
 
 ### Autenticação e primeiro acesso
 
-- login usa mensagem genérica para matrícula/senha inválida;
+- login usa mensagem genérica para matrícula/senha inválida e caminho criptográfico semelhante quando a matrícula não existe, reduzindo sinal de enumeração por tempo;
 - tentativas de login e ativação são limitadas por janela temporal e combinação de IP + matrícula;
 - senha é armazenada somente como bcrypt;
 - primeiro acesso exige colaborador ativo e código de ativação de 8 dígitos;
@@ -84,6 +86,13 @@ O navegador não recebe host, usuário, senha ou CA do MySQL. A autorização qu
 - leitura administrativa verifica vínculo no banco, confinamento de caminho e assinatura PNG;
 - `cutover:audit` confirma existência e coerência das evidências migradas.
 
+### Integração do frontend corporativo
+
+- `VITE_SEGEMPAT_REQUIRE_API=true` impede publicação corporativa sem `VITE_SEGEMPAT_API_URL`;
+- o cliente legado Supabase também possui bloqueio explícito em modo API-only, evitando acesso silencioso mesmo se algum código antigo for chamado por engano;
+- gateway de primeiro acesso usa as rotas reais `/api/access/activation-codes`;
+- importação de resultados do Cronograma usa endpoint MySQL único e transacional no modo corporativo.
+
 ### Infraestrutura de execução
 
 - container roda como usuário não-root `node`;
@@ -100,7 +109,9 @@ O workflow do GitHub valida continuamente:
 - versões de migrations MySQL e alinhamento de foreign keys críticas;
 - sintaxe de todos os arquivos JavaScript da API/scripts;
 - configuração segura de produção e rejeição de configurações inseguras;
-- contrato `VITE_SEGEMPAT_REQUIRE_API=true` do frontend corporativo;
+- sessão/CSRF por testes de contrato e execução HTTP local;
+- contrato `VITE_SEGEMPAT_REQUIRE_API=true` e bloqueio do backend legado;
+- rotas críticas de primeiro acesso e importação atômica do Cronograma;
 - build do container e metadados de usuário/healthcheck;
 - hardening do Compose, Nginx e systemd;
 - typecheck, lint e build de produção do frontend em modo API-only.
@@ -122,7 +133,7 @@ Ainda não é possível afirmar segurança operacional final sem verificar no am
 
 ## Riscos residuais conhecidos e tratamento
 
-- A sessão é stateless: logout limpa o cookie do dispositivo, enquanto revogação imediata de um token copiado depende de alteração/inativação da conta ou rotação de credencial. O TTL padrão é 12 horas e o contexto da conta é revalidado em toda requisição.
+- A sessão é stateless: logout limpa o cookie do dispositivo, enquanto revogação imediata de um token copiado depende de inativação da conta ou rotação da credencial. O TTL padrão é 12 horas e o contexto da conta é revalidado em toda requisição.
 - O limitador de autenticação implementado na aplicação é por instância. Em implantação com múltiplas réplicas, a TI deve complementar com rate limiting central no proxy/WAF.
 - `trust proxy=1` pressupõe exatamente um proxy corporativo confiável à frente da API; se a topologia for diferente, a TI deve ajustar essa configuração antes da publicação.
 
