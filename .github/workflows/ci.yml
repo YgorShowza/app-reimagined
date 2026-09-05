@@ -256,7 +256,16 @@ jobs:
           grep -F 'VITE_SEGEMPAT_REQUIRE_API' src/lib/backend/api-client.ts >/dev/null
           grep -F 'import.meta.env.PROD && url.protocol !== "https:"' src/lib/backend/api-client.ts >/dev/null
           grep -F 'SEGEMPAT API é obrigatória neste ambiente' src/lib/backend/api-client.ts >/dev/null
-          echo "Contrato de cutover do frontend corporativo validado."
+          grep -F 'Backend legado Supabase desabilitado neste ambiente' src/integrations/supabase/client.ts >/dev/null
+          grep -F '/api/access/activation-codes' src/lib/backend/access-gateway.ts >/dev/null
+          if grep -F '/api/admin/activation-codes' src/lib/backend/access-gateway.ts >/dev/null; then
+            echo "::error::Gateway de primeiro acesso voltou a usar rota MySQL antiga/incorreta"
+            exit 1
+          fi
+          grep -F '/api/cronograma/import-results' src/lib/cronograma-import.ts >/dev/null
+          grep -F 'cronogramaImportRouter' server/src/app.js >/dev/null
+          grep -F 'withTransaction' server/src/routes/cronograma-import.js >/dev/null
+          echo "Contrato de cutover, gateways e importação atômica do frontend corporativo validados."
 
       - name: Validate corporate reverse proxy and systemd hardening
         shell: bash
