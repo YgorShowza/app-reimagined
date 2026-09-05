@@ -3,13 +3,17 @@ import bcrypt from "bcryptjs";
 import { queryOne, withTransaction } from "../db.js";
 import { audit } from "../audit.js";
 import { clearSessionCookie, loadAuthContext, requireAuth, setSessionCookie, toSessionUser } from "../session.js";
-import { asyncHandler, badRequest, forbidden, requireText, unauthorized, uuid } from "../util.js";
+import { HttpError, asyncHandler, badRequest, forbidden, requireText, unauthorized, uuid } from "../util.js";
 
 export const authRouter = Router();
 
 const MIN_PASSWORD = 8;
 const MAX_PASSWORD = 128;
 const MAX_MATRICULA = 80;
+const AUTH_WINDOW_MS = 15 * 60_000;
+const AUTH_BUCKET_LIMIT = 5_000;
+const authAttempts = new Map();
+let lastAuthSweepAt = 0;
 
 function normalizeMatricula(value) {
   const matricula = requireText(value, "Matrícula").trim().toLowerCase();
@@ -29,11 +33,51 @@ function assertStrongPassword(password) {
   return text;
 }
 
+function sweepAuthAttempts(now) {
+  if (now - lastAuthSweepAt < 60_000 && authAttempts.size < AUTH_BUCKET_LIMIT) return;
+  lastAuthSweepAt = now;
+  for (const [key, bucket] of authAttempts) {
+    if (bucket.resetAt <= now) authAttempts.delete(key);
+  }
+  while (authAttempts.size > AUTH_BUCKET_LIMIT) {
+    const firstKey = authAttempts.keys().next().value;
+    if (!firstKey) break;
+    authAttempts.delete(firstKey);
+  }
+}
+
+function authAttemptKey(req, action, matricula) {
+  const ip = String(req.ip || req.socket?.remoteAddress || "unknown").slice(0, 120);
+  return `${action}:${ip}:${matricula}`;
+}
+
+function consumeAuthAttempt(req, action, matricula, maxAttempts) {
+  const now = Date.now();
+  sweepAuthAttempts(now);
+  const key = authAttemptKey(req, action, matricula);
+  const current = authAttempts.get(key);
+  const bucket = !current || current.resetAt <= now
+    ? { count: 0, resetAt: now + AUTH_WINDOW_MS }
+    : current;
+
+  bucket.count += 1;
+  authAttempts.set(key, bucket);
+  if (bucket.count > maxAttempts) {
+    throw new HttpError(429, "Muitas tentativas. Aguarde alguns minutos e tente novamente.", "RATE_LIMITED");
+  }
+  return key;
+}
+
+function clearAuthAttempts(key) {
+  if (key) authAttempts.delete(key);
+}
+
 authRouter.post(
   "/login",
   asyncHandler(async (req, res) => {
     const matricula = normalizeMatricula(req.body?.matricula);
     const password = passwordText(req.body?.password);
+    const rateKey = consumeAuthAttempt(req, "login", matricula, 12);
 
     const account = await queryOne(
       `SELECT id, password_hash FROM app_users
@@ -59,7 +103,8 @@ authRouter.post(
       await audit(context.id, "LOGIN", "app_users", context.id, { atomic: true }, connection);
     });
 
-    setSessionCookie(res, context.id);
+    clearAuthAttempts(rateKey);
+    setSessionCookie(res, context);
     res.json(toSessionUser(context));
   }),
 );
@@ -70,6 +115,7 @@ authRouter.post(
     const matricula = normalizeMatricula(req.body?.matricula);
     const activationCode = requireText(req.body?.activationCode, "Código de ativação");
     const password = assertStrongPassword(req.body?.password);
+    const rateKey = consumeAuthAttempt(req, "activate", matricula, 8);
 
     if (!/^[0-9]{8}$/.test(activationCode)) throw badRequest("Código de ativação inválido");
 
@@ -128,7 +174,8 @@ authRouter.post(
 
     const context = await loadAuthContext(userId);
     if (!context) throw forbidden("Cadastro funcional inativo");
-    setSessionCookie(res, context.id);
+    clearAuthAttempts(rateKey);
+    setSessionCookie(res, context);
     res.status(201).json(toSessionUser(context));
   }),
 );
@@ -137,6 +184,7 @@ authRouter.get(
   "/me",
   asyncHandler(async (req, res) => {
     if (!req.user) throw unauthorized();
+    res.setHeader("Cache-Control", "private, no-store, max-age=0");
     res.json(toSessionUser(req.user));
   }),
 );
@@ -166,8 +214,12 @@ authRouter.post(
         `UPDATE app_users SET password_hash = ?, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`,
         [nextHash, req.user.id],
       );
-      await audit(req.user.id, "PASSWORD_CHANGE", "app_users", req.user.id, { atomic: true }, connection);
+      await audit(req.user.id, "PASSWORD_CHANGE", "app_users", req.user.id, { atomic: true, sessions_rotated: true }, connection);
     });
+
+    const refreshed = await loadAuthContext(req.user.id);
+    if (!refreshed) throw unauthorized();
+    setSessionCookie(res, refreshed);
     res.status(204).end();
   }),
 );
