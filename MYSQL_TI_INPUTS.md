@@ -13,12 +13,14 @@ Preencher/confirmar:
 - Porta TCP (padrão 3306):
 - Nome do database destinado ao SEGEMPAT:
 - Usuário de aplicação com privilégio mínimo:
-- TLS obrigatório? `sim/não`:
+- TLS disponível e habilitado para a conexão da API: `sim` (obrigatório com `NODE_ENV=production`):
 - CA corporativa própria? `sim/não`:
 - Se houver CA, caminho absoluto onde ela ficará no host da API:
 - Origem de rede/IP que deve ser liberada no firewall/allowlist para a API:
 
 A senha do usuário MySQL **não deve ser escrita neste documento**.
+
+Se o MySQL corporativo não oferecer TLS para o host da API, a homologação em modo `production` deve parar até a TI definir uma solução compatível; não desabilitar o controle apenas para fazer o gate passar.
 
 ## 2. Servidor da API SEGEMPAT
 
@@ -43,6 +45,8 @@ No build corporativo do frontend usar obrigatoriamente:
 VITE_SEGEMPAT_API_URL=<URL HTTPS DA API>
 VITE_SEGEMPAT_REQUIRE_API=true
 ```
+
+`VITE_SEGEMPAT_REQUIRE_API=true` é o controle de corte que impede fallback silencioso para o backend legado quando a API corporativa estiver ausente ou mal configurada.
 
 ## 4. Configuração a ser aplicada no servidor
 
@@ -72,7 +76,7 @@ SEGEMPAT_STORAGE_PATH=<CAMINHO_ABSOLUTO_PERSISTENTE>
 SEGEMPAT_TIMEZONE=America/Maceio
 ```
 
-## 5. Ordem de execução da homologação
+## 5. Ordem oficial de execução da homologação
 
 Com os dados acima configurados no ambiente real, executar na pasta `server/`:
 
@@ -83,17 +87,18 @@ npm run migrate
 npm run smoke
 ```
 
-Somente se todos os gates acima passarem, prosseguir com carga/migração de dados e depois:
+Somente se todos os gates acima passarem:
 
-```bash
-npm run cutover:audit
-npm start
-```
+1. realizar a carga/migração dos dados e evidências;
+2. executar `npm run cutover:audit`;
+3. executar `npm run bootstrap-admin` apenas se for necessário preparar o primeiro Inspetor;
+4. iniciar a API com `npm start` ou pelo runtime corporativo definido;
+5. confirmar `GET /health` e `GET /health/ready`;
+6. publicar o frontend corporativo com `VITE_SEGEMPAT_API_URL=<HTTPS DA API>` e `VITE_SEGEMPAT_REQUIRE_API=true`;
+7. executar os testes ponta a ponta.
 
 Então validar:
 
-- `GET /health`;
-- `GET /health/ready`;
 - login de Inspetor;
 - login de Operador;
 - primeiro acesso/ativação;
