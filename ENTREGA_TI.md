@@ -3,6 +3,10 @@
 Documento único para o time de TI. O objetivo é simples: **o SEGEMPAT passa a
 guardar todos os dados no MySQL corporativo**.
 
+Para a execução da homologação no ambiente real, usar também o roteiro operacional
+`MYSQL_CORPORATE_HANDOFF.md`, que organiza os gates de preflight, migration, smoke,
+auditoria pós-carga, teste ponta a ponta e coleta de evidências.
+
 ## Como funciona
 
 ```text
@@ -35,6 +39,7 @@ MySQL da empresa
 | Container | `server/Dockerfile`, `server/docker-compose.yml` |
 | Serviço Linux | `server/deploy/segempat-api.service` |
 | Proxy HTTPS | `server/deploy/nginx-segempat-api.conf` |
+| Roteiro operacional de homologação | `MYSQL_CORPORATE_HANDOFF.md` |
 | Checklist de homologação | `CORPORATE_HOMOLOGATION_CHECKLIST.md` |
 
 ## O que a TI precisa providenciar
@@ -68,9 +73,10 @@ npm run migrate
 # 5. Validar o schema
 npm run smoke
 
-# 6. Criar o primeiro Inspetor
-CONFIRM_BOOTSTRAP_ADMIN=SIM MATRICULA=970 NOME="Ygor Souza" \
-  SETOR=Administrativo SENHA='definir-senha-forte' npm run bootstrap-admin
+# 6. Criar o primeiro Inspetor, somente quando necessário
+# Não registrar senha real em documentação, commit, issue ou log compartilhado.
+CONFIRM_BOOTSTRAP_ADMIN=SIM MATRICULA=<MATRICULA> NOME="<NOME>" \
+  SETOR=Administrativo SENHA='<SENHA_TEMPORARIA_FORTE>' npm run bootstrap-admin
 
 # 7. Subir o serviço
 npm start   # ou systemd / docker compose
@@ -97,7 +103,20 @@ frontend (sem `*`, porque a sessão usa cookie).
 Testar com um Inspetor e um Operador: primeiro acesso, login, logout, Equipe,
 Cronograma (lançamento individual e em massa), Banco de Questões, Provas e
 correção, Treinamentos, Avaliação Prática, Ocorrências, assinatura,
-certificados, relatórios e auditoria. O detalhamento está em
+certificados, relatórios e auditoria.
+
+A sequência oficial para o ambiente corporativo é:
+
+1. `npm run preflight`;
+2. `npm run migrate`;
+3. `npm run smoke`;
+4. migração/carga dos dados;
+5. `npm run cutover:audit`;
+6. subida da API;
+7. teste ponta a ponta com Inspetor e Operador;
+8. validação de backup, rollback, TLS, CORS, cookies e firewall.
+
+O detalhamento e as regras de parada estão em `MYSQL_CORPORATE_HANDOFF.md` e
 `CORPORATE_HOMOLOGATION_CHECKLIST.md`.
 
 ## Segurança
@@ -107,3 +126,15 @@ certificados, relatórios e auditoria. O detalhamento está em
 - Senhas somente em hash bcrypt.
 - Trilha de auditoria em `audit_logs`.
 - Restrições por IP/VPN/firewall aplicadas no proxy reverso.
+- Credenciais reais e secrets nunca versionados no GitHub.
+
+## Status correto antes da conexão real
+
+Enquanto os gates não forem executados contra o ambiente corporativo, o status
+correto do projeto é:
+
+**PARTE DO MYSQL NO CÓDIGO CONCLUÍDA — PRONTO PARA CONECTAR AO BANCO DA EMPRESA.**
+
+Somente depois da aprovação de todos os gates pode ser declarado:
+
+**SEGEMPAT HOMOLOGADO NO MYSQL DA EMPRESA.**
