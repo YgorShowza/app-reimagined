@@ -10,10 +10,14 @@ function sign(payload) {
 }
 
 function credentialVersion(passwordHash) {
-  // Não envia o bcrypt ao navegador. A versão é um HMAC opaco e muda somente
+  // Não envia o bcrypt ao navegador. A versão é derivada por HMAC e muda somente
   // quando a credencial armazenada muda, evitando invalidar a sessão em updates
-  // não relacionados (por exemplo, last_login_at).
-  return sign(`credential-version:${passwordHash}`);
+  // não relacionados (por exemplo, last_login_at). Os primeiros 48 bits cabem
+  // com segurança em um inteiro JavaScript e não revelam o password_hash.
+  return createHmac("sha256", config.session.secret)
+    .update(`credential-version:${passwordHash}`)
+    .digest()
+    .readUIntBE(0, 6);
 }
 
 /** Sessão stateless assinada: payload base64url + HMAC-SHA256. */
@@ -42,7 +46,7 @@ export function readSessionToken(token) {
   try {
     const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
     if (!data?.sub || typeof data.exp !== "number" || data.exp < Date.now()) return null;
-    if (typeof data.ver !== "string" || data.ver.length !== 43) return null;
+    if (!Number.isSafeInteger(data.ver) || data.ver < 0) return null;
     return data;
   } catch {
     return null;
