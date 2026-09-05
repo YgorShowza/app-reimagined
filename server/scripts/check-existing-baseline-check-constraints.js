@@ -105,6 +105,15 @@ function normalizeCheckExpression(value) {
     .toLowerCase();
 }
 
+function extractBaselineTableNames(sql) {
+  const names = [];
+  for (const match of sql.matchAll(/\bCREATE\s+TABLE\s+([A-Za-z0-9_]+)/gi)) {
+    const name = String(match[1]);
+    if (name !== "schema_migrations") names.push(name);
+  }
+  return [...new Set(names)];
+}
+
 function extractBaselineCheckConstraints(sql) {
   const constraints = [];
   const tablePattern = /\bCREATE\s+TABLE\s+([A-Za-z0-9_]+)\s*\(([\s\S]*?)\)\s*ENGINE\s*=/gi;
@@ -162,11 +171,10 @@ async function tableExists(connection, tableName) {
 
 async function main() {
   const sql = await fs.readFile(baselinePath, "utf8");
+  const tableNames = extractBaselineTableNames(sql);
   const expected = extractBaselineCheckConstraints(sql);
-
-  if (expected.length === 0) {
-    console.log("[segempat-api] baseline não declara CHECK constraints; nada a validar");
-    return;
+  if (tableNames.length === 0) {
+    throw new Error("Não foi possível extrair as tabelas do baseline 001_schema.sql");
   }
 
   const connection = await mysql.createConnection({
@@ -189,7 +197,6 @@ async function main() {
       }
     }
 
-    const tableNames = [...new Set(expected.map(({ tableName }) => tableName))];
     const tablePlaceholders = tableNames.map(() => "?").join(",");
     const [presentRows] = await connection.execute(
       `SELECT table_name
@@ -204,8 +211,6 @@ async function main() {
       return;
     }
 
-    const constraintNames = expected.map(({ constraintName }) => constraintName);
-    const constraintPlaceholders = constraintNames.map(() => "?").join(",");
     const [rows] = await connection.execute(
       `SELECT tc.table_name,
               tc.constraint_name,
@@ -217,9 +222,9 @@ async function main() {
           AND cc.constraint_name = tc.constraint_name
         WHERE tc.constraint_schema = DATABASE()
           AND tc.constraint_type = 'CHECK'
-          AND tc.constraint_name IN (${constraintPlaceholders})
+          AND tc.table_name IN (${tablePlaceholders})
         ORDER BY tc.table_name, tc.constraint_name`,
-      constraintNames,
+      tableNames,
     );
 
     const actualByName = new Map(
@@ -229,6 +234,7 @@ async function main() {
         enforced: String(row.enforced || "").toUpperCase(),
       }]),
     );
+    const expectedNames = new Set(expected.map(({ constraintName }) => constraintName));
 
     const problems = [];
     for (const item of expected) {
@@ -250,6 +256,14 @@ async function main() {
       }
     }
 
+    for (const [constraintName, actual] of actualByName) {
+      if (!expectedNames.has(constraintName)) {
+        problems.push(
+          `${actual.tableName}.${constraintName}: CHECK inesperado (${actual.expression || "expressão vazia"})`,
+        );
+      }
+    }
+
     if (problems.length > 0) {
       throw new Error(
         `Baseline MySQL legado possui CHECK constraints divergentes do 001_schema.sql: ${problems.join("; ")}. ` +
@@ -257,7 +271,9 @@ async function main() {
       );
     }
 
-    console.log(`[segempat-api] CHECK constraints do baseline legado OK; ${expected.length} definição(ões) validada(s)`);
+    console.log(
+      `[segempat-api] CHECK constraints do baseline legado OK; ${expected.length} definição(ões) exata(s) e nenhuma extra`,
+    );
   } finally {
     await connection.end();
   }
