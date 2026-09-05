@@ -3,20 +3,28 @@ import { config } from "./config.js";
 import { queryOne, query } from "./db.js";
 import { forbidden, unauthorized } from "./util.js";
 
+const MAX_SESSION_TOKEN_LENGTH = 2048;
+
 function sign(payload) {
   return createHmac("sha256", config.session.secret).update(payload).digest("base64url");
 }
 
 /** Sessão stateless assinada: payload base64url + HMAC-SHA256. */
-export function createSessionToken(userId) {
+export function createSessionToken(user) {
   const expiresAt = Date.now() + config.session.ttlHours * 3600_000;
-  const payload = Buffer.from(JSON.stringify({ sub: userId, exp: expiresAt })).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({
+    sub: user.id,
+    exp: expiresAt,
+    ver: user.sessionVersion,
+  })).toString("base64url");
   return `${payload}.${sign(payload)}`;
 }
 
 export function readSessionToken(token) {
-  if (typeof token !== "string" || !token.includes(".")) return null;
-  const [payload, signature] = token.split(".");
+  if (typeof token !== "string" || token.length === 0 || token.length > MAX_SESSION_TOKEN_LENGTH) return null;
+  const parts = token.split(".");
+  if (parts.length !== 2) return null;
+  const [payload, signature] = parts;
   if (!payload || !signature) return null;
 
   const expected = sign(payload);
@@ -27,14 +35,15 @@ export function readSessionToken(token) {
   try {
     const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
     if (!data?.sub || typeof data.exp !== "number" || data.exp < Date.now()) return null;
+    if (!Number.isFinite(data.ver)) return null;
     return data;
   } catch {
     return null;
   }
 }
 
-export function setSessionCookie(res, userId) {
-  res.cookie(config.session.cookieName, createSessionToken(userId), {
+export function setSessionCookie(res, user) {
+  res.cookie(config.session.cookieName, createSessionToken(user), {
     httpOnly: true,
     secure: config.session.secure,
     sameSite: config.session.sameSite,
@@ -58,7 +67,7 @@ export function clearSessionCookie(res) {
  */
 export async function loadAuthContext(userId) {
   const row = await queryOne(
-    `SELECT u.id, u.matricula, u.status AS account_status, p.nome,
+    `SELECT u.id, u.matricula, u.status AS account_status, u.updated_at AS account_updated_at, p.nome,
             e.id AS employee_id, e.full_name, e.sector, e.access_profile,
             e.status AS employee_status
        FROM app_users u
@@ -74,6 +83,8 @@ export async function loadAuthContext(userId) {
   const roles = await query(`SELECT role FROM user_roles WHERE user_id = ?`, [userId]);
   const hasAdminRole = roles.some((entry) => entry.role === "admin");
   const isAdmin = hasAdminRole && row.access_profile === "Inspetor";
+  const sessionVersion = new Date(row.account_updated_at).getTime();
+  if (!Number.isFinite(sessionVersion)) return null;
 
   return {
     id: row.id,
@@ -83,16 +94,23 @@ export async function loadAuthContext(userId) {
     employeeId: row.employee_id ?? null,
     accessProfile: row.access_profile ?? null,
     isAdmin,
+    sessionVersion,
   };
 }
 
 export async function attachUser(req, _res, next) {
   try {
     const session = readSessionToken(req.cookies?.[config.session.cookieName]);
-    req.user = session ? await loadAuthContext(session.sub) : null;
-    next();
+    if (!session) {
+      req.user = null;
+      return next();
+    }
+
+    const user = await loadAuthContext(session.sub);
+    req.user = user && user.sessionVersion === session.ver ? user : null;
+    return next();
   } catch (error) {
-    next(error);
+    return next(error);
   }
 }
 
