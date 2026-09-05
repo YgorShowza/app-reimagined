@@ -183,6 +183,66 @@ jobs:
           expect_rejected "CA MySQL informada com TLS desabilitado" MYSQL_SSL=false MYSQL_SSL_CA_PATH=/tmp/mysql-ca.pem
           expect_rejected "CA MySQL relativa em produção" MYSQL_SSL=true MYSQL_SSL_CA_PATH=./mysql-ca.pem
 
+      - name: Validate API session and CSRF hardening
+        shell: bash
+        env:
+          NODE_ENV: production
+          MYSQL_HOST: 127.0.0.1
+          MYSQL_DATABASE: segempat_ci
+          MYSQL_USER: segempat_ci
+          MYSQL_PASSWORD: ci-password-only
+          MYSQL_SSL: "true"
+          SEGEMPAT_SESSION_SECRET: ci-only-session-secret-with-at-least-32-bytes
+          SEGEMPAT_SESSION_SECURE: "true"
+          SEGEMPAT_ALLOWED_ORIGINS: https://segempat.example.test
+          SEGEMPAT_STORAGE_DRIVER: filesystem
+          SEGEMPAT_STORAGE_PATH: /tmp/segempat-ci-storage
+        run: |
+          set -euo pipefail
+          mkdir -p "$SEGEMPAT_STORAGE_PATH"
+          grep -F 'app.use("/api", enforceTrustedWriteOrigin);' server/src/app.js >/dev/null
+          grep -F 'ORIGIN_REQUIRED' server/src/app.js >/dev/null
+          grep -F 'express.json({ limit: "2mb", type: "application/json" })' server/src/app.js >/dev/null
+          if grep -F 'express.urlencoded' server/src/app.js >/dev/null; then
+            echo "::error::API corporativa não deve reabrir parser de formulário URL-encoded"
+            exit 1
+          fi
+          grep -F 'sessionVersion' server/src/session.js >/dev/null
+          grep -F 'parts.length !== 2' server/src/session.js >/dev/null
+          grep -F 'consumeAuthAttempt' server/src/routes/auth.js >/dev/null
+          grep -F 'SENHA_STDIN' server/scripts/bootstrap-admin.js >/dev/null
+
+          node --input-type=module <<'NODE'
+          const { createSessionToken, readSessionToken } = await import('./server/src/session.js');
+          const user = { id: 'ci-user', sessionVersion: 123456 };
+          const token = createSessionToken(user);
+          const decoded = readSessionToken(token);
+          if (!decoded || decoded.sub !== user.id || decoded.ver !== user.sessionVersion) process.exit(1);
+          if (readSessionToken(`${token}.extra`) !== null) process.exit(1);
+          if (readSessionToken('x'.repeat(3000)) !== null) process.exit(1);
+          console.log('Contrato de token de sessão validado.');
+          NODE
+
+          node --input-type=module <<'NODE'
+          const { createApp } = await import('./server/src/app.js');
+          const app = createApp();
+          const server = app.listen(0, '127.0.0.1');
+          await new Promise((resolve) => server.once('listening', resolve));
+          const { port } = server.address();
+          try {
+            const blocked = await fetch(`http://127.0.0.1:${port}/api/auth/logout`, { method: 'POST' });
+            if (blocked.status !== 403) process.exit(1);
+            const allowed = await fetch(`http://127.0.0.1:${port}/api/auth/logout`, {
+              method: 'POST',
+              headers: { Origin: 'https://segempat.example.test' },
+            });
+            if (allowed.status !== 204) process.exit(1);
+            console.log('Proteção de Origin para escrita validada.');
+          } finally {
+            await new Promise((resolve) => server.close(resolve));
+          }
+          NODE
+
       - name: Validate corporate frontend cutover contract
         shell: bash
         run: |
