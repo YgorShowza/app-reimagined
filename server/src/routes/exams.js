@@ -25,7 +25,7 @@ export const myExamsRouter = Router();
 
 const EXAM_TYPES = ["Múltipla escolha", "Discursiva", "Mista"];
 const EXAM_STATUS = ["Rascunho", "Publicada"];
-const TARGET_SECTORS = ["Todos", "CFTV", "Vigilância", "Portaria", "Ronda", "Administrativo"];
+const TARGET_SECTORS = ["Todos", "CFTV", "Vigilância", "Portaria", "Ronda", "Administrativo", "Operações"];
 
 function localDate() {
   return new Intl.DateTimeFormat("en-CA", {
@@ -34,6 +34,13 @@ function localDate() {
     month: "2-digit",
     day: "2-digit",
   }).format(new Date());
+}
+
+function operationalYearUtcBounds(year = Number(localDate().slice(0, 4))) {
+  return {
+    start: `${year}-01-01 03:00:00`,
+    end: `${year + 1}-01-01 03:00:00`,
+  };
 }
 
 function mapAttempt(row) {
@@ -294,9 +301,10 @@ myExamsRouter.get("/exam-attempts", requireAuth, asyncHandler(async (req, res) =
 myExamsRouter.get("/exam-attempts/year/:year", requireAuth, asyncHandler(async (req, res) => {
   const year = Number(req.params.year);
   if (!Number.isInteger(year) || year < 2000 || year > 2200) throw badRequest("Ano inválido");
+  const bounds = operationalYearUtcBounds(year);
   const rows = await query(
     `SELECT * FROM exam_attempts WHERE user_id = ? AND finished_at >= ? AND finished_at < ? ORDER BY finished_at DESC`,
-    [req.user.id, `${year}-01-01 03:00:00`, `${year + 1}-01-01 03:00:00`],
+    [req.user.id, bounds.start, bounds.end],
   );
   res.json(rows.map(mapAttempt));
 }));
@@ -313,8 +321,20 @@ myExamsRouter.post("/exams/:id/attempts", requireAuth, asyncHandler(async (req, 
   const attemptId = uuid();
   const code = result.passed ? certificateCode() : null;
   const completionDate = localDate();
+  const bounds = operationalYearUtcBounds();
 
   await withTransaction(async (connection) => {
+    const [approvedRows] = await connection.execute(
+      `SELECT id FROM exam_attempts
+        WHERE user_id = ? AND exam_id = ? AND passed = 1
+          AND finished_at >= ? AND finished_at < ?
+        LIMIT 1 FOR UPDATE`,
+      [req.user.id, exam.id, bounds.start, bounds.end],
+    );
+    if (approvedRows[0]) {
+      throw conflict("Esta prova já foi aprovada neste ano operacional");
+    }
+
     await connection.execute(
       `INSERT INTO exam_attempts
        (id, exam_id, user_id, matricula, score, passed, answers, finished_at, created_at, updated_at, certificate_code, signature_agreed)
@@ -344,6 +364,8 @@ myExamsRouter.post("/exams/:id/attempts", requireAuth, asyncHandler(async (req, 
       score: result.score,
       passed: result.passed,
       answers_validated_server_side: true,
+      repeated_approval_guard_atomic: true,
+      operational_year_bounds_utc: bounds,
       cronograma_synchronized_atomically: result.passed,
       cronograma_changed: cronogramaChanged,
     }, connection);
