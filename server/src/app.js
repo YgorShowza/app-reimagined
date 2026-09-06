@@ -16,6 +16,7 @@ import { accessRouter } from "./routes/access.js";
 import { examsRouter, myExamsRouter } from "./routes/exams.js";
 import { examEvidenceRouter } from "./routes/exam-evidence.js";
 import { myExamEvidenceRouter } from "./routes/exam-evidence-self.js";
+import { cronogramaCreateIntegrityRouter } from "./routes/cronograma-create-integrity.js";
 import { cronogramaIntegrityRouter } from "./routes/cronograma-integrity.js";
 import { cronogramaRouter } from "./routes/cronograma.js";
 import { cronogramaImportRouter } from "./routes/cronograma-import.js";
@@ -221,6 +222,7 @@ export function createApp() {
   app.use("/api/me", myExamEvidenceRouter);
   app.use("/api/me", myPracticalRouter);
   app.use("/api/admin", examEvidenceRouter);
+  app.use("/api/cronograma", cronogramaCreateIntegrityRouter);
   app.use("/api/cronograma", cronogramaIntegrityRouter);
   app.use("/api/cronograma", cronogramaImportRouter);
   app.use("/api/cronograma", cronogramaRouter);
