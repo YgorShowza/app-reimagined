@@ -2,13 +2,13 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Award, CalendarDays, CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Printer, Search, ShieldCheck, Target, UserRound, XCircle } from "lucide-react";
 import { getOperationalSnapshot } from "@/lib/insights";
+import { operationalMonth } from "@/lib/operational-time";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 function currentMonth() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  return operationalMonth();
 }
 
 function monthLabel(value: string) {
