@@ -85,7 +85,20 @@ function AdminDashboard() {
   ];
   const priority = risk.filter((r) => r.score > 0);
   const priorityCount = priority.length;
-  const leaders = data.employees.filter((e) => e.status === "Ativo" && e.access_profile !== "Inspetor").sort((a, b) => b.points - a.points).slice(0, 4);
+  const leaders = data.employees
+    .filter((e) => e.status === "Ativo" && e.access_profile !== "Inspetor")
+    .map((employee) => {
+      const attempts = data.attempts.filter((attempt) => attempt.matricula === employee.matricula);
+      const passed = attempts.filter((attempt) => attempt.passed).length;
+      const averageScore = attempts.length ? Math.round((attempts.reduce((sum, attempt) => sum + Number(attempt.score || 0), 0) / attempts.length) * 10) / 10 : 0;
+      const approvalRate = attempts.length ? Math.round((passed / attempts.length) * 100) : 0;
+      const cron = data.cronograma.filter((entry) => entry.employee_id === employee.id || entry.employee_matricula === employee.matricula);
+      const realized = cron.filter((entry) => entry.status === "Realizado").length;
+      const executionRate = cron.length ? Math.round((realized / cron.length) * 100) : 0;
+      return { employee, attempts: attempts.length, averageScore, approvalRate, executionRate };
+    })
+    .sort((a, b) => Number(b.attempts > 0) - Number(a.attempts > 0) || b.approvalRate - a.approvalRate || b.averageScore - a.averageScore || b.executionRate - a.executionRate || a.employee.full_name.localeCompare(b.employee.full_name, "pt-BR"))
+    .slice(0, 4);
 
   return (
     <div className="mx-auto max-w-[1280px] space-y-5 pb-10">
@@ -131,7 +144,7 @@ function AdminDashboard() {
 
       <Card className="overflow-hidden">
         <div className="flex items-center gap-2 p-4" style={{ borderBottom: "1px solid var(--border)" }}><Trophy className="h-4 w-4 text-amber-500" /><h2 className="text-sm font-black" style={{ color: "var(--text-1)" }}>Ranking de Desempenho</h2><span className="ml-auto text-[11px] font-semibold" style={{ color: "var(--text-4)" }}>Top {leaders.length}</span></div>
-        {leaders.length === 0 ? <div className="p-9 text-center"><Trophy className="mx-auto h-8 w-8" style={{ color: "var(--text-4)" }} /><p className="mt-2 text-sm font-bold" style={{ color: "var(--text-2)" }}>Sem ranking disponível</p></div> : <div className="grid gap-2 p-3 sm:grid-cols-2 lg:grid-cols-4">{leaders.map((e, i) => <div key={e.id} className="rounded-xl p-4 text-center" style={{ background: i === 0 ? "rgba(200,16,46,.08)" : "var(--bg-surface-2)", border: i === 0 ? "1px solid rgba(200,16,46,.28)" : "1px solid var(--border-subtle)" }}><div className="text-2xl">{["🥇", "🥈", "🥉", "4º"][i]}</div><p className="mt-2 truncate text-sm font-black" style={{ color: "var(--text-1)" }}>{e.full_name}</p><p className="mt-1 text-xs" style={{ color: "var(--text-4)" }}>{e.sector}</p><span className="mt-3 inline-flex rounded-lg px-2.5 py-1 text-xs font-black text-amber-500" style={{ background: "rgba(245,158,11,.10)" }}>{e.points || 0} pts</span></div>)}</div>}
+        {leaders.length === 0 ? <div className="p-9 text-center"><Trophy className="mx-auto h-8 w-8" style={{ color: "var(--text-4)" }} /><p className="mt-2 text-sm font-bold" style={{ color: "var(--text-2)" }}>Sem ranking disponível</p></div> : <div className="grid gap-2 p-3 sm:grid-cols-2 lg:grid-cols-4">{leaders.map((item, i) => <div key={item.employee.id} className="rounded-xl p-4 text-center" style={{ background: i === 0 ? "rgba(200,16,46,.08)" : "var(--bg-surface-2)", border: i === 0 ? "1px solid rgba(200,16,46,.28)" : "1px solid var(--border-subtle)" }}><div className="text-2xl">{["🥇", "🥈", "🥉", "4º"][i]}</div><p className="mt-2 truncate text-sm font-black" style={{ color: "var(--text-1)" }}>{item.employee.full_name}</p><p className="mt-1 text-xs" style={{ color: "var(--text-4)" }}>{item.employee.sector}</p><span className="mt-3 inline-flex rounded-lg px-2.5 py-1 text-xs font-black text-amber-500" style={{ background: "rgba(245,158,11,.10)" }}>{item.attempts ? `${item.averageScore.toFixed(1)} média · ${item.approvalRate}% aprovação` : `${item.executionRate}% execução`}</span></div>)}</div>}
       </Card>
     </div>
   );
