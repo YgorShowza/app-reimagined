@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Award, CalendarClock, CheckCircle2, FileText, Flame, Shield, TrendingUp, User } from "lucide-react";
+import { CalendarClock, CheckCircle2, FileText, Flame, Shield, TrendingUp, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { fmtDate, listAvailableExams, listMyAttempts } from "@/lib/exams";
 import { getMyTrainingSchedule } from "@/lib/training-schedules";
@@ -55,7 +55,7 @@ export function MyProfileWorkspace() {
       </div>
 
       <section className="rounded-2xl p-4" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", boxShadow: "var(--shadow-card, var(--shadow-md))" }}>
-        <div className="flex flex-wrap items-center gap-2"><Button asChild variant="outline"><Link to="/progresso"><TrendingUp className="mr-2 h-4 w-4" /> Meu progresso</Link></Button><Button asChild variant="outline"><Link to="/certificados"><Award className="mr-2 h-4 w-4" /> Certificados</Link></Button><Button asChild variant="outline"><Link to="/treinamentos"><Shield className="mr-2 h-4 w-4" /> Treinamentos</Link></Button></div>
+        <div className="flex flex-wrap items-center gap-2"><Button asChild variant="outline"><Link to="/progresso"><TrendingUp className="mr-2 h-4 w-4" /> Meu progresso</Link></Button><Button asChild variant="outline"><Link to="/treinamentos"><Shield className="mr-2 h-4 w-4" /> Treinamentos</Link></Button></div>
       </section>
 
       <section className="overflow-hidden rounded-2xl" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", boxShadow: "var(--shadow-card, var(--shadow-md))" }}>
