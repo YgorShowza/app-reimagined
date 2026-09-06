@@ -1,59 +1,41 @@
--- SEGEMPAT — MySQL 8.0 baseline schema
--- Preparado a partir do schema PostgreSQL/Supabase ativo em 2026-09-02.
--- Todos os IDs permanecem CHAR(36) para permitir migração direta dos UUIDs atuais.
--- Timestamps devem ser gravados em UTC pela API; conversão para America/Maceio fica na aplicação.
-
-SET NAMES utf8mb4;
-SET time_zone = '+00:00';
-
-CREATE TABLE app_users (
-  id CHAR(36) NOT NULL,
-  matricula VARCHAR(64) NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
-  status VARCHAR(20) NOT NULL DEFAULT 'Ativo',
-  last_login_at DATETIME(3) NULL,
-  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-  PRIMARY KEY (id),
-  UNIQUE KEY app_users_matricula_key (matricula)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 CREATE TABLE employees (
   id CHAR(36) NOT NULL,
   full_name VARCHAR(255) NOT NULL,
   matricula VARCHAR(64) NOT NULL,
-  sector VARCHAR(80) NOT NULL DEFAULT 'CFTV',
-  access_profile VARCHAR(40) NOT NULL DEFAULT 'Operacional',
-  status VARCHAR(20) NOT NULL DEFAULT 'Ativo',
-  level INT NOT NULL DEFAULT 1,
-  points INT NOT NULL DEFAULT 0,
+  sector VARCHAR(80) NOT NULL DEFAULT 'Vigilância',
+  shift VARCHAR(80) NOT NULL DEFAULT 'Turno A',
+  access_profile VARCHAR(80) NOT NULL DEFAULT 'Operacional',
+  status VARCHAR(32) NOT NULL DEFAULT 'Ativo',
+  email VARCHAR(255) NULL,
+  phone VARCHAR(80) NULL,
   first_access TINYINT(1) NOT NULL DEFAULT 1,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   PRIMARY KEY (id),
   UNIQUE KEY employees_matricula_key (matricula),
+  KEY employees_status_idx (status),
   KEY employees_sector_idx (sector)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE profiles (
+CREATE TABLE app_users (
   id CHAR(36) NOT NULL,
+  employee_id CHAR(36) NULL,
   matricula VARCHAR(64) NOT NULL,
-  nome VARCHAR(255) NULL,
+  nome VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NULL,
+  setor VARCHAR(80) NULL,
+  role VARCHAR(64) NOT NULL DEFAULT 'Operacional',
+  is_admin TINYINT(1) NOT NULL DEFAULT 0,
+  active TINYINT(1) NOT NULL DEFAULT 1,
+  first_access TINYINT(1) NOT NULL DEFAULT 1,
+  password_hash VARCHAR(255) NULL,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   PRIMARY KEY (id),
-  UNIQUE KEY profiles_matricula_key (matricula),
-  CONSTRAINT profiles_user_fk FOREIGN KEY (id) REFERENCES app_users(id) ON DELETE CASCADE,
-  CONSTRAINT profiles_employee_matricula_fk FOREIGN KEY (matricula) REFERENCES employees(matricula) ON UPDATE RESTRICT ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE user_roles (
-  id CHAR(36) NOT NULL,
-  user_id CHAR(36) NOT NULL,
-  role VARCHAR(32) NOT NULL,
-  PRIMARY KEY (id),
-  UNIQUE KEY user_roles_user_id_role_key (user_id, role),
-  CONSTRAINT user_roles_user_fk FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE CASCADE
+  UNIQUE KEY app_users_matricula_key (matricula),
+  UNIQUE KEY app_users_employee_id_key (employee_id),
+  KEY app_users_role_idx (role, active),
+  CONSTRAINT app_users_employee_fk FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE registration_activation_codes (
@@ -108,7 +90,7 @@ CREATE TABLE exam_attempts (
   UNIQUE KEY exam_attempts_certificate_code_uidx (certificate_code),
   KEY exam_attempts_user_idx (user_id, exam_id),
   KEY exam_attempts_finished_at_idx (finished_at),
-  CONSTRAINT exam_attempts_exam_fk FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE,
+  CONSTRAINT exam_attempts_exam_fk FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE RESTRICT,
   CONSTRAINT exam_attempts_user_fk FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -322,79 +304,132 @@ CREATE TABLE practical_eval_templates (
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   PRIMARY KEY (id),
-  KEY practical_eval_templates_status_idx (status, target_sector, recurrence),
+  KEY practical_eval_templates_sector_idx (status, target_sector),
   CONSTRAINT practical_eval_templates_creator_fk FOREIGN KEY (created_by) REFERENCES app_users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE practical_evaluations (
   id CHAR(36) NOT NULL,
+  template_id CHAR(36) NOT NULL,
   employee_id CHAR(36) NOT NULL,
   employee_name VARCHAR(255) NOT NULL,
-  employee_matricula VARCHAR(64) NOT NULL,
-  employee_sector VARCHAR(80) NOT NULL,
-  title VARCHAR(255) NOT NULL,
+  employee_matricula VARCHAR(64) NULL,
+  employee_sector VARCHAR(80) NULL,
+  evaluation_month CHAR(7) NOT NULL,
+  score DECIMAL(6,2) NOT NULL DEFAULT 0,
+  passed TINYINT(1) NOT NULL DEFAULT 0,
+  task_results JSON NOT NULL,
   evaluator_id CHAR(36) NULL,
   evaluator_name VARCHAR(255) NULL,
-  status VARCHAR(40) NOT NULL DEFAULT 'Planejada',
-  score DECIMAL(6,2) NOT NULL DEFAULT 0,
-  max_score DECIMAL(6,2) NOT NULL DEFAULT 10,
-  checklist JSON NOT NULL,
+  evaluated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   notes TEXT NULL,
-  evaluation_date DATE NULL,
-  completed_at DATETIME(3) NULL,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   PRIMARY KEY (id),
-  KEY practical_evaluations_employee_idx (employee_id, evaluation_date),
-  KEY practical_evaluations_status_idx (status, evaluation_date),
+  KEY practical_evaluations_employee_idx (employee_id, evaluation_month),
+  KEY practical_evaluations_template_idx (template_id, evaluation_month),
+  CONSTRAINT practical_evaluations_template_fk FOREIGN KEY (template_id) REFERENCES practical_eval_templates(id) ON DELETE RESTRICT,
   CONSTRAINT practical_evaluations_employee_fk FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE RESTRICT,
   CONSTRAINT practical_evaluations_evaluator_fk FOREIGN KEY (evaluator_id) REFERENCES app_users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE knowledge_content_items (
+  id CHAR(36) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  category VARCHAR(100) NOT NULL DEFAULT 'Geral',
+  content LONGTEXT NOT NULL,
+  target_sector VARCHAR(80) NOT NULL DEFAULT 'Todos',
+  active TINYINT(1) NOT NULL DEFAULT 1,
+  source_name VARCHAR(255) NULL,
+  created_by CHAR(36) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  KEY knowledge_content_items_sector_idx (target_sector, active),
+  CONSTRAINT knowledge_content_items_creator_fk FOREIGN KEY (created_by) REFERENCES app_users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE occurrences (
   id CHAR(36) NOT NULL,
   employee_id CHAR(36) NULL,
-  employee_name VARCHAR(255) NULL,
+  employee_name VARCHAR(255) NOT NULL,
   employee_matricula VARCHAR(64) NULL,
-  title VARCHAR(255) NOT NULL,
-  category VARCHAR(80) NOT NULL DEFAULT 'Operacional',
+  sector VARCHAR(80) NULL,
+  occurrence_date DATETIME(3) NOT NULL,
+  category VARCHAR(120) NOT NULL,
   severity VARCHAR(40) NOT NULL DEFAULT 'Baixa',
-  description LONGTEXT NOT NULL,
-  location VARCHAR(255) NULL,
+  description TEXT NOT NULL,
   status VARCHAR(40) NOT NULL DEFAULT 'Aberta',
-  occurred_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  resolution_notes TEXT NULL,
-  resolved_at DATETIME(3) NULL,
-  created_by CHAR(36) NULL,
-  created_by_name VARCHAR(255) NULL,
+  resolution TEXT NULL,
+  reported_by CHAR(36) NULL,
+  reported_by_name VARCHAR(255) NULL,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   PRIMARY KEY (id),
-  KEY occurrences_employee_idx (employee_id, occurred_at),
-  KEY occurrences_status_idx (status, occurred_at),
+  KEY occurrences_employee_idx (employee_id, occurrence_date),
+  KEY occurrences_status_idx (status, severity),
   CONSTRAINT occurrences_employee_fk FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE SET NULL,
-  CONSTRAINT occurrences_creator_fk FOREIGN KEY (created_by) REFERENCES app_users(id) ON DELETE SET NULL
+  CONSTRAINT occurrences_reporter_fk FOREIGN KEY (reported_by) REFERENCES app_users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE knowledge_modules (
+  id CHAR(36) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  description TEXT NULL,
+  target_sector VARCHAR(80) NOT NULL DEFAULT 'Todos',
+  active TINYINT(1) NOT NULL DEFAULT 1,
+  content_items JSON NOT NULL,
+  created_by CHAR(36) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  KEY knowledge_modules_sector_idx (target_sector, active),
+  CONSTRAINT knowledge_modules_creator_fk FOREIGN KEY (created_by) REFERENCES app_users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE training_cycles (
+  id CHAR(36) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  description TEXT NULL,
+  target_sector VARCHAR(80) NOT NULL DEFAULT 'Todos',
+  recurrence_days INT NOT NULL DEFAULT 90,
+  warning_days INT NOT NULL DEFAULT 15,
+  active TINYINT(1) NOT NULL DEFAULT 1,
+  module_ids JSON NOT NULL,
+  created_by CHAR(36) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  KEY training_cycles_sector_idx (target_sector, active),
+  CONSTRAINT training_cycles_creator_fk FOREIGN KEY (created_by) REFERENCES app_users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE simulator_scenarios (
+  id CHAR(36) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  description TEXT NOT NULL,
+  target_sector VARCHAR(80) NOT NULL DEFAULT 'Todos',
+  difficulty VARCHAR(40) NOT NULL DEFAULT 'Intermediário',
+  active TINYINT(1) NOT NULL DEFAULT 1,
+  payload JSON NOT NULL,
+  created_by CHAR(36) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  KEY simulator_scenarios_sector_idx (target_sector, active),
+  CONSTRAINT simulator_scenarios_creator_fk FOREIGN KEY (created_by) REFERENCES app_users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE audit_logs (
-  id CHAR(36) NOT NULL,
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   actor_id CHAR(36) NULL,
   action VARCHAR(100) NOT NULL,
-  entity VARCHAR(100) NOT NULL,
-  entity_id VARCHAR(128) NULL,
-  details JSON NOT NULL,
+  entity_type VARCHAR(120) NOT NULL,
+  entity_id VARCHAR(128) NOT NULL,
+  details JSON NULL,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   PRIMARY KEY (id),
-  KEY audit_logs_created_idx (created_at),
-  KEY audit_logs_entity_idx (entity, entity_id),
+  KEY audit_logs_actor_idx (actor_id, created_at),
+  KEY audit_logs_entity_idx (entity_type, entity_id, created_at),
   CONSTRAINT audit_logs_actor_fk FOREIGN KEY (actor_id) REFERENCES app_users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Regras que deverão ser implementadas na API, não por acesso direto do navegador:
--- 1) autorização por role/setor/identidade (substitui RLS);
--- 2) criação de exam_attempts com correção server-side;
--- 3) criação de training_activity_attempts com cálculo server-side;
--- 4) assinatura e emissão de certificado em transação;
--- 5) ativação de conta/código temporário;
--- 6) auditoria de INSERT/UPDATE/DELETE;
--- 7) armazenamento privado de evidências.
