@@ -292,6 +292,7 @@ myExamsRouter.post("/exams/:id/attempts", requireAuth, asyncHandler(async (req, 
   const result = calculateResult(questions, answers, exam.min_approval_pct);
   const attemptId = uuid();
   const code = result.passed ? certificateCode() : null;
+  const completionDate = localDate();
 
   await withTransaction(async (connection) => {
     await connection.execute(
@@ -300,11 +301,31 @@ myExamsRouter.post("/exams/:id/attempts", requireAuth, asyncHandler(async (req, 
        VALUES (?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3), UTC_TIMESTAMP(3), ?, 0)`,
       [attemptId, exam.id, req.user.id, req.user.matricula, result.score, result.passed ? 1 : 0, JSON.stringify(answers), code],
     );
+
+    let cronogramaChanged = 0;
+    if (result.passed) {
+      const [cronogramaResult] = await connection.execute(
+        `UPDATE cronograma_entries
+            SET status = 'Realizado',
+                type = 'Realizado',
+                completion_date = ?,
+                justification = NULL,
+                updated_at = UTC_TIMESTAMP(3)
+          WHERE exam_id = ?
+            AND LOWER(TRIM(employee_matricula)) = LOWER(TRIM(?))
+            AND status <> 'Realizado'`,
+        [completionDate, exam.id, req.user.matricula],
+      );
+      cronogramaChanged = Number(cronogramaResult.affectedRows || 0);
+    }
+
     await audit(req.user.id, "EXAM_ATTEMPT", "exam_attempts", attemptId, {
       exam_id: exam.id,
       score: result.score,
       passed: result.passed,
       answers_validated_server_side: true,
+      cronograma_synchronized_atomically: result.passed,
+      cronograma_changed: cronogramaChanged,
     }, connection);
   });
 
