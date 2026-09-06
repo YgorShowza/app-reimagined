@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { apiRequest, isSegempatApiConfigured } from "@/lib/backend/api-client";
+import { operationalDate } from "@/lib/operational-time";
 
 export type TrainingCycleStatus = "Em dia" | "Próximo ao vencimento" | "Vencido";
 
@@ -30,22 +31,22 @@ export interface TrainingScheduleInput {
   status: TrainingCycleStatus;
 }
 
-function isoDate(date: Date) { return date.toISOString().slice(0, 10); }
+function isoDateUtc(date: Date) { return date.toISOString().slice(0, 10); }
 
 export function calculateTrainingWindow(lastTrainingDate: string | null, cycleDays: number) {
   if (!lastTrainingDate) return { window_start: null, window_end: null };
-  const last = new Date(`${lastTrainingDate}T12:00:00`);
+  const last = new Date(`${lastTrainingDate}T12:00:00Z`);
   const end = new Date(last);
-  end.setDate(end.getDate() + Math.max(1, cycleDays));
+  end.setUTCDate(end.getUTCDate() + Math.max(1, cycleDays));
   const start = new Date(end);
-  start.setDate(start.getDate() - Math.min(15, Math.max(7, Math.round(cycleDays * 0.2))));
-  return { window_start: isoDate(start), window_end: isoDate(end) };
+  start.setUTCDate(start.getUTCDate() - Math.min(15, Math.max(7, Math.round(cycleDays * 0.2))));
+  return { window_start: isoDateUtc(start), window_end: isoDateUtc(end) };
 }
 
 export function deriveTrainingStatus(schedule: Pick<TrainingSchedule, "window_start" | "window_end" | "last_training_date" | "cycle_days">, now = new Date()): TrainingCycleStatus {
   const window = schedule.window_end ? { window_start: schedule.window_start, window_end: schedule.window_end } : calculateTrainingWindow(schedule.last_training_date, schedule.cycle_days);
   if (!window.window_end) return "Vencido";
-  const today = isoDate(now);
+  const today = operationalDate(now);
   if (today > window.window_end) return "Vencido";
   if (window.window_start && today >= window.window_start) return "Próximo ao vencimento";
   return "Em dia";
