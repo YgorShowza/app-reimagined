@@ -145,6 +145,20 @@ cronogramaIntegrityRouter.patch(
       const existing = rows[0];
       if (!existing) throw notFound("Registro do cronograma não encontrado");
 
+      if (existing.status === "Realizado" || existing.status === "Justificado") {
+        const allowedHistoricalFields = existing.status === "Justificado"
+          ? new Set(["justification", "notes"])
+          : new Set(["notes"]);
+        const blockedFields = Object.keys(rawPatch).filter((field) => !allowedHistoricalFields.has(field));
+        if (blockedFields.length) {
+          throw conflict(
+            existing.status === "Realizado"
+              ? "Lançamento realizado é histórico operacional; somente observações podem ser complementadas"
+              : "Lançamento justificado é histórico operacional; somente justificativa e observações podem ser complementadas",
+          );
+        }
+      }
+
       const patch = { ...rawPatch };
       let effectiveEmployee = {
         id: existing.employee_id,
@@ -220,6 +234,7 @@ cronogramaIntegrityRouter.patch(
         exam_completion_guard: Boolean(effectiveExamId),
         completion_date_server_derived: effectiveStatus === "Realizado" && Boolean(effectiveExamId),
         identity_derived_server_side: Object.prototype.hasOwnProperty.call(rawPatch, "employee_id"),
+        history_guard: existing.status === "Realizado" || existing.status === "Justificado",
       }, connection);
     });
 
