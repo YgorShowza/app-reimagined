@@ -36,6 +36,13 @@ const adminSections: MenuSection[] = [
     ],
   },
   {
+    section: "Administração",
+    items: [
+      { path: "/acessos", label: "Acessos", icon: ClipboardList },
+      { path: "/ia-base", label: "IA Base", icon: BookOpenCheck },
+    ],
+  },
+  {
     section: "Treinamento",
     items: [
       { path: "/cronograma", label: "Cronograma", icon: CalendarDays },
