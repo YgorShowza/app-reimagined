@@ -15,6 +15,7 @@ import { employeesRouter } from "./routes/employees.js";
 import { accessRouter } from "./routes/access.js";
 import { examsRouter, myExamsRouter } from "./routes/exams.js";
 import { examEvidenceRouter } from "./routes/exam-evidence.js";
+import { myExamEvidenceRouter } from "./routes/exam-evidence-self.js";
 import { cronogramaRouter } from "./routes/cronograma.js";
 import { cronogramaImportRouter } from "./routes/cronograma-import.js";
 import { questionBankRouter } from "./routes/question-bank.js";
@@ -134,11 +135,8 @@ export function createApp() {
   app.use(cookieParser());
   app.use(attachUser);
 
-  // Liveness: confirma apenas que o processo HTTP está respondendo.
   app.get("/health", (_req, res) => res.json({ ok: true, service: "segempat-api" }));
 
-  // Readiness: exige MySQL, TLS quando configurado, migration atual do deploy, schema funcional completo e storage privado disponível.
-  // É apropriada para health checks do balanceador/orquestrador no ambiente corporativo.
   app.get("/health/ready", async (_req, res) => {
     let phase = "database";
     try {
@@ -148,12 +146,7 @@ export function createApp() {
       const sslStatus = await queryOne("SHOW SESSION STATUS LIKE 'Ssl_cipher'");
       const sslCipher = String(sslStatus?.Value ?? sslStatus?.value ?? "").trim();
       if (config.db.ssl && !sslCipher) {
-        return res.status(503).json({
-          ok: false,
-          service: "segempat-api",
-          database: "connected",
-          tls: "not-negotiated",
-        });
+        return res.status(503).json({ ok: false, service: "segempat-api", database: "connected", tls: "not-negotiated" });
       }
 
       phase = "migrations";
@@ -164,12 +157,7 @@ export function createApp() {
           LIMIT 1`,
       );
       if (!migration) {
-        return res.status(503).json({
-          ok: false,
-          service: "segempat-api",
-          database: "connected",
-          migrations: "not-applied",
-        });
+        return res.status(503).json({ ok: false, service: "segempat-api", database: "connected", migrations: "not-applied" });
       }
 
       const expectedMigration = await expectedLatestMigration();
@@ -199,12 +187,7 @@ export function createApp() {
       );
       const foundTables = Number(schema?.total ?? 0);
       if (foundTables !== READINESS_TABLES.length) {
-        return res.status(503).json({
-          ok: false,
-          service: "segempat-api",
-          database: "connected",
-          schema: "incomplete",
-        });
+        return res.status(503).json({ ok: false, service: "segempat-api", database: "connected", schema: "incomplete" });
       }
 
       phase = "storage";
@@ -217,25 +200,14 @@ export function createApp() {
         tls: sslCipher ? "ready" : "off",
         schema: "ready",
         storage: "ready",
-        migration: {
-          version: String(migration.version),
-          file_name: migration.file_name,
-          applied_at: migration.applied_at,
-        },
+        migration: { version: String(migration.version), file_name: migration.file_name, applied_at: migration.applied_at },
       });
     } catch (error) {
       console.error(`[segempat-api] readiness falhou em ${phase}`, error?.message || error);
-      return res.status(503).json({
-        ok: false,
-        service: "segempat-api",
-        dependency: phase,
-        status: "unavailable",
-      });
+      return res.status(503).json({ ok: false, service: "segempat-api", dependency: phase, status: "unavailable" });
     }
   });
 
-  // Operações de escrita autenticadas por cookie exigem Origin explícita e autorizada.
-  // Isso protege o modo SameSite=None e evita depender apenas do CORS para mitigar CSRF.
   app.use("/api", enforceTrustedWriteOrigin);
 
   app.use("/api/auth", authRouter);
@@ -243,6 +215,7 @@ export function createApp() {
   app.use("/api/access", accessRouter);
   app.use("/api/exams", examsRouter);
   app.use("/api/me", myExamsRouter);
+  app.use("/api/me", myExamEvidenceRouter);
   app.use("/api/me", myPracticalRouter);
   app.use("/api/admin", examEvidenceRouter);
   app.use("/api/cronograma", cronogramaImportRouter);
