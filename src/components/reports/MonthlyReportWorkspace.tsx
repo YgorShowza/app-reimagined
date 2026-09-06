@@ -58,7 +58,7 @@ export function MonthlyReportWorkspace() {
         const attemptsAll = data.attempts.filter((attempt) => attempt.matricula === employee.matricula);
         const attemptsMonth = attemptsAll.filter((attempt) => {
           const date = attempt.finished_at || attempt.created_at;
-          return date?.slice(0, 7) === month;
+          return date ? operationalMonth(new Date(date)) === month : false;
         });
         const cron = data.cronograma.filter((entry) => (entry.employee_id === employee.id || entry.employee_matricula === employee.matricula) && entry.month === month);
         const realized = cron.filter((entry) => entry.status === "Realizado").length;
