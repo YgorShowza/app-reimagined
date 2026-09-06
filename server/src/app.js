@@ -22,6 +22,7 @@ import { cronogramaImportRouter } from "./routes/cronograma-import.js";
 import { questionBankRouter } from "./routes/question-bank.js";
 import { trainingRouter, adminTrainingRouter, myTrainingRouter } from "./routes/training.js";
 import { practicalIntegrityRouter } from "./routes/practical-integrity.js";
+import { occurrenceIntegrityRouter } from "./routes/occurrence-integrity.js";
 import { operationsRouter } from "./routes/operations.js";
 import { myPracticalRouter } from "./routes/practical-self.js";
 import { HttpError } from "./util.js";
@@ -228,6 +229,7 @@ export function createApp() {
   app.use("/api/admin/training", adminTrainingRouter);
   app.use("/api/me/training", myTrainingRouter);
   app.use("/api/operations", practicalIntegrityRouter);
+  app.use("/api/operations", occurrenceIntegrityRouter);
   app.use("/api/operations", operationsRouter);
 
   app.use((_req, _res, next) => next(new HttpError(404, "Rota não encontrada", "NOT_FOUND")));
