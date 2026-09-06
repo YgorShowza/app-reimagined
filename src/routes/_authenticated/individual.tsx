@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getOperationalSnapshot } from "@/lib/insights";
 import { formatDate } from "@/lib/cronograma";
 import { operationalDate, operationalMonth, operationalYear } from "@/lib/operational-time";
+import type { ExamAttempt } from "@/lib/exams";
 
 export const Route = createFileRoute("/_authenticated/individual")({
   head: () => ({ meta: [{ title: "Análise Individual · SEGEMPAT" }] }),
@@ -42,6 +43,12 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
 }
 
 type PerfFilter = "todos" | "sem-dados" | "atencao" | "bom" | "excelente";
+
+function unresolvedFailedExamCount(attempts: ExamAttempt[]) {
+  const failedExamIds = new Set(attempts.filter((attempt) => !attempt.passed).map((attempt) => attempt.exam_id));
+  const passedExamIds = new Set(attempts.filter((attempt) => attempt.passed).map((attempt) => attempt.exam_id));
+  return Array.from(failedExamIds).filter((examId) => !passedExamIds.has(examId)).length;
+}
 
 function IndividualPage() {
   const year = operationalYear();
@@ -70,12 +77,13 @@ function IndividualPage() {
       const overdue = pendingEntries.filter(
         (entry) => entry.month < currentMonth || Boolean(entry.planned_date && entry.planned_date < today),
       ).length;
+      const unresolvedFailed = unresolvedFailedExamCount(attempts);
       const passed = attempts.filter((a) => a.passed).length;
       const avg = attempts.length
         ? Math.round((attempts.reduce((sum, a) => sum + Number(a.score || 0), 0) / attempts.length) * 10) / 10
         : 0;
       const approval = attempts.length ? Math.round((passed / attempts.length) * 100) : 0;
-      const level: PerfFilter = overdue > 0
+      const level: PerfFilter = overdue > 0 || unresolvedFailed > 0
         ? "atencao"
         : !attempts.length
           ? "sem-dados"
@@ -84,7 +92,7 @@ function IndividualPage() {
             : avg >= 7
               ? "bom"
               : "atencao";
-      return { employee, attempts, cron, passed, avg, approval, overdue, level };
+      return { employee, attempts, cron, passed, avg, approval, overdue, unresolvedFailed, level };
     });
   }, [currentMonth, employees, query.data, today]);
 
@@ -123,7 +131,7 @@ function IndividualPage() {
   const realized = cron.filter((entry) => entry.status === "Realizado").length;
   const pending = cron.filter((entry) => entry.status === "Pendente").length;
   const overdue = activeRow?.overdue ?? 0;
-  const failed = attempts.filter((attempt) => !attempt.passed).length;
+  const failed = activeRow?.unresolvedFailed ?? 0;
   const avg = activeRow?.avg ?? 0;
   const approval = activeRow?.approval ?? 0;
   const sortedAttempts = [...attempts].sort((a, b) => a.finished_at.localeCompare(b.finished_at));
@@ -278,7 +286,7 @@ function IndividualPage() {
                   <div className="mt-4 rounded-xl p-3" style={{ background: "var(--bg-surface-2)", border: "1px solid var(--border-subtle)" }}>
                     <p className="text-[10px] font-black uppercase tracking-[.12em]" style={{ color: "var(--accent)" }}>Análise automatizada</p>
                     <p className="mt-1 text-xs leading-relaxed" style={{ color: "var(--text-3)" }}>
-                      Média geral de {avg.toFixed(1)} com {approval}% de aprovação. {pending > 0 ? `${pending} pendência${pending === 1 ? "" : "s"} no cronograma${overdue > 0 ? `, sendo ${overdue} vencida${overdue === 1 ? "" : "s"}.` : ", nenhuma vencida."}` : "Sem pendências no cronograma."}
+                      Média geral de {avg.toFixed(1)} com {approval}% de aprovação. {pending > 0 ? `${pending} pendência${pending === 1 ? "" : "s"} no cronograma${overdue > 0 ? `, sendo ${overdue} vencida${overdue === 1 ? "" : "s"}.` : ", nenhuma vencida."}` : "Sem pendências no cronograma."} {failed > 0 ? `${failed} avaliação${failed === 1 ? "" : "ões"} ainda sem aprovação.` : "Nenhuma avaliação reprovada permanece sem aprovação."}
                     </p>
                   </div>
                 </div>
@@ -338,7 +346,7 @@ function IndividualPage() {
                     <span className="ml-auto rounded-full px-2 py-0.5 text-[9px] font-black" style={{ background: "rgba(239,68,68,.10)", color: "#ef4444" }}>{failed + overdue} item(ns)</span>
                   </div>
                   <div className="space-y-2 p-3">
-                    {failed > 0 && <div className="rounded-xl p-3" style={{ background: "rgba(239,68,68,.06)" }}><p className="text-xs font-bold" style={{ color: "var(--text-2)" }}>{failed} reprovação{failed === 1 ? "" : "ões"} em provas</p></div>}
+                    {failed > 0 && <div className="rounded-xl p-3" style={{ background: "rgba(239,68,68,.06)" }}><p className="text-xs font-bold" style={{ color: "var(--text-2)" }}>{failed} avaliação{failed === 1 ? "" : "ões"} ainda sem aprovação</p></div>}
                     {overdue > 0 && <div className="rounded-xl p-3" style={{ background: "rgba(245,158,11,.06)" }}><p className="text-xs font-bold" style={{ color: "var(--text-2)" }}>{overdue} atividade{overdue === 1 ? "" : "s"} vencida{overdue === 1 ? "" : "s"} no cronograma</p></div>}
                     {failed + overdue === 0 && <p className="p-4 text-center text-xs" style={{ color: "var(--text-4)" }}>Nenhum ponto crítico identificado.</p>}
                   </div>
