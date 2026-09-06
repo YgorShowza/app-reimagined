@@ -104,7 +104,7 @@ export function sectorMetrics(data: OperationalSnapshot) {
 
 export function monthlyExecution(data: OperationalSnapshot, year = operationalYear()) {
   const months = new Map<string,{planned:number;realized:number;pending:number}>();
-  for (let i=1;i<=12;i+=1) months.set(`${year}-${String(i+1).padStart(2,"0")}`,{planned:0,realized:0,pending:0});
+  for (let i=1;i<=12;i+=1) months.set(`${year}-${String(i).padStart(2,"0")}`,{planned:0,realized:0,pending:0});
   for (const entry of data.cronograma) { const current = months.get(entry.month); if (!current) continue; current.planned += 1; if (entry.status === "Realizado") current.realized += 1; if (entry.status === "Pendente") current.pending += 1; }
   return Array.from({length:12},(_,i)=>{ const month=`${year}-${String(i+1).padStart(2,"0")}`; const current=months.get(month) ?? {planned:0,realized:0,pending:0}; return {month,label:new Date(year,i,1).toLocaleDateString("pt-BR",{month:"short"}).replace(".",""),planned:current.planned,realized:current.realized,pending:current.pending,rate:current.planned?Math.round((current.realized/current.planned)*100):0}; });
 }
