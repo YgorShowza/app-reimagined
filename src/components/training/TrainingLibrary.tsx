@@ -1,11 +1,18 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ArrowLeft, BookOpen, ChevronRight, GraduationCap, RefreshCw, Search, Target } from "lucide-react";
+import { AlertTriangle, ArrowLeft, BookOpen, CalendarClock, ChevronRight, GraduationCap, RefreshCw, Search, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { listTrainingModules, type TrainingModule } from "@/lib/training-modules";
+import { getMyTrainingSchedule } from "@/lib/training-schedules";
 import { getCurrentEmployeeByAuth } from "@/lib/insights";
 import { useCurrentUser } from "@/lib/useCurrentUser";
+
+function formatCycleDate(value: string | null) {
+  if (!value) return "—";
+  const [year, month, day] = value.slice(0, 10).split("-");
+  return `${day}/${month}/${year}`;
+}
 
 export function TrainingLibrary() {
   const { data: user } = useCurrentUser();
@@ -14,6 +21,7 @@ export function TrainingLibrary() {
 
   const modulesQuery = useQuery({ queryKey: ["training-modules"], queryFn: listTrainingModules });
   const employeeQuery = useQuery({ queryKey: ["current-employee-training"], queryFn: getCurrentEmployeeByAuth, enabled: !user?.isAdmin, staleTime: 60_000 });
+  const scheduleQuery = useQuery({ queryKey: ["my-training-schedule"], queryFn: getMyTrainingSchedule, enabled: !user?.isAdmin, staleTime: 60_000 });
   const sector = user?.isAdmin ? "" : employeeQuery.data?.sector || user?.setor || "";
 
   const modules = useMemo(() => {
@@ -51,6 +59,8 @@ export function TrainingLibrary() {
 
   const loading = modulesQuery.isLoading || (!user?.isAdmin && employeeQuery.isLoading);
   const loadError = modulesQuery.isError || (!user?.isAdmin && employeeQuery.isError);
+  const schedule = scheduleQuery.data ?? null;
+  const cycleColor = schedule?.status === "Em dia" ? "#10b981" : schedule?.status === "Próximo ao vencimento" ? "#f59e0b" : "#ef4444";
 
   return (
     <div className="mx-auto max-w-5xl space-y-5 pb-10">
@@ -60,6 +70,10 @@ export function TrainingLibrary() {
           <div><p className="text-[10px] font-black uppercase tracking-[.18em] text-white/40">Capacitação contínua</p><h1 className="mt-1 text-2xl font-black text-white md:text-3xl">Treinamentos</h1><p className="mt-1 text-sm text-white/50">{user?.isAdmin ? "Visualização dos módulos ativos." : sector ? `Conteúdos disponíveis para ${sector}.` : "Conteúdos disponíveis para seu perfil."}</p></div>
         </div>
       </section>
+
+      {!user?.isAdmin && (
+        scheduleQuery.isLoading ? <section className="rounded-2xl p-4" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}><p className="text-sm" style={{ color: "var(--text-4)" }}>Carregando seu ciclo de capacitação...</p></section> : scheduleQuery.isError ? <section className="rounded-2xl p-4" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}><div className="flex flex-wrap items-center gap-3"><AlertTriangle className="h-5 w-5 text-amber-500" /><div className="min-w-0 flex-1"><p className="text-sm font-black" style={{ color: "var(--text-1)" }}>Ciclo de capacitação indisponível</p><p className="mt-0.5 text-xs" style={{ color: "var(--text-4)" }}>Não foi possível consultar o vencimento do seu ciclo.</p></div><Button size="sm" variant="outline" onClick={() => scheduleQuery.refetch()}><RefreshCw className="mr-2 h-3.5 w-3.5" /> Tentar novamente</Button></div></section> : schedule ? <section className="rounded-2xl p-4 md:p-5" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", boxShadow: "var(--shadow-card, var(--shadow-md))" }}><div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-start gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: `${cycleColor}14`, color: cycleColor }}><CalendarClock className="h-5 w-5" /></div><div><p className="text-[10px] font-black uppercase tracking-[.14em]" style={{ color: "var(--text-4)" }}>Meu ciclo de capacitação</p><div className="mt-1 flex flex-wrap items-center gap-2"><p className="font-black" style={{ color: "var(--text-1)" }}>Ciclo de {schedule.cycle_days} dias</p><span className="rounded-full px-2 py-0.5 text-[10px] font-black" style={{ color: cycleColor, background: `${cycleColor}12`, border: `1px solid ${cycleColor}28` }}>{schedule.status}</span></div></div></div><div className="grid grid-cols-3 gap-3 text-xs sm:text-right"><div><p style={{ color: "var(--text-4)" }}>Último</p><p className="mt-1 font-bold" style={{ color: "var(--text-2)" }}>{formatCycleDate(schedule.last_training_date)}</p></div><div><p style={{ color: "var(--text-4)" }}>Atenção</p><p className="mt-1 font-bold" style={{ color: "var(--text-2)" }}>{formatCycleDate(schedule.window_start)}</p></div><div><p style={{ color: "var(--text-4)" }}>Vence</p><p className="mt-1 font-black" style={{ color: cycleColor }}>{formatCycleDate(schedule.window_end)}</p></div></div></div></section> : <section className="rounded-2xl p-4" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}><div className="flex items-center gap-3"><CalendarClock className="h-5 w-5" style={{ color: "var(--text-4)" }} /><div><p className="text-sm font-black" style={{ color: "var(--text-1)" }}>Ciclo ainda não configurado</p><p className="mt-0.5 text-xs" style={{ color: "var(--text-4)" }}>A Inspetoria ainda não cadastrou um ciclo de capacitação para sua matrícula.</p></div></div></section>
+      )}
 
       <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: "var(--text-4)" }} /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar treinamento..." className="pl-10" /></div>
 
