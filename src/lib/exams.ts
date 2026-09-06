@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { apiRequest, buildSegempatApiUrl, isSegempatApiConfigured } from "@/lib/backend/api-client";
+import { operationalDate, operationalMonth } from "@/lib/operational-time";
 
 export type QuestionType = "Múltipla escolha" | "Discursiva";
 
@@ -95,7 +96,7 @@ export interface ExamForm {
 }
 
 export const emptyQuestion = (): ExamQuestion => ({ id: crypto.randomUUID(), type: "Múltipla escolha", statement: "", options: ["", "", "", ""], correct_index: 0, points: 1 });
-export const emptyExamForm = (): ExamForm => ({ title: "", description: "", exam_type: "Múltipla escolha", target_sector: "Todos", min_approval_pct: 70, scheduled_date: new Date().toISOString().slice(0, 10), status: "Rascunho", questions: [emptyQuestion()] });
+export const emptyExamForm = (): ExamForm => ({ title: "", description: "", exam_type: "Múltipla escolha", target_sector: "Todos", min_approval_pct: 70, scheduled_date: operationalDate(), status: "Rascunho", questions: [emptyQuestion()] });
 
 function normalize(row: Record<string, unknown>): Exam {
   return { ...(row as unknown as Exam), questions: Array.isArray(row["questions"]) ? (row["questions"] as ExamQuestion[]) : [] };
@@ -249,8 +250,7 @@ export async function getSignatureUrl(path: string, expiresIn = 300) {
 }
 
 export function currentMonthStr() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  return operationalMonth();
 }
 
 export function fmtDate(value?: string | null) {
