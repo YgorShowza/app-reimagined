@@ -18,6 +18,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useCurrentUser } from "@/lib/useCurrentUser";
+import { invalidateEmployeeFlow } from "@/lib/operational-query-sync";
 import {
   PERFIS, SETORES, SITUACOES, createEmployee, deleteEmployee, emptyEmployeeForm,
   listEmployees, updateEmployee, type Employee, type EmployeeForm,
@@ -69,7 +70,7 @@ function EquipePage() {
     queryFn: listEmployees,
   });
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["employees"] });
+  const invalidate = () => invalidateEmployeeFlow(qc);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -82,7 +83,7 @@ function EquipePage() {
       setDialogOpen(false);
       setForm(emptyEmployeeForm);
       setEditingId(null);
-      invalidate();
+      void invalidate();
     },
     onError: (e: Error) => toast.error(e.message.includes("duplicate") ? "Matrícula já cadastrada" : e.message),
   });
@@ -92,7 +93,7 @@ function EquipePage() {
     onSuccess: () => {
       toast.success("Funcionário excluído");
       setToDelete(null);
-      invalidate();
+      void invalidate();
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -223,8 +224,8 @@ function EquipePage() {
 
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
         <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>Excluir funcionário?</AlertDialogTitle><AlertDialogDescription>{toDelete ? `“${toDelete.full_name}” será removido permanentemente da equipe. Esta ação não pode ser desfeita.` : ""}</AlertDialogDescription></AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction className="bg-[#C8102E] hover:bg-[#A00D24]" onClick={() => toDelete && remove.mutate(toDelete)}>Excluir</AlertDialogAction></AlertDialogFooter>
+          <AlertDialogHeader><AlertDialogTitle>Excluir funcionário?</AlertDialogTitle><AlertDialogDescription>{toDelete ? `“${toDelete.full_name}” só poderá ser excluído se não possuir conta ou histórico operacional. Havendo histórico, o SEGEMPAT bloqueará a exclusão e o cadastro deverá ser inativado.` : ""}</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction className="bg-[#C8102E] hover:bg-[#A00D24]" onClick={() => toDelete && remove.mutate(toDelete)}>Excluir se não houver histórico</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
