@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { apiRequest, isSegempatApiConfigured } from "@/lib/backend/api-client";
+import { operationalDate, operationalMonth } from "@/lib/operational-time";
 
 export type CronogramaStatus = "Pendente" | "Realizado" | "Justificado";
 export type CronogramaType = "Planejado" | "Realizado";
@@ -117,8 +118,7 @@ export const JUSTIFICATION_OPTIONS = [
 export const TARGET_SECTORS = ["Todos", "CFTV", "Vigilância", "Portaria", "Ronda", "Administrativo"] as const;
 
 export function currentMonthStr() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  return operationalMonth();
 }
 
 export function shiftMonth(month: string, delta: number) {
@@ -202,7 +202,7 @@ export async function deleteCronogramaEntry(id: string) {
   if (error) throw error;
 }
 
-export async function markCronogramaEntryComplete(id: string, date = new Date().toISOString().slice(0, 10)) {
+export async function markCronogramaEntryComplete(id: string, date = operationalDate()) {
   if (isSegempatApiConfigured()) { await updateCronogramaEntry(id, { status: "Realizado", type: "Realizado", completion_date: date, justification: null }); return; }
   const { error } = await (supabase as any).from("cronograma_entries").update({ status: "Realizado", type: "Realizado", completion_date: date, justification: null }).eq("id", id);
   if (error) throw error;
@@ -306,7 +306,7 @@ export async function syncCronogramaWithExamAttempts(month?: string) {
   for (const entry of entries as any[]) {
     const attempt = (attempts ?? []).find((a: any) => a.exam_id === entry.exam_id && a.matricula === entry.employee_matricula);
     if (!attempt) continue;
-    const completion = attempt.finished_at?.slice(0, 10) || new Date().toISOString().slice(0, 10);
+    const completion = attempt.finished_at?.slice(0, 10) || operationalDate();
     const { error } = await (supabase as any).from("cronograma_entries").update({ status: "Realizado", type: "Realizado", completion_date: completion, justification: null }).eq("id", entry.id);
     if (!error) changed += 1;
   }
