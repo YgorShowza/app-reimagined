@@ -12,6 +12,11 @@ const SNAPSHOT_ROOTS = [
 const CRONOGRAMA_ROOTS = [
   "cronograma",
   "cronograma-year",
+  "cronograma-recurring",
+  "cronograma-suspensions",
+  "cronograma-parity-month",
+  "cronograma-parity-year",
+  "cronograma-parity-susp",
   "my-pending",
   "panel-cron",
   "my-progress-cron",
