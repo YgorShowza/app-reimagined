@@ -69,6 +69,7 @@ const operadorMenu: MenuItem[] = [
   { path: "/painel", label: "Início", icon: LayoutDashboard },
   { path: "/pendencias", label: "Pendências", icon: ClipboardList },
   { path: "/progresso", label: "Progresso", icon: TrendingUp },
+  { path: "/certificados", label: "Certificados", icon: Award },
   { path: "/treinamentos", label: "Treinamentos", icon: GraduationCap },
   { path: "/teste-rapido", label: "Teste Rápido", icon: Target },
   { path: "/simulador", label: "Simulador", icon: Target },
