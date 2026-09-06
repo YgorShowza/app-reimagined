@@ -175,6 +175,14 @@ export async function updateExam(id: string, form: Partial<ExamForm>) {
 
 export async function deleteExam(id: string) {
   if (isSegempatApiConfigured()) { await apiRequest<void>(`/api/exams/${encodeURIComponent(id)}`, { method: "DELETE" }); return; }
+  const { count, error: historyError } = await (supabase as any)
+    .from("exam_attempts")
+    .select("id", { count: "exact", head: true })
+    .eq("exam_id", id);
+  if (historyError) throw historyError;
+  if (Number(count ?? 0) > 0) {
+    throw new Error("Esta prova já possui tentativas registradas e não pode ser excluída. Altere para Rascunho para preservar o histórico operacional.");
+  }
   const { error } = await (supabase as any).rpc("delete_exam_admin", { p_id: id });
   if (error) throw error;
 }
