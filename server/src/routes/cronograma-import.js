@@ -1,12 +1,28 @@
 import { Router } from "express";
 import { withTransaction } from "../db.js";
 import { audit } from "../audit.js";
+import { config } from "../config.js";
 import { requireAdmin } from "../session.js";
-import { asyncHandler, badRequest, requireMonth, requireText, uuid } from "../util.js";
+import { asyncHandler, badRequest, conflict, requireMonth, requireText, uuid } from "../util.js";
 
 export const cronogramaImportRouter = Router();
 
 const MAX_IMPORT_ROWS = 1000;
+
+function operationalDateFromUtc(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) throw badRequest("Tentativa aprovada possui data de conclusão inválida");
+  const date = value instanceof Date
+    ? value
+    : new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(raw) ? raw : `${raw.replace(" ", "T")}Z`);
+  if (Number.isNaN(date.getTime())) throw badRequest("Tentativa aprovada possui data de conclusão inválida");
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: config.timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
 
 function readImportRow(raw, index) {
   const rowNumber = index + 1;
@@ -23,6 +39,7 @@ function readImportRow(raw, index) {
   }
   const score = Number(raw?.nota);
   return {
+    rowNumber,
     matricula,
     theme,
     month,
@@ -44,6 +61,8 @@ cronogramaImportRouter.post(
       let updated = 0;
       let created = 0;
       let ignored = 0;
+      let protectedHistory = 0;
+      let examLinked = 0;
 
       for (const row of rows) {
         const [employees] = await connection.execute(
@@ -62,7 +81,7 @@ cronogramaImportRouter.post(
         }
 
         const [entries] = await connection.execute(
-          `SELECT id, notes
+          `SELECT id, notes, status, exam_id, completion_date
              FROM cronograma_entries
             WHERE month = ?
               AND LOWER(TRIM(employee_matricula)) = LOWER(TRIM(?))
@@ -79,6 +98,38 @@ cronogramaImportRouter.post(
         const existing = entries[0];
 
         if (existing) {
+          // Importação nunca reescreve um histórico já formalizado. Isso evita que
+          // uma planilha posterior troque data/nota de um registro Realizado ou Justificado.
+          if (existing.status === "Realizado" || existing.status === "Justificado") {
+            ignored += 1;
+            protectedHistory += 1;
+            continue;
+          }
+
+          let completionDate = row.completionDate;
+          if (existing.exam_id) {
+            examLinked += 1;
+            const [approved] = await connection.execute(
+              `SELECT finished_at
+                 FROM exam_attempts
+                WHERE exam_id = ?
+                  AND LOWER(TRIM(matricula)) = LOWER(TRIM(?))
+                  AND passed = 1
+                ORDER BY finished_at ASC
+                LIMIT 1
+                FOR UPDATE`,
+              [existing.exam_id, employee.matricula],
+            );
+            const attempt = approved[0];
+            if (!attempt) {
+              throw conflict(
+                `Linha ${row.rowNumber}: o lançamento está vinculado a uma prova e só pode ser realizado após aprovação registrada no SEGEMPAT`,
+              );
+            }
+            // Em lançamento ligado a prova, a planilha nunca define a data oficial.
+            completionDate = operationalDateFromUtc(attempt.finished_at);
+          }
+
           const notes = existing.notes ? `${existing.notes}\n${note}` : note;
           await connection.execute(
             `UPDATE cronograma_entries
@@ -89,7 +140,7 @@ cronogramaImportRouter.post(
                     notes = ?,
                     updated_at = UTC_TIMESTAMP(3)
               WHERE id = ?`,
-            [row.completionDate, notes, existing.id],
+            [completionDate, notes, existing.id],
           );
           updated += 1;
           continue;
@@ -112,6 +163,9 @@ cronogramaImportRouter.post(
         updated,
         created,
         ignored,
+        protected_history: protectedHistory,
+        exam_linked_validated: examLinked,
+        exam_completion_date_server_derived: examLinked > 0,
         atomic: true,
         identity_derived_server_side: true,
       }, connection);
