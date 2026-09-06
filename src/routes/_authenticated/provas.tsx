@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileText, PlusCircle, Trash2, Send, Undo2, Calendar, Target, PlayCircle, CheckCircle2, AlertTriangle, Layers3, FileCheck2, FileClock, Crosshair, RotateCcw, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { listExams, listAvailableExams, listAttemptsByYear, deleteExam, updateExam, fmtDate, type Exam, type ExamAttempt } from "@/lib/exams";
+import { invalidateExamFlow } from "@/lib/operational-query-sync";
 import { operationalYear } from "@/lib/operational-time";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -50,9 +51,9 @@ function ProvasPage(){
   const all=examsQuery.data??[];
   const attempts=attemptsQuery.data??[];
   const exams=isAdmin?all:all.filter(e=>e.status==="Publicada");
-  const invalidate=()=>qc.invalidateQueries({queryKey:["exams"]});
-  const remove=useMutation({mutationFn:deleteExam,onSuccess:()=>{toast.success("Prova excluída");setToDelete(null);invalidate()},onError:(e:Error)=>toast.error(e.message)});
-  const toggle=useMutation({mutationFn:({id,status}:{id:string;status:string})=>updateExam(id,{status}),onSuccess:()=>{toast.success("Situação atualizada");invalidate()},onError:(e:Error)=>toast.error(e.message)});
+  const invalidate=()=>invalidateExamFlow(qc);
+  const remove=useMutation({mutationFn:deleteExam,onSuccess:()=>{toast.success("Prova excluída");setToDelete(null);void invalidate()},onError:(e:Error)=>toast.error(e.message)});
+  const toggle=useMutation({mutationFn:({id,status}:{id:string;status:string})=>updateExam(id,{status}),onSuccess:()=>{toast.success("Situação atualizada");void invalidate()},onError:(e:Error)=>toast.error(e.message)});
 
   if(userLoading||examsQuery.isLoading||(!isAdmin&&attemptsQuery.isLoading))return <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4" style={{borderColor:"var(--border)",borderTopColor:"#C8102E"}}/></div>;
   if(examsQuery.isError||(!isAdmin&&attemptsQuery.isError))return <Card className="mx-auto max-w-xl p-8 text-center"><AlertTriangle className="mx-auto h-8 w-8 text-amber-500"/><p className="mt-3 font-bold" style={{color:"var(--text-1)"}}>Não foi possível carregar as provas.</p><p className="mt-1 text-sm" style={{color:"var(--text-4)"}}>Atualize a página. Se o problema persistir, informe a Inspetoria.</p></Card>;
