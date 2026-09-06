@@ -24,6 +24,7 @@ export function QuickTestWorkspace() {
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ score: number; correct: number; points: number; passed: boolean } | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const eligible = useMemo(() => {
     const sector = employee.data?.sector;
@@ -39,11 +40,13 @@ export function QuickTestWorkspace() {
     setCurrent(0);
     setAnswers({});
     setResult(null);
+    setSubmitError(null);
   };
 
   const finish = async () => {
     if (!questions.length) return;
     setSubmitting(true);
+    setSubmitError(null);
     try {
       const response = await submitTrainingActivity({
         activityType: "Teste Rápido",
@@ -64,6 +67,8 @@ export function QuickTestWorkspace() {
         queryClient.invalidateQueries({ queryKey: ["current-employee-training"] }),
         queryClient.invalidateQueries({ queryKey: ["training-activities-my"] }),
       ]);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Não foi possível registrar o Teste Rápido. Tente novamente.");
     } finally {
       setSubmitting(false);
     }
@@ -72,7 +77,7 @@ export function QuickTestWorkspace() {
   if (employee.isLoading || bank.isLoading) return <Loading />;
 
   if (employee.isError || bank.isError) {
-    return <div className="mx-auto max-w-lg rounded-2xl p-8 text-center" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}><ShieldCheck className="mx-auto mb-3 h-10 w-10 text-amber-500" /><p className="font-black" style={{ color: "var(--text-1)" }}>Não foi possível carregar o Teste Rápido</p><p className="mt-1 text-sm" style={{ color: "var(--text-4)" }}>Tente novamente. Se o problema persistir, informe a Inspetoria.</p><Button variant="outline" className="mt-4" onClick={() => { employee.refetch(); bank.refetch(); }}><RefreshCw className="mr-2 h-4 w-4" /> Tentar novamente</Button></div>;
+    return <div className="mx-auto max-w-lg rounded-2xl p-8 text-center" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}><ShieldCheck className="mx-auto mb-3 h-10 w-10 text-amber-500" /><p className="font-black" style={{ color: "var(--text-1)" }}>Não foi possível carregar o Teste Rápido</p><p className="mt-1 text-sm" style={{ color: "var(--text-4)" }}>Tente novamente. Se o problema persistir, informe a Inspetoria.</p><Button variant="outline" className="mt-4" onClick={() => { void employee.refetch(); void bank.refetch(); }}><RefreshCw className="mr-2 h-4 w-4" /> Tentar novamente</Button></div>;
   }
 
   if (!employee.data) {
@@ -141,7 +146,7 @@ export function QuickTestWorkspace() {
           {question.options.map((option, optionIndex) => {
             const active = selected === optionIndex;
             return (
-              <button key={`${question.id}-${optionIndex}`} onClick={() => setAnswers((prev) => ({ ...prev, [question.id]: optionIndex }))} className="w-full rounded-xl p-3 text-left text-sm font-medium transition-colors" style={{ background: active ? "rgba(245,158,11,.09)" : "var(--bg-surface-2)", border: `1px solid ${active ? "rgba(245,158,11,.55)" : "var(--border)"}`, color: active ? "#f59e0b" : "var(--text-2)" }}>
+              <button key={`${question.id}-${optionIndex}`} onClick={() => { setSubmitError(null); setAnswers((prev) => ({ ...prev, [question.id]: optionIndex })); }} className="w-full rounded-xl p-3 text-left text-sm font-medium transition-colors" style={{ background: active ? "rgba(245,158,11,.09)" : "var(--bg-surface-2)", border: `1px solid ${active ? "rgba(245,158,11,.55)" : "var(--border)"}`, color: active ? "#f59e0b" : "var(--text-2)" }}>
                 <span className="mr-2 font-black">{String.fromCharCode(65 + optionIndex)})</span>{option}
               </button>
             );
@@ -149,8 +154,9 @@ export function QuickTestWorkspace() {
         </div>
       </section>
 
-      <Button onClick={isLast ? finish : () => setCurrent((value) => value + 1)} disabled={selected === undefined || submitting} className="w-full gap-2 bg-[#C8102E] text-white hover:bg-[#A00D24]">
-        {submitting ? <><Loader2 className="h-4 w-4 animate-spin" /> Registrando...</> : isLast ? <><CheckCircle2 className="h-4 w-4" /> Finalizar</> : <>Próxima <ChevronRight className="h-4 w-4" /></>}
+      {submitError && <section className="rounded-xl p-3 text-sm" style={{ background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.25)", color: "#dc2626" }}>{submitError}</section>}
+      <Button onClick={isLast ? finish : () => { setSubmitError(null); setCurrent((value) => value + 1); }} disabled={selected === undefined || submitting} className="w-full gap-2 bg-[#C8102E] text-white hover:bg-[#A00D24]">
+        {submitting ? <><Loader2 className="h-4 w-4 animate-spin" /> Registrando...</> : isLast ? <><CheckCircle2 className="h-4 w-4" /> {submitError ? "Tentar registrar novamente" : "Finalizar"}</> : <>Próxima <ChevronRight className="h-4 w-4" /></>}
       </Button>
     </div>
   );
