@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { config } from "../config.js";
 import { execute, query, queryOne, withTransaction } from "../db.js";
 import { audit } from "../audit.js";
 import { requireAdmin, requireAuth } from "../session.js";
@@ -21,7 +22,7 @@ export const cronogramaRouter = Router();
 
 const STATUSES = ["Pendente", "Realizado", "Justificado"];
 const TYPES = ["Planejado", "Realizado"];
-const TARGET_SECTORS = ["Todos", "CFTV", "Vigilância", "Portaria", "Ronda", "Administrativo"];
+const TARGET_SECTORS = ["Todos", "CFTV", "Vigilância", "Portaria", "Ronda", "Administrativo", "Operações"];
 const SUSPENSION_TYPES = ["mes_suspenso", "ausencia_operador"];
 
 function mapEntry(row) {
@@ -30,6 +31,21 @@ function mapEntry(row) {
 
 function mapRecurring(row) {
   return { ...row, active: asBool(row.active) };
+}
+
+function operationalDateFromUtc(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) throw badRequest("Tentativa de prova possui data de conclusão inválida");
+  const date = value instanceof Date
+    ? value
+    : new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(raw) ? raw : `${raw.replace(" ", "T")}Z`);
+  if (Number.isNaN(date.getTime())) throw badRequest("Tentativa de prova possui data de conclusão inválida");
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: config.timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
 }
 
 async function operationalEmployee(employeeId) {
@@ -265,7 +281,7 @@ cronogramaRouter.post(
   asyncHandler(async (req, res) => {
     const month = req.body?.month ? requireMonth(req.body.month) : null;
     const rows = await query(
-      `SELECT c.id, MAX(a.finished_at) AS finished_at
+      `SELECT c.id, MIN(a.finished_at) AS finished_at
          FROM cronograma_entries c
          JOIN exam_attempts a
            ON a.exam_id = c.exam_id
@@ -278,11 +294,10 @@ cronogramaRouter.post(
       month ? [month] : [],
     );
 
-    const updates = rows.map((row) => {
-      const finishedAt = new Date(row.finished_at);
-      if (Number.isNaN(finishedAt.getTime())) throw badRequest("Tentativa de prova possui data de conclusão inválida");
-      return { id: row.id, completionDate: finishedAt.toISOString().slice(0, 10) };
-    });
+    const updates = rows.map((row) => ({
+      id: row.id,
+      completionDate: operationalDateFromUtc(row.finished_at),
+    }));
 
     if (!updates.length) return res.json({ changed: 0 });
 
@@ -302,6 +317,8 @@ cronogramaRouter.post(
         candidates: updates.length,
         atomic: true,
         set_based_lookup: true,
+        first_approved_attempt: true,
+        completion_date_timezone: config.timezone,
       }, connection);
       return count;
     });
