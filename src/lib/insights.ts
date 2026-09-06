@@ -3,7 +3,7 @@ import { listAdminAttemptsByYear } from "@/lib/backend/admin-attempts";
 import { apiRequest, isSegempatApiConfigured } from "@/lib/backend/api-client";
 import { listEmployees, type Employee } from "@/lib/employees";
 import { listExams, type Exam, type ExamAttempt } from "@/lib/exams";
-import { listCronogramaEntriesByYear, type CronogramaEntry } from "@/lib/cronograma";
+import { listCronogramaEntriesByYear, syncCronogramaWithExamAttempts, type CronogramaEntry } from "@/lib/cronograma";
 import { operationalDate, operationalMonth, operationalYear } from "@/lib/operational-time";
 
 export interface OperationalSnapshot {
@@ -13,7 +13,18 @@ export interface OperationalSnapshot {
   cronograma: CronogramaEntry[];
 }
 
+function normalizeMatricula(value: string | null | undefined) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
 export async function getOperationalSnapshot(year = operationalYear()): Promise<OperationalSnapshot> {
+  if (isSegempatApiConfigured()) {
+    const currentUser = await getCurrentSessionUser();
+    if (currentUser?.isAdmin) {
+      await syncCronogramaWithExamAttempts();
+    }
+  }
+
   const [employees, exams, attempts, cronograma] = await Promise.all([
     listEmployees(),
     listExams(),
@@ -45,14 +56,14 @@ export function sectorMetrics(data: OperationalSnapshot) {
     if (employee.status !== "Ativo" || employee.access_profile === "Inspetor") continue;
     const sector = employee.sector;
     const current = stats.get(sector) ?? { employeeIds: new Set<string>(), planned: 0, realized: 0, attempts: 0, passed: 0 };
-    current.employeeIds.add(employee.id); stats.set(sector, current); employeeSectorById.set(employee.id, sector); sectorByMatricula.set(employee.matricula, sector);
+    current.employeeIds.add(employee.id); stats.set(sector, current); employeeSectorById.set(employee.id, sector); sectorByMatricula.set(normalizeMatricula(employee.matricula), sector);
   }
   for (const entry of data.cronograma) {
     const sector = stats.has(entry.employee_sector) ? entry.employee_sector : employeeSectorById.get(entry.employee_id);
     if (!sector) continue; const current = stats.get(sector); if (!current) continue; current.planned += 1; if (entry.status === "Realizado") current.realized += 1;
   }
   for (const attempt of data.attempts) {
-    if (!attempt.matricula) continue; const sector = sectorByMatricula.get(attempt.matricula); if (!sector) continue; const current = stats.get(sector); if (!current) continue; current.attempts += 1; if (attempt.passed) current.passed += 1;
+    if (!attempt.matricula) continue; const sector = sectorByMatricula.get(normalizeMatricula(attempt.matricula)); if (!sector) continue; const current = stats.get(sector); if (!current) continue; current.attempts += 1; if (attempt.passed) current.passed += 1;
   }
   return Array.from(stats.entries()).sort(([a],[b]) => a.localeCompare(b,"pt-BR")).map(([sector,current]) => ({ sector, employees: current.employeeIds.size, planned: current.planned, realized: current.realized, executionRate: current.planned ? Math.round((current.realized/current.planned)*100) : 0, attempts: current.attempts, approvalRate: current.attempts ? Math.round((current.passed/current.attempts)*100) : 0 }));
 }
@@ -66,9 +77,9 @@ export function monthlyExecution(data: OperationalSnapshot, year = operationalYe
 
 export function employeeRisk(data: OperationalSnapshot) {
   const nowMonth = operationalMonth(); const today = operationalDate(); const activeEmployees = data.employees.filter((e)=>e.status === "Ativo" && e.access_profile !== "Inspetor");
-  const byId = new Map(activeEmployees.map((employee)=>[employee.id,{pending:0,overdue:0,failed:0}])); const idByMatricula = new Map(activeEmployees.map((employee)=>[employee.matricula,employee.id]));
+  const byId = new Map(activeEmployees.map((employee)=>[employee.id,{pending:0,overdue:0,failed:0}])); const idByMatricula = new Map(activeEmployees.map((employee)=>[normalizeMatricula(employee.matricula),employee.id]));
   for (const entry of data.cronograma) { if (entry.status !== "Pendente") continue; const current=byId.get(entry.employee_id); if (!current) continue; current.pending += 1; if (entry.month < nowMonth || (entry.planned_date && entry.planned_date < today)) current.overdue += 1; }
-  for (const attempt of data.attempts) { if (attempt.passed || !attempt.matricula) continue; const employeeId=idByMatricula.get(attempt.matricula); if (!employeeId) continue; const current=byId.get(employeeId); if (current) current.failed += 1; }
+  for (const attempt of data.attempts) { if (attempt.passed || !attempt.matricula) continue; const employeeId=idByMatricula.get(normalizeMatricula(attempt.matricula)); if (!employeeId) continue; const current=byId.get(employeeId); if (current) current.failed += 1; }
   return activeEmployees.map((employee)=>{ const current=byId.get(employee.id) ?? {pending:0,overdue:0,failed:0}; const score=current.overdue*3+current.pending+current.failed*2; const level=score>=8?"Alto":score>=4?"Médio":score>0?"Baixo":"Normal"; return {employee,pending:current.pending,overdue:current.overdue,failed:current.failed,score,level}; }).sort((a,b)=>b.score-a.score || a.employee.full_name.localeCompare(b.employee.full_name,"pt-BR"));
 }
 
@@ -78,5 +89,5 @@ export async function getCurrentEmployeeByAuth() {
   const user = await getCurrentSessionUser();
   if (!user?.matricula) return null;
   const employees = await listEmployees();
-  return employees.find((employee) => employee.matricula.trim().toLowerCase() === user.matricula.trim().toLowerCase()) ?? null;
+  return employees.find((employee) => normalizeMatricula(employee.matricula) === normalizeMatricula(user.matricula)) ?? null;
 }
