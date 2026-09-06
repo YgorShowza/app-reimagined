@@ -10,6 +10,7 @@ import { listEmployees } from "@/lib/employees";
 import { createCronogramaEntries, listCronogramaEntriesByYear, type CronogramaEntryInput } from "@/lib/cronograma";
 import { listPracticalEvalTemplates, practicalDueMonths, type PracticalEvalTemplate } from "@/lib/practical-templates";
 import { isSegempatApiConfigured } from "@/lib/backend/api-client";
+import { operationalYear } from "@/lib/operational-time";
 
 const RECURRENCE_LABEL: Record<string, string> = {
   monthly: "Mensal",
@@ -26,7 +27,7 @@ function sectorMatch(template: PracticalEvalTemplate, employeeSector: string) {
 
 export function CronogramaGeneratePractical({ open, onOpenChange, onComplete }: { open: boolean; onOpenChange: (open: boolean) => void; onComplete?: () => void }) {
   const qc = useQueryClient();
-  const [year, setYear] = useState(new Date().getFullYear());
+  const [year, setYear] = useState(operationalYear());
   const [generating, setGenerating] = useState(false);
 
   const employeesQuery = useQuery({ queryKey: ["employees"], queryFn: listEmployees, enabled: open });
@@ -81,10 +82,8 @@ export function CronogramaGeneratePractical({ open, onOpenChange, onComplete }: 
     setGenerating(true);
     try {
       if (apiMode) {
-        // Uma única chamada mantém toda a geração dentro da transação MySQL do endpoint /bulk.
         await createCronogramaEntries(drafts);
       } else {
-        // Compatibilidade temporária com o fallback legado enquanto a API corporativa não estiver configurada.
         for (let index = 0; index < drafts.length; index += 100) {
           await createCronogramaEntries(drafts.slice(index, index + 100));
         }
@@ -110,7 +109,7 @@ export function CronogramaGeneratePractical({ open, onOpenChange, onComplete }: 
       <DialogContent className="sm:max-w-xl">
         <DialogHeader><DialogTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5 text-[#C8102E]" /> Gerar Avaliações Práticas Recorrentes</DialogTitle></DialogHeader>
         <div className="space-y-4">
-          <div className="space-y-1.5"><Label>Ano</Label><Input className="w-32" type="number" value={year} onChange={(event) => setYear(Number(event.target.value) || new Date().getFullYear())} /></div>
+          <div className="space-y-1.5"><Label>Ano</Label><Input className="w-32" type="number" value={year} onChange={(event) => setYear(Number(event.target.value) || operationalYear())} /></div>
           <p className="text-sm leading-relaxed" style={{ color: "var(--text-2)" }}>Gera entradas <strong>Pendentes</strong> no cronograma respeitando recorrência, setor-alvo e evitando duplicidade por colaborador + tema + mês.</p>
           {loading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-[#C8102E]" /></div> : <>
             <div className="grid grid-cols-3 gap-2">
