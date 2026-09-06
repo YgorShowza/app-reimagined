@@ -224,11 +224,22 @@ examsRouter.patch("/:id", requireAdmin, asyncHandler(async (req, res) => {
     const existing = rows[0];
     if (!existing) throw notFound("Prova não encontrada");
 
+    const evidenceChangingFields = fields.filter((field) => field !== "status");
+    if (evidenceChangingFields.length > 0) {
+      const [historyRows] = await connection.execute(
+        `SELECT id FROM exam_attempts WHERE exam_id = ? LIMIT 1 FOR UPDATE`,
+        [existing.id],
+      );
+      if (historyRows[0]) {
+        throw conflict("Prova com tentativas registradas não pode ter conteúdo ou configuração alterados. Use apenas Publicar/Despublicar para preservar a evidência histórica.");
+      }
+    }
+
     await connection.execute(
       `UPDATE exams SET ${fields.map((field) => `${field} = ?`).join(", ")}, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`,
       [...values, existing.id],
     );
-    await audit(req.user.id, "UPDATE", "exams", existing.id, { changed: fields, atomic: true }, connection);
+    await audit(req.user.id, "UPDATE", "exams", existing.id, { changed: fields, atomic: true, evidence_guard_atomic: true }, connection);
   });
 
   res.status(204).end();
