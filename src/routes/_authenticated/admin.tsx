@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { employeeRisk, getOperationalSnapshot, sectorMetrics, snapshotMetrics } from "@/lib/insights";
+import { operationalYear } from "@/lib/operational-time";
 
 const LOGO_URL = "https://media.base44.com/images/public/6a1117d573bbf85981b1abee/8271ac857_IMG_9226.png";
 
@@ -57,7 +58,7 @@ function KPI({ label, value, icon: Icon, sub, accent }: { label: string; value: 
 }
 
 function AdminDashboard() {
-  const year = new Date().getFullYear();
+  const year = operationalYear();
   const { data: user } = useCurrentUser();
   const { data, isLoading, refetch, isFetching } = useQuery({ queryKey: ["admin-snapshot", year], queryFn: () => getOperationalSnapshot(year), staleTime: 60_000 });
 
@@ -69,7 +70,7 @@ function AdminDashboard() {
   const risk = employeeRisk(data);
   const first = user?.nome?.split(" ")[0] || "Inspetor";
   const now = new Date();
-  const h = now.getHours();
+  const h = Number(new Intl.DateTimeFormat("en-US", { hour: "2-digit", hourCycle: "h23", timeZone: "America/Maceio" }).format(now));
   const greeting = h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
   const updatedAt = now.toLocaleString("pt-BR", { weekday: "long", day: "2-digit", month: "long", hour: "2-digit", minute: "2-digit", timeZone: "America/Maceio" });
   const quick = [
