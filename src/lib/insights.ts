@@ -183,6 +183,9 @@ export function employeeRisk(data: OperationalSnapshot) {
   const activeEmployees = data.employees.filter((employee) => employee.status === "Ativo" && employee.access_profile !== "Inspetor");
   const byId = new Map(activeEmployees.map((employee) => [employee.id, { pending: 0, overdue: 0, failed: 0 }]));
   const idByMatricula = new Map(activeEmployees.map((employee) => [normalizeMatricula(employee.matricula), employee.id]));
+  const failedExamIdsByEmployee = new Map<string, Set<string>>();
+  const passedExamIdsByEmployee = new Map<string, Set<string>>();
+
   for (const entry of data.cronograma) {
     if (entry.status !== "Pendente") continue;
     const employeeId = byId.has(entry.employee_id) ? entry.employee_id : idByMatricula.get(normalizeMatricula(entry.employee_matricula));
@@ -192,13 +195,25 @@ export function employeeRisk(data: OperationalSnapshot) {
     current.pending += 1;
     if (entry.month < nowMonth || (entry.planned_date && entry.planned_date < today)) current.overdue += 1;
   }
+
   for (const attempt of data.attempts) {
-    if (attempt.passed || !attempt.matricula) continue;
+    if (!attempt.matricula) continue;
     const employeeId = idByMatricula.get(normalizeMatricula(attempt.matricula));
     if (!employeeId) continue;
-    const current = byId.get(employeeId);
-    if (current) current.failed += 1;
+    const target = attempt.passed ? passedExamIdsByEmployee : failedExamIdsByEmployee;
+    const examIds = target.get(employeeId) ?? new Set<string>();
+    examIds.add(attempt.exam_id);
+    target.set(employeeId, examIds);
   }
+
+  for (const employee of activeEmployees) {
+    const current = byId.get(employee.id);
+    if (!current) continue;
+    const failedExamIds = failedExamIdsByEmployee.get(employee.id) ?? new Set<string>();
+    const passedExamIds = passedExamIdsByEmployee.get(employee.id) ?? new Set<string>();
+    current.failed = Array.from(failedExamIds).filter((examId) => !passedExamIds.has(examId)).length;
+  }
+
   return activeEmployees
     .map((employee) => {
       const current = byId.get(employee.id) ?? { pending: 0, overdue: 0, failed: 0 };
