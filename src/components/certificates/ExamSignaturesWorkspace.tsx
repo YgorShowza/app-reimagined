@@ -37,10 +37,15 @@ export function ExamSignaturesWorkspace() {
   if (!user?.isAdmin) return <div className="mx-auto max-w-xl rounded-2xl p-8 text-center" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}><ShieldCheck className="mx-auto h-10 w-10" style={{ color: "var(--accent)" }} /><h1 className="mt-3 text-lg font-black" style={{ color: "var(--text-1)" }}>Acesso restrito</h1><p className="mt-1 text-sm" style={{ color: "var(--text-4)" }}>Certificados e evidências são exclusivos da Inspetoria.</p></div>;
 
   const openSignature = async (signaturePath: string) => {
+    const popup = window.open("", "_blank");
+    if (!popup) { toast.error("O navegador bloqueou a abertura da assinatura."); return; }
+    popup.document.write("<!doctype html><html><body style='font-family:Arial;padding:24px'>Carregando assinatura...</body></html>");
+    popup.document.close();
     try {
       const url = await getSignatureUrl(signaturePath, 300);
-      window.open(url, "_blank", "noopener,noreferrer");
+      popup.location.href = url;
     } catch (e: unknown) {
+      popup.close();
       toast.error(e instanceof Error ? e.message : "Não foi possível abrir a assinatura");
     }
   };
@@ -48,11 +53,20 @@ export function ExamSignaturesWorkspace() {
   const generateCertificate = async (row: ExamSignatureEvidence) => {
     if (!row.passed) { toast.error("Certificado de aptidão disponível somente para avaliação aprovada."); return; }
     if (!(row.signature_path && row.signed_at)) { toast.error("A assinatura eletrônica precisa estar registrada antes da emissão."); return; }
+
+    // A nova janela precisa nascer diretamente do toque/clique. Em iOS/Safari,
+    // abrir somente depois de uma chamada assíncrona é interpretado como popup.
+    const popup = window.open("", "_blank", "width=1180,height=820");
+    if (!popup) { toast.error("O navegador bloqueou a abertura do certificado."); return; }
+    popup.document.write("<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'><title>Gerando certificado...</title></head><body style='font-family:Arial,sans-serif;padding:28px;color:#111827'>Gerando certificado de aptidão...</body></html>");
+    popup.document.close();
+
     setGeneratingId(row.id);
     try {
       const evidence = await getAdminExamAttemptEvidence(row.id);
-      openAptitudeCertificate(evidence);
+      openAptitudeCertificate(evidence, popup);
     } catch (e: unknown) {
+      if (!popup.closed) popup.close();
       toast.error(e instanceof Error ? e.message : "Não foi possível gerar o certificado");
     } finally {
       setGeneratingId(null);
