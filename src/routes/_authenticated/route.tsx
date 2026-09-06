@@ -21,6 +21,7 @@ const ADMIN_ONLY_PATHS = new Set([
   "/banco-questoes",
   "/modulos-treinamento",
   "/ciclos-treinamento",
+  "/certificados",
   "/validar-certificados",
   "/assinaturas-provas",
   "/conteudos",
@@ -32,13 +33,17 @@ const ADMIN_ONLY_PATHS = new Set([
   "/foco",
 ]);
 
+function isAdminOnlyPath(pathname: string) {
+  return ADMIN_ONLY_PATHS.has(pathname) || pathname.startsWith("/certificado/");
+}
+
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: async ({ location }) => {
     const user = await getCurrentSessionUser();
     if (!user) throw redirect({ to: "/" });
 
-    if (ADMIN_ONLY_PATHS.has(location.pathname) && !user.isAdmin) {
+    if (isAdminOnlyPath(location.pathname) && !user.isAdmin) {
       throw redirect({ to: "/painel" });
     }
 
