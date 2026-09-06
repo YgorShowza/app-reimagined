@@ -44,12 +44,15 @@ myExamEvidenceRouter.get(
   requireAuth,
   asyncHandler(async (req, res) => {
     const attempt = await queryOne(
-      `SELECT a.*, e.title AS exam_title, e.questions, e.min_approval_pct
+      `SELECT a.*, e.title AS exam_title, e.questions, e.min_approval_pct,
+              COALESCE(emp.full_name, a.signature_name, a.matricula, ?) AS employee_name,
+              COALESCE(emp.sector, ?) AS employee_sector
          FROM exam_attempts a
          JOIN exams e ON e.id = a.exam_id
+         LEFT JOIN employees emp ON LOWER(TRIM(emp.matricula)) = LOWER(TRIM(a.matricula))
         WHERE a.id = ? AND a.user_id = ?
         LIMIT 1`,
-      [req.params.attemptId, req.user.id],
+      [req.user.nome || "Colaborador", req.user.setor || "—", req.params.attemptId, req.user.id],
     );
     if (!attempt) throw notFound("Evidência da avaliação não encontrada");
 
@@ -63,9 +66,9 @@ myExamEvidenceRouter.get(
       attempt_id: attempt.id,
       exam_id: attempt.exam_id,
       exam_title: attempt.exam_title,
-      employee_name: req.user.nome,
-      matricula: req.user.matricula,
-      sector: req.user.setor,
+      employee_name: attempt.employee_name,
+      matricula: attempt.matricula,
+      sector: attempt.employee_sector,
       score: Number(attempt.score ?? 0),
       passed: asBool(attempt.passed),
       certificate_code: attempt.certificate_code,
