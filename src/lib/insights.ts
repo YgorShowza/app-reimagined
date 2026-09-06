@@ -25,12 +25,22 @@ export async function getOperationalSnapshot(year = operationalYear()): Promise<
     }
   }
 
-  const [employees, exams, attempts, cronograma] = await Promise.all([
+  const [employees, exams, rawAttempts, cronograma] = await Promise.all([
     listEmployees(),
     listExams(),
     listAdminAttemptsByYear(year),
     listCronogramaEntriesByYear(year),
   ]);
+
+  const canonicalMatricula = new Map(
+    employees.map((employee) => [normalizeMatricula(employee.matricula), employee.matricula]),
+  );
+  const attempts = rawAttempts.map((attempt) => {
+    if (!attempt.matricula) return attempt;
+    const matricula = canonicalMatricula.get(normalizeMatricula(attempt.matricula));
+    return matricula && matricula !== attempt.matricula ? { ...attempt, matricula } : attempt;
+  });
+
   return { employees, exams, attempts, cronograma };
 }
 
