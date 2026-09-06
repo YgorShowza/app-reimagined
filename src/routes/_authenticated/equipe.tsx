@@ -104,10 +104,11 @@ function EquipePage() {
     return employees.filter((e) => e.full_name.toLowerCase().includes(q) || e.matricula.includes(q) || e.sector.toLowerCase().includes(q));
   }, [employees, search]);
 
-  const ativos = employees.filter((e) => e.status === "Ativo").length;
-  const inativos = employees.length - ativos;
-  const cftv = employees.filter((e) => e.status === "Ativo" && e.sector === "CFTV").length;
-  const vigilancia = employees.filter((e) => e.status === "Ativo" && e.sector === "Vigilância").length;
+  const cadastrosAtivos = employees.filter((e) => e.status === "Ativo").length;
+  const operacionaisAtivos = employees.filter((e) => e.status === "Ativo" && e.access_profile !== "Inspetor").length;
+  const inativos = employees.length - cadastrosAtivos;
+  const cftv = employees.filter((e) => e.status === "Ativo" && e.access_profile !== "Inspetor" && e.sector === "CFTV").length;
+  const vigilancia = employees.filter((e) => e.status === "Ativo" && e.access_profile !== "Inspetor" && e.sector === "Vigilância").length;
 
   const openNew = () => {
     setForm(emptyEmployeeForm);
@@ -129,7 +130,7 @@ function EquipePage() {
           <div>
             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[.22em]" style={{ color: "rgba(255,255,255,.44)" }}><UserRoundCog className="h-4 w-4" /> Gestão operacional</div>
             <h1 className="mt-2 text-2xl font-black tracking-tight text-white md:text-3xl">Gestão de Equipe</h1>
-            <p className="mt-1 text-sm" style={{ color: "rgba(255,255,255,.52)" }}>{employees.length} cadastrados · {ativos} ativos · {inativos} inativos</p>
+            <p className="mt-1 text-sm" style={{ color: "rgba(255,255,255,.52)" }}>{employees.length} cadastrados · {cadastrosAtivos} ativos · {inativos} inativos</p>
           </div>
           {isAdmin && (
             <div className="flex flex-wrap gap-2">
@@ -143,9 +144,9 @@ function EquipePage() {
       </section>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <MetricCard label="Equipe ativa" value={ativos} icon={ShieldCheck} accent="#10b981" sub="colaboradores disponíveis" />
-        <MetricCard label="CFTV" value={cftv} icon={Eye} accent="#3b82f6" sub="ativos no setor" />
-        <MetricCard label="Vigilância" value={vigilancia} icon={Radio} accent="#f59e0b" sub="ativos no setor" />
+        <MetricCard label="Equipe ativa" value={operacionaisAtivos} icon={ShieldCheck} accent="#10b981" sub="operacionais ativos" />
+        <MetricCard label="CFTV" value={cftv} icon={Eye} accent="#3b82f6" sub="operacionais ativos" />
+        <MetricCard label="Vigilância" value={vigilancia} icon={Radio} accent="#f59e0b" sub="operacionais ativos" />
         <MetricCard label="Inativos" value={inativos} icon={UserX} accent="#e11d48" sub="cadastros preservados" />
       </div>
 
