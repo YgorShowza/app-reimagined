@@ -102,5 +102,14 @@ export async function getMyTrainingSchedule(): Promise<TrainingSchedule | null> 
     const row = await apiRequest<TrainingSchedule | null>("/api/me/training/schedule");
     return row ? normalize(row) : null;
   }
-  return null;
+  // No preview, o RLS da tabela restringe um operador ao próprio ciclo.
+  // O limite evita ambiguidades e mantém a leitura compatível com a rota /api/me.
+  const { data, error } = await (supabase as any)
+    .from("training_schedules")
+    .select("*")
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? normalize(data as TrainingSchedule) : null;
 }
