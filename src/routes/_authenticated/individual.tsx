@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getOperationalSnapshot } from "@/lib/insights";
 import { formatDate } from "@/lib/cronograma";
+import { operationalYear } from "@/lib/operational-time";
 
 export const Route = createFileRoute("/_authenticated/individual")({
   head: () => ({ meta: [{ title: "Análise Individual · SEGEMPAT" }] }),
@@ -43,7 +44,7 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
 type PerfFilter = "todos" | "sem-dados" | "atencao" | "bom" | "excelente";
 
 function IndividualPage() {
-  const year = new Date().getFullYear();
+  const year = operationalYear();
   const query = useQuery({
     queryKey: ["individual-snapshot", year],
     queryFn: () => getOperationalSnapshot(year),
