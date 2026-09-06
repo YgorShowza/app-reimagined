@@ -9,7 +9,7 @@ export const adminTrainingRouter = Router();
 export const myTrainingRouter = Router();
 
 const MODULE_STATUS = ["Ativo", "Inativo"];
-const TARGET_SECTORS = ["Todos", "CFTV", "Vigilância", "Portaria", "Ronda", "Administrativo"];
+const TARGET_SECTORS = ["Todos", "CFTV", "Vigilância", "Portaria", "Ronda", "Administrativo", "Operações"];
 const ACTIVITY_TYPES = ["Simulador", "Stress Test", "Desafio Diário", "Teste Rápido"];
 const SIMULATOR_DIFFICULTIES = ["Básico", "Intermediário", "Avançado"];
 
