@@ -60,6 +60,7 @@ export async function invalidateExamFlow(queryClient: QueryClient) {
 export async function invalidateEmployeeFlow(queryClient: QueryClient) {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: ["employees"] }),
+    queryClient.invalidateQueries({ queryKey: ["current-user"] }),
     invalidateRoots(queryClient, CRONOGRAMA_ROOTS),
     invalidateOperationalSnapshots(queryClient),
   ]);
