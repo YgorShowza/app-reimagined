@@ -167,6 +167,19 @@ export async function createExam(form: ExamForm) {
 
 export async function updateExam(id: string, form: Partial<ExamForm>) {
   if (isSegempatApiConfigured()) { await apiRequest<void>(`/api/exams/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(form) }); return; }
+
+  const evidenceChangingFields = Object.keys(form).filter((field) => field !== "status");
+  if (evidenceChangingFields.length > 0) {
+    const { count, error: historyError } = await (supabase as any)
+      .from("exam_attempts")
+      .select("id", { count: "exact", head: true })
+      .eq("exam_id", id);
+    if (historyError) throw historyError;
+    if (Number(count ?? 0) > 0) {
+      throw new Error("Esta prova já possui tentativas registradas. Para preservar a evidência histórica, somente Publicar/Despublicar é permitido.");
+    }
+  }
+
   const patch: Record<string, unknown> = { ...form };
   if (form.questions) patch["questions"] = form.questions;
   const { error } = await (supabase as any).rpc("update_exam_admin", { p_id: id, p_patch: patch });
