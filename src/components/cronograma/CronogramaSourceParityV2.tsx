@@ -17,6 +17,7 @@ import { CronogramaGroupedList } from "@/components/cronograma/CronogramaGrouped
 import {
   annualSummary,
   currentMonthStr,
+  formatDate,
   formatMonth,
   listCronogramaEntries,
   listCronogramaEntriesByYear,
@@ -420,26 +421,63 @@ function CalendarView({
 
       {selectedDay && (
         <section className="overflow-hidden rounded-2xl" style={{ background: "var(--bg-surface)", border: "1px solid rgba(240,196,0,.35)" }}>
-          <div className="px-4 py-3 text-sm font-black" style={{ background: "rgba(240,196,0,.08)", borderBottom: "1px solid var(--border)", color: "var(--text-1)" }}>
-            {new Date(year, monthIndex, selectedDay).toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}
+          <div className="flex flex-wrap items-center gap-2 px-4 py-3" style={{ background: "rgba(240,196,0,.08)", borderBottom: "1px solid var(--border)" }}>
+            <p className="text-sm font-black capitalize" style={{ color: "var(--text-1)" }}>
+              {new Date(year, monthIndex, selectedDay).toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}
+            </p>
+            <span className="ml-auto rounded-full px-2 py-0.5 text-[10px] font-black" style={{ background: "var(--bg-surface-3)", color: "var(--text-3)" }}>
+              {selected.length} atividade{selected.length === 1 ? "" : "s"}
+            </span>
           </div>
           {selected.length === 0 ? (
             <p className="p-6 text-center text-sm" style={{ color: "var(--text-4)" }}>Nenhum treinamento previsto para este dia.</p>
-          ) : selected.map((entry) => (
-            <div key={entry.id} className="flex flex-wrap items-center gap-3 px-4 py-3 sm:flex-nowrap" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-black" style={{ background: "linear-gradient(135deg,#f0c400,#ffd700)", color: "#111" }}>
-                {entry.employee_name?.charAt(0)}
-              </div>
-              <div className="min-w-0 flex-1 basis-[200px]">
-                <p className="text-sm font-bold" style={{ color: "var(--text-1)" }}>{entry.employee_name}</p>
-                <p className="break-words text-xs" style={{ color: "var(--text-3)" }}>{entry.theme}</p>
-                <p className="text-[10px]" style={{ color: "var(--text-4)" }}>Mat. {entry.employee_matricula} · {entry.employee_sector}</p>
-              </div>
-              <span className="shrink-0 rounded-full px-2 py-1 text-[10px] font-black" style={{ background: STATUS[entry.status].bg, color: STATUS[entry.status].color }}>
-                {entry.status}
-              </span>
-            </div>
-          ))}
+          ) : selected.map((entry) => {
+            const status = STATUS[entry.status];
+            return (
+              <article key={entry.id} className="px-4 py-4" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                <div className="flex flex-wrap items-start gap-3 sm:flex-nowrap">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-black" style={{ background: "linear-gradient(135deg,#f0c400,#ffd700)", color: "#111" }}>
+                    {entry.employee_name?.charAt(0)}
+                  </div>
+                  <div className="min-w-0 flex-1 basis-[220px]">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-black" style={{ color: "var(--text-1)" }}>{entry.employee_name}</p>
+                      <span className="shrink-0 rounded-full px-2 py-1 text-[10px] font-black" style={{ background: status.bg, color: status.color }}>
+                        {entry.status}
+                      </span>
+                    </div>
+                    <p className="mt-1 break-words text-xs font-semibold" style={{ color: "var(--text-2)" }}>{entry.theme}</p>
+                    <p className="mt-0.5 text-[10px]" style={{ color: "var(--text-4)" }}>Mat. {entry.employee_matricula} · {entry.employee_sector}</p>
+
+                    <div className="mt-3 grid gap-2 text-[11px] sm:grid-cols-2">
+                      <div className="rounded-lg px-3 py-2" style={{ background: "var(--bg-surface-2)", border: "1px solid var(--border-subtle)" }}>
+                        <span style={{ color: "var(--text-4)" }}>Data prevista</span>
+                        <p className="mt-0.5 font-black" style={{ color: "var(--text-2)" }}>{formatDate(entry.planned_date)}</p>
+                      </div>
+                      <div className="rounded-lg px-3 py-2" style={{ background: "var(--bg-surface-2)", border: "1px solid var(--border-subtle)" }}>
+                        <span style={{ color: "var(--text-4)" }}>Data de conclusão</span>
+                        <p className="mt-0.5 font-black" style={{ color: "var(--text-2)" }}>{formatDate(entry.completion_date)}</p>
+                      </div>
+                    </div>
+
+                    {entry.status === "Justificado" && entry.justification && (
+                      <div className="mt-3 rounded-lg px-3 py-2.5 text-xs" style={{ background: "rgba(59,130,246,.07)", border: "1px solid rgba(59,130,246,.22)", color: "var(--text-2)" }}>
+                        <p className="text-[10px] font-black uppercase tracking-[.08em]" style={{ color: "#3b82f6" }}>Motivo da não realização</p>
+                        <p className="mt-1 font-semibold">{entry.justification}</p>
+                      </div>
+                    )}
+
+                    {entry.exam_title && (
+                      <p className="mt-3 text-[11px]" style={{ color: "var(--text-3)" }}>
+                        Avaliação vinculada: <strong>{entry.exam_title}</strong>
+                      </p>
+                    )}
+                    {entry.notes && <p className="mt-2 break-words text-[11px]" style={{ color: "var(--text-3)" }}>Observação: {entry.notes}</p>}
+                  </div>
+                </div>
+              </article>
+            );
+          })}
         </section>
       )}
     </div>
