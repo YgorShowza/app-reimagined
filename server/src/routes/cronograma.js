@@ -83,6 +83,20 @@ function readEntryInput(body, { partial = false } = {}) {
   return input;
 }
 
+function validateEntryStatusSemantics(input, existing = null) {
+  const has = (key) => Object.prototype.hasOwnProperty.call(input, key);
+  const status = has("status") ? input.status : existing?.status;
+  const justification = has("justification") ? input.justification : trimOrNull(existing?.justification);
+
+  if (status === "Justificado") {
+    if (!justification) throw badRequest("Motivo é obrigatório para lançamento justificado");
+    input.justification = justification;
+  } else if (status) {
+    input.justification = null;
+  }
+  return input;
+}
+
 async function deriveEntryIdentity(input) {
   const employee = await operationalEmployee(input.employee_id);
   const employeeSector = requireOneOf(employee.sector, TARGET_SECTORS.filter((value) => value !== "Todos"), "Setor");
@@ -142,7 +156,7 @@ cronogramaRouter.post(
 
     const prepared = [];
     for (const raw of entries) {
-      prepared.push({ id: uuid(), input: await deriveEntryIdentity(readEntryInput(raw)) });
+      prepared.push({ id: uuid(), input: await deriveEntryIdentity(validateEntryStatusSemantics(readEntryInput(raw))) });
     }
 
     const created = await withTransaction(async (connection) => {
@@ -163,6 +177,7 @@ cronogramaRouter.post(
         count: ids.length,
         identity_derived_server_side: true,
         question_links_validated_server_side: true,
+        status_semantics_validated_server_side: true,
         atomic: true,
       }, connection);
       return ids;
@@ -176,7 +191,7 @@ cronogramaRouter.post(
   "/",
   requireAdmin,
   asyncHandler(async (req, res) => {
-    const input = await deriveEntryIdentity(readEntryInput(req.body));
+    const input = await deriveEntryIdentity(validateEntryStatusSemantics(readEntryInput(req.body)));
     const id = uuid();
     await execute(
       `INSERT INTO cronograma_entries
@@ -187,7 +202,13 @@ cronogramaRouter.post(
         input.exam_id, input.exam_title, input.type, input.status, input.justification, input.planned_date, input.completion_date,
         input.notes, JSON.stringify(input.question_bank_ids), req.user.id],
     );
-    await audit(req.user.id, "INSERT", "cronograma_entries", id, { month: input.month, employee_id: input.employee_id, identity_derived_server_side: true, question_links_validated_server_side: true });
+    await audit(req.user.id, "INSERT", "cronograma_entries", id, {
+      month: input.month,
+      employee_id: input.employee_id,
+      identity_derived_server_side: true,
+      question_links_validated_server_side: true,
+      status_semantics_validated_server_side: true,
+    });
     res.status(201).json({ id });
   }),
 );
@@ -198,7 +219,7 @@ cronogramaRouter.patch(
   asyncHandler(async (req, res) => {
     const existing = await queryOne(`SELECT * FROM cronograma_entries WHERE id = ?`, [req.params.id]);
     if (!existing) throw notFound("Registro do cronograma não encontrado");
-    const input = readEntryInput(req.body, { partial: true });
+    const input = validateEntryStatusSemantics(readEntryInput(req.body, { partial: true }), existing);
     if (Object.prototype.hasOwnProperty.call(input, "employee_id")) {
       const employee = await operationalEmployee(input.employee_id);
       input.employee_id = employee.id;
@@ -220,6 +241,7 @@ cronogramaRouter.patch(
       changed: fields,
       identity_derived_server_side: Object.prototype.hasOwnProperty.call(input, "employee_id"),
       question_links_validated_server_side: fields.includes("question_bank_ids"),
+      status_semantics_validated_server_side: true,
     });
     res.status(204).end();
   }),
