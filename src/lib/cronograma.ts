@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { apiRequest, isSegempatApiConfigured } from "@/lib/backend/api-client";
+import { normalizeMatricula } from "@/lib/matricula";
 import { operationalDate, operationalMonth } from "@/lib/operational-time";
 
 export type CronogramaStatus = "Pendente" | "Realizado" | "Justificado";
@@ -115,7 +116,7 @@ export const JUSTIFICATION_OPTIONS = [
   "Outro motivo",
 ] as const;
 
-export const TARGET_SECTORS = ["Todos", "CFTV", "Vigilância", "Portaria", "Ronda", "Administrativo"] as const;
+export const TARGET_SECTORS = ["Todos", "CFTV", "Vigilância", "Portaria", "Ronda", "Administrativo", "Operações"] as const;
 
 export function currentMonthStr() {
   return operationalMonth();
@@ -299,14 +300,16 @@ export async function syncCronogramaWithExamAttempts(month?: string) {
   if (entryError) throw entryError;
   if (!entries?.length) return 0;
   const examIds = Array.from(new Set(entries.map((e: any) => e.exam_id).filter(Boolean)));
-  const matriculas = Array.from(new Set(entries.map((e: any) => e.employee_matricula).filter(Boolean)));
-  const { data: attempts, error: attemptsError } = await (supabase as any).from("exam_attempts").select("exam_id,matricula,passed,finished_at").in("exam_id", examIds).in("matricula", matriculas).eq("passed", true).order("finished_at", { ascending: false });
+  const { data: attempts, error: attemptsError } = await (supabase as any).from("exam_attempts").select("exam_id,matricula,passed,finished_at").in("exam_id", examIds).eq("passed", true).order("finished_at", { ascending: true });
   if (attemptsError) throw attemptsError;
   let changed = 0;
   for (const entry of entries as any[]) {
-    const attempt = (attempts ?? []).find((a: any) => a.exam_id === entry.exam_id && a.matricula === entry.employee_matricula);
+    const entryMatricula = normalizeMatricula(String(entry.employee_matricula || ""));
+    const attempt = (attempts ?? []).find((a: any) => a.exam_id === entry.exam_id && normalizeMatricula(String(a.matricula || "")) === entryMatricula);
     if (!attempt) continue;
-    const completion = attempt.finished_at?.slice(0, 10) || operationalDate();
+    const finishedAt = new Date(String(attempt.finished_at || ""));
+    if (Number.isNaN(finishedAt.getTime())) throw new Error("Tentativa de prova possui data de conclusão inválida");
+    const completion = operationalDate(finishedAt);
     const { error } = await (supabase as any).from("cronograma_entries").update({ status: "Realizado", type: "Realizado", completion_date: completion, justification: null }).eq("id", entry.id);
     if (!error) changed += 1;
   }
