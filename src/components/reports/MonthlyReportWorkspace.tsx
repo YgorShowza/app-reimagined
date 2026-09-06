@@ -189,6 +189,8 @@ export function MonthlyReportWorkspace() {
                               <div className="min-w-0">
                                 <p className="truncate text-xs font-bold" style={{ color: "var(--text-1)" }}>{entry.theme}</p>
                                 <p className="mt-1 text-[10px]" style={{ color: "var(--text-4)" }}>Prevista: {dateLabel(entry.planned_date)} · Realização: {dateLabel(entry.completion_date)}</p>
+                                {entry.status === "Justificado" && entry.justification && <p className="mt-1 text-[10px] font-bold" style={{ color: "#3b82f6" }}>Motivo da não realização: {entry.justification}</p>}
+                                {entry.notes && <p className="mt-1 text-[10px] leading-relaxed" style={{ color: "var(--text-4)" }}>Observação: {entry.notes}</p>}
                               </div>
                               <StatusBadge status={entry.status} />
                             </div>
