@@ -249,11 +249,20 @@ function blobToDataUrl(blob: Blob): Promise<string> { return new Promise((resolv
 
 export async function signAttempt(input: { attemptId: string; userId: string; signerName: string; pngBlob: Blob; }) {
   if (isSegempatApiConfigured()) { const pngDataUrl = await blobToDataUrl(input.pngBlob); return apiRequest<ExamAttempt>(`/api/me/exam-attempts/${encodeURIComponent(input.attemptId)}/signature`, { method: "POST", body: JSON.stringify({ pngDataUrl }) }); }
-  const path = `${input.userId}/${input.attemptId}.png`;
-  const upload = await supabase.storage.from("exam-signatures").upload(path, input.pngBlob, { contentType: "image/png", upsert: true });
+
+  const path = `${input.userId}/${input.attemptId}-${crypto.randomUUID()}.png`;
+  const upload = await supabase.storage.from("exam-signatures").upload(path, input.pngBlob, { contentType: "image/png", upsert: false });
   if (upload.error) throw upload.error;
-  const { data, error } = await (supabase as any).rpc("sign_exam_attempt", { p_attempt_id: input.attemptId, p_signature_path: path, p_signature_name: input.signerName });
-  if (error) throw error;
+
+  const { data, error } = await (supabase as any).rpc("sign_exam_attempt", {
+    p_attempt_id: input.attemptId,
+    p_signature_path: path,
+    p_signature_name: input.signerName,
+  });
+  if (error) {
+    await supabase.storage.from("exam-signatures").remove([path]).catch(() => undefined);
+    throw error;
+  }
   return data as ExamAttempt;
 }
 
