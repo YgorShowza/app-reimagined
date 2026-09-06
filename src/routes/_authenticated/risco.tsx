@@ -3,13 +3,14 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Clock3, RefreshCw, ShieldCheck, UserRoundSearch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { employeeRisk, getOperationalSnapshot } from "@/lib/insights";
+import { operationalYear } from "@/lib/operational-time";
 
 export const Route = createFileRoute("/_authenticated/risco")({ head: () => ({ meta: [{ title: "Zona de Risco · SEGEMPAT" }] }), component: RiskPage });
 
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) { return <div className={`rounded-2xl ${className}`} style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", boxShadow: "var(--shadow-card, var(--shadow-md))" }}>{children}</div>; }
 
 function RiskPage() {
-  const year = new Date().getFullYear();
+  const year = operationalYear();
   const query = useQuery({ queryKey: ["risk-snapshot", year], queryFn: () => getOperationalSnapshot(year), staleTime:60_000 });
   if (query.isLoading) return <Loading/>;
   if (query.isError || !query.data) return <Card className="mx-auto max-w-xl p-8 text-center"><AlertTriangle className="mx-auto h-8 w-8 text-amber-500"/><p className="mt-3 font-bold" style={{color:"var(--text-1)"}}>Não foi possível calcular a Zona de Risco.</p><p className="mt-1 text-sm" style={{color:"var(--text-4)"}}>Nenhuma conclusão de risco é exibida enquanto os dados não forem carregados corretamente.</p><Button variant="outline" className="mt-4" onClick={()=>query.refetch()}><RefreshCw className="mr-2 h-4 w-4"/> Tentar novamente</Button></Card>;
