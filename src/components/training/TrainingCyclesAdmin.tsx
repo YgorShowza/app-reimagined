@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { listEmployees } from "@/lib/employees";
+import { operationalDate } from "@/lib/operational-time";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import {
   calculateTrainingWindow,
@@ -101,7 +102,7 @@ export function TrainingCyclesAdmin() {
 
   const openNew = () => {
     setEditing(null);
-    setForm({ employee_id: "", cycle_days: 90, last_training_date: new Date().toISOString().slice(0, 10), observations: "" });
+    setForm({ employee_id: "", cycle_days: 90, last_training_date: operationalDate(), observations: "" });
     setOpen(true);
   };
 
