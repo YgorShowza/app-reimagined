@@ -26,6 +26,7 @@ import {
   type CronogramaEntry,
   type CronogramaSuspension,
 } from "@/lib/cronograma";
+import { operationalDateParts } from "@/lib/operational-time";
 
 type PrimaryView = "lista" | "calendario" | "ano";
 
@@ -263,21 +264,22 @@ function CalendarView({
   const monthIndex = monthNumber - 1;
   const totalDays = new Date(year, monthIndex + 1, 0).getDate();
   const firstWeekDay = new Date(year, monthIndex, 1).getDay();
-  const today = new Date();
-  const todayDay = today.getFullYear() === year && today.getMonth() === monthIndex ? today.getDate() : null;
+  const operationalToday = operationalDateParts();
+  const todayDay = operationalToday.year === year && operationalToday.monthNumber === monthNumber ? operationalToday.day : null;
 
   const byDay = useMemo(() => {
     const map: Record<number, CronogramaEntry[]> = {};
     entries.forEach((entry) => {
-      const raw = entry.planned_date || entry.completion_date;
-      if (!raw) return;
-      const date = new Date(`${raw.slice(0, 10)}T12:00:00`);
-      if (date.getFullYear() === year && date.getMonth() === monthIndex) {
-        (map[date.getDate()] ||= []).push(entry);
+      if (!entry.planned_date) return;
+      const [entryYear, entryMonth, entryDay] = entry.planned_date.slice(0, 10).split("-").map(Number);
+      if (entryYear === year && entryMonth === monthNumber && Number.isInteger(entryDay)) {
+        (map[entryDay] ||= []).push(entry);
       }
     });
     return map;
-  }, [entries, monthIndex, year]);
+  }, [entries, monthNumber, year]);
+
+  const unscheduled = useMemo(() => entries.filter((entry) => !entry.planned_date), [entries]);
 
   const monthSuspended = suspensions.some((item) => item.type === "mes_suspenso" && item.month === month);
   const absenceDays = useMemo(() => {
@@ -418,6 +420,43 @@ function CalendarView({
           </div>
         </section>
       </div>
+
+      {unscheduled.length > 0 && (
+        <section className="overflow-hidden rounded-2xl" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}>
+          <div className="flex flex-wrap items-center gap-2 px-4 py-3" style={{ background: "var(--bg-surface-2)", borderBottom: "1px solid var(--border)" }}>
+            <Clock3 className="h-4 w-4 text-amber-500" />
+            <div>
+              <p className="text-sm font-black" style={{ color: "var(--text-1)" }}>Sem data prevista</p>
+              <p className="mt-0.5 text-[11px]" style={{ color: "var(--text-4)" }}>Registros do mês ainda sem um dia de planejamento definido.</p>
+            </div>
+            <span className="ml-auto rounded-full px-2 py-0.5 text-[10px] font-black" style={{ background: "var(--bg-surface-3)", color: "var(--text-3)" }}>{unscheduled.length}</span>
+          </div>
+          <div className="divide-y" style={{ borderColor: "var(--border-subtle)" }}>
+            {unscheduled.map((entry) => {
+              const status = STATUS[entry.status];
+              return (
+                <article key={entry.id} className="px-4 py-4">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-black" style={{ color: "var(--text-1)" }}>{entry.employee_name}</p>
+                        <span className="rounded-full px-2 py-1 text-[10px] font-black" style={{ background: status.bg, color: status.color }}>{entry.status}</span>
+                      </div>
+                      <p className="mt-1 break-words text-xs font-semibold" style={{ color: "var(--text-2)" }}>{entry.theme}</p>
+                      <p className="mt-0.5 text-[10px]" style={{ color: "var(--text-4)" }}>Mat. {entry.employee_matricula} · {entry.employee_sector}</p>
+                      {entry.status === "Justificado" && entry.justification && <p className="mt-2 text-xs" style={{ color: "#3b82f6" }}>Motivo da não realização: <strong>{entry.justification}</strong></p>}
+                    </div>
+                    <div className="shrink-0 text-left sm:text-right">
+                      <p className="text-[10px] font-black uppercase tracking-[.08em]" style={{ color: "var(--text-4)" }}>Conclusão</p>
+                      <p className="mt-1 text-xs font-bold" style={{ color: "var(--text-2)" }}>{formatDate(entry.completion_date)}</p>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {selectedDay && (
         <section className="overflow-hidden rounded-2xl" style={{ background: "var(--bg-surface)", border: "1px solid rgba(240,196,0,.35)" }}>
