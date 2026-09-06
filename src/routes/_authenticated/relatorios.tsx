@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, BarChart3, CheckCircle2, Download, FileSpreadsheet, RefreshCw, Target, Users, Layers3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getOperationalSnapshot, sectorMetrics, snapshotMetrics } from "@/lib/insights";
+import { operationalYear } from "@/lib/operational-time";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/relatorios")({ head: () => ({ meta: [{ title: "Relatórios · SEGEMPAT" }] }), component: ReportsPage });
@@ -12,7 +13,7 @@ function csvCell(value: unknown) { const s = String(value ?? ""); return `"${s.r
 function Metric({label,value,icon:Icon,accent,sub}:{label:string;value:string|number;icon:typeof Users;accent:string;sub:string}){return <Card className="relative overflow-hidden p-4"><div className="absolute left-0 top-0 h-[3px] w-full" style={{background:accent}}/><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.14em]" style={{color:"var(--text-4)"}}>{label}</p><p className="mt-2 text-3xl font-black" style={{color:"var(--text-1)"}}>{value}</p><p className="mt-1 text-[11px] font-semibold" style={{color:accent}}>{sub}</p></div><div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{background:`${accent}12`,border:`1px solid ${accent}30`}}><Icon className="h-4 w-4" style={{color:accent}}/></div></div></Card>}
 
 function ReportsPage() {
-  const year = new Date().getFullYear();
+  const year = operationalYear();
   const query = useQuery({ queryKey: ["reports-snapshot", year], queryFn: () => getOperationalSnapshot(year), staleTime: 60_000 });
   if (query.isLoading) return <Loading/>;
   if (query.isError || !query.data) return <Card className="mx-auto max-w-xl p-8 text-center"><AlertTriangle className="mx-auto h-8 w-8 text-amber-500"/><p className="mt-3 font-bold" style={{ color: "var(--text-1)" }}>Não foi possível carregar o relatório.</p><Button variant="outline" className="mt-4" onClick={()=>query.refetch()}><RefreshCw className="mr-2 h-4 w-4"/> Tentar novamente</Button></Card>;
