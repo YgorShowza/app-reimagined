@@ -204,9 +204,9 @@ export async function listExamSignatureEvidence(): Promise<ExamSignatureEvidence
     client.from("employees").select("id, matricula, full_name, sector"),
   ]);
   if (aErr) throw aErr; if (eErr) throw eErr; if (empErr) throw empErr;
-  const examMap = new Map((exams ?? []).map((r: any) => [r.id, r.title]));
-  const employeeByMatricula = new Map((employees ?? []).map((r: any) => [r.matricula, r]));
-  return (attempts ?? []).map((r: any) => ({ ...r, exam_title: examMap.get(r.exam_id) ?? "Avaliação", employee_name: employeeByMatricula.get(r.matricula)?.full_name ?? r.signature_name ?? "Colaborador", employee_sector: employeeByMatricula.get(r.matricula)?.sector ?? "—" }));
+  const examMap = new Map<string, string>((exams ?? []).map((r: any) => [String(r.id), String(r.title)]));
+  const employeeByMatricula = new Map<string, { full_name: string; sector: string }>((employees ?? []).map((r: any) => [String(r.matricula), { full_name: String(r.full_name ?? ""), sector: String(r.sector ?? "—") }]));
+  return (attempts ?? []).map((r: any) => ({ ...r, exam_title: examMap.get(String(r.exam_id)) ?? "Avaliação", employee_name: employeeByMatricula.get(String(r.matricula))?.full_name || r.signature_name || "Colaborador", employee_sector: employeeByMatricula.get(String(r.matricula))?.sector ?? "—" }));
 }
 
 export async function getAdminExamAttemptEvidence(attemptId: string): Promise<ExamAttemptEvidence> {
