@@ -78,6 +78,27 @@ export interface ExamSignatureEvidence {
   finished_at: string;
   exam_title: string;
   employee_name: string;
+  employee_sector?: string;
+  formally_issued?: boolean;
+}
+
+export interface ExamAttemptEvidence {
+  attempt_id: string;
+  exam_id: string;
+  exam_title: string;
+  employee_name: string;
+  matricula: string | null;
+  sector: string;
+  score: number;
+  passed: boolean;
+  certificate_code: string | null;
+  finished_at: string;
+  signed_at: string | null;
+  signature_name: string | null;
+  total_questions: number;
+  correct_count: number;
+  accuracy_pct: number;
+  questions: Array<{ id: string; order: number; type: string; statement: string; answer: string; correct: boolean }>;
 }
 
 export const EXAM_TYPES = ["Múltipla escolha", "Discursiva", "Mista"];
@@ -139,21 +160,13 @@ export async function getExamForAttempt(id: string): Promise<AttemptExam> {
 }
 
 export async function createExam(form: ExamForm) {
-  if (isSegempatApiConfigured()) {
-    await apiRequest<{ id: string }>("/api/exams", { method: "POST", body: JSON.stringify(form) });
-    return;
-  }
-  const { error } = await (supabase as any).rpc("create_exam_admin", {
-    p_input: { ...form, description: form.description || null, scheduled_date: form.scheduled_date || null, questions: form.questions },
-  });
+  if (isSegempatApiConfigured()) { await apiRequest<{ id: string }>("/api/exams", { method: "POST", body: JSON.stringify(form) }); return; }
+  const { error } = await (supabase as any).rpc("create_exam_admin", { p_input: { ...form, description: form.description || null, scheduled_date: form.scheduled_date || null, questions: form.questions } });
   if (error) throw error;
 }
 
 export async function updateExam(id: string, form: Partial<ExamForm>) {
-  if (isSegempatApiConfigured()) {
-    await apiRequest<void>(`/api/exams/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(form) });
-    return;
-  }
+  if (isSegempatApiConfigured()) { await apiRequest<void>(`/api/exams/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(form) }); return; }
   const patch: Record<string, unknown> = { ...form };
   if (form.questions) patch["questions"] = form.questions;
   const { error } = await (supabase as any).rpc("update_exam_admin", { p_id: id, p_patch: patch });
@@ -161,10 +174,7 @@ export async function updateExam(id: string, form: Partial<ExamForm>) {
 }
 
 export async function deleteExam(id: string) {
-  if (isSegempatApiConfigured()) {
-    await apiRequest<void>(`/api/exams/${encodeURIComponent(id)}`, { method: "DELETE" });
-    return;
-  }
+  if (isSegempatApiConfigured()) { await apiRequest<void>(`/api/exams/${encodeURIComponent(id)}`, { method: "DELETE" }); return; }
   const { error } = await (supabase as any).rpc("delete_exam_admin", { p_id: id });
   if (error) throw error;
 }
@@ -191,47 +201,33 @@ export async function listExamSignatureEvidence(): Promise<ExamSignatureEvidence
   const [{ data: attempts, error: aErr }, { data: exams, error: eErr }, { data: employees, error: empErr }] = await Promise.all([
     client.from("exam_attempts").select("id, exam_id, matricula, score, passed, certificate_code, signature_path, signature_name, signed_at, finished_at").order("finished_at", { ascending: false }),
     client.from("exams").select("id, title"),
-    client.from("employees").select("id, matricula, full_name"),
+    client.from("employees").select("id, matricula, full_name, sector"),
   ]);
-  if (aErr) throw aErr;
-  if (eErr) throw eErr;
-  if (empErr) throw empErr;
+  if (aErr) throw aErr; if (eErr) throw eErr; if (empErr) throw empErr;
   const examMap = new Map((exams ?? []).map((r: any) => [r.id, r.title]));
-  const employeeByMatricula = new Map((employees ?? []).map((r: any) => [r.matricula, r.full_name]));
-  return (attempts ?? []).map((r: any) => ({ ...r, exam_title: examMap.get(r.exam_id) ?? "Avaliação", employee_name: employeeByMatricula.get(r.matricula) ?? r.signature_name ?? "Colaborador" }));
+  const employeeByMatricula = new Map((employees ?? []).map((r: any) => [r.matricula, r]));
+  return (attempts ?? []).map((r: any) => ({ ...r, exam_title: examMap.get(r.exam_id) ?? "Avaliação", employee_name: employeeByMatricula.get(r.matricula)?.full_name ?? r.signature_name ?? "Colaborador", employee_sector: employeeByMatricula.get(r.matricula)?.sector ?? "—" }));
+}
+
+export async function getAdminExamAttemptEvidence(attemptId: string): Promise<ExamAttemptEvidence> {
+  if (isSegempatApiConfigured()) return apiRequest<ExamAttemptEvidence>(`/api/admin/exam-attempts/${encodeURIComponent(attemptId)}/evidence`);
+  const { data, error } = await (supabase as any).rpc("get_exam_attempt_evidence_admin", { p_attempt_id: attemptId });
+  if (error) throw error;
+  return data as ExamAttemptEvidence;
 }
 
 type SaveAttemptInput = { exam_id: string; answers: unknown; user_id?: string; matricula?: string | null; score?: number; passed?: boolean };
-
 export async function saveAttempt(input: SaveAttemptInput): Promise<ExamAttempt> {
-  if (isSegempatApiConfigured()) {
-    return apiRequest<ExamAttempt>(`/api/me/exams/${encodeURIComponent(input.exam_id)}/attempts`, {
-      method: "POST",
-      body: JSON.stringify({ answers: input.answers ?? {} }),
-    });
-  }
+  if (isSegempatApiConfigured()) return apiRequest<ExamAttempt>(`/api/me/exams/${encodeURIComponent(input.exam_id)}/attempts`, { method: "POST", body: JSON.stringify({ answers: input.answers ?? {} }) });
   const { data, error } = await (supabase as any).rpc("submit_exam_attempt", { p_exam_id: input.exam_id, p_answers: input.answers ?? {} });
   if (error) throw error;
   return data as ExamAttempt;
 }
 
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("Não foi possível ler a assinatura"));
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.readAsDataURL(blob);
-  });
-}
+function blobToDataUrl(blob: Blob): Promise<string> { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onerror = () => reject(new Error("Não foi possível ler a assinatura")); reader.onload = () => resolve(String(reader.result || "")); reader.readAsDataURL(blob); }); }
 
 export async function signAttempt(input: { attemptId: string; userId: string; signerName: string; pngBlob: Blob; }) {
-  if (isSegempatApiConfigured()) {
-    const pngDataUrl = await blobToDataUrl(input.pngBlob);
-    return apiRequest<ExamAttempt>(`/api/me/exam-attempts/${encodeURIComponent(input.attemptId)}/signature`, {
-      method: "POST",
-      body: JSON.stringify({ pngDataUrl }),
-    });
-  }
+  if (isSegempatApiConfigured()) { const pngDataUrl = await blobToDataUrl(input.pngBlob); return apiRequest<ExamAttempt>(`/api/me/exam-attempts/${encodeURIComponent(input.attemptId)}/signature`, { method: "POST", body: JSON.stringify({ pngDataUrl }) }); }
   const path = `${input.userId}/${input.attemptId}.png`;
   const upload = await supabase.storage.from("exam-signatures").upload(path, input.pngBlob, { contentType: "image/png", upsert: true });
   if (upload.error) throw upload.error;
@@ -241,19 +237,11 @@ export async function signAttempt(input: { attemptId: string; userId: string; si
 }
 
 export async function getSignatureUrl(path: string, expiresIn = 300) {
-  if (isSegempatApiConfigured()) {
-    return buildSegempatApiUrl(`/api/admin/exam-signatures?path=${encodeURIComponent(path)}`);
-  }
+  if (isSegempatApiConfigured()) return buildSegempatApiUrl(`/api/admin/exam-signatures?path=${encodeURIComponent(path)}`);
   const { data, error } = await supabase.storage.from("exam-signatures").createSignedUrl(path, expiresIn);
   if (error) throw error;
   return data.signedUrl;
 }
 
-export function currentMonthStr() {
-  return operationalMonth();
-}
-
-export function fmtDate(value?: string | null) {
-  if (!value) return "—";
-  return new Date(value).toLocaleDateString("pt-BR", { timeZone: "America/Maceio", day: "2-digit", month: "2-digit", year: "2-digit" });
-}
+export function currentMonthStr() { return operationalMonth(); }
+export function fmtDate(value?: string | null) { if (!value) return "—"; return new Date(value).toLocaleDateString("pt-BR", { timeZone: "America/Maceio", day: "2-digit", month: "2-digit", year: "2-digit" }); }
