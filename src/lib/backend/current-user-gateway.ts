@@ -15,7 +15,7 @@ async function legacyCurrentUser(): Promise<SessionUser | null> {
 
   const { data: employee } = await supabase
     .from("employees")
-    .select("sector,status")
+    .select("full_name,sector,status")
     .eq("matricula", profile.matricula)
     .maybeSingle();
   if (!employee || employee.status !== "Ativo") return null;
@@ -23,7 +23,7 @@ async function legacyCurrentUser(): Promise<SessionUser | null> {
   return {
     id: user.id,
     matricula: profile.matricula,
-    nome: profile.nome ?? profile.matricula,
+    nome: employee.full_name ?? profile.nome ?? profile.matricula,
     setor: employee.sector ?? null,
     isAdmin: (roles ?? []).some((role) => role.role === "admin"),
   };
