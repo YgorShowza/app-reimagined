@@ -46,7 +46,9 @@ examEvidenceRouter.get(
       const year = Number(yearRaw);
       if (!Number.isInteger(year) || year < 2000 || year > 2200) throw badRequest("Ano inválido");
       where = "WHERE a.finished_at >= ? AND a.finished_at < ?";
-      params = [`${year}-01-01 00:00:00`, `${year + 1}-01-01 00:00:00`];
+      // DATETIMEs são persistidos em UTC. 00:00 em America/Maceio corresponde a 03:00 UTC,
+      // mantendo o mesmo limite anual usado nas consultas do operador e no preview legado.
+      params = [`${year}-01-01 03:00:00`, `${year + 1}-01-01 03:00:00`];
     }
 
     const rows = await query(
