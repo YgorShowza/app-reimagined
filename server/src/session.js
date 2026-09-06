@@ -99,7 +99,7 @@ export async function loadAuthContext(userId) {
   return {
     id: row.id,
     matricula: row.matricula,
-    nome: row.nome || row.full_name || row.matricula,
+    nome: row.full_name || row.nome || row.matricula,
     setor: row.sector ?? null,
     employeeId: row.employee_id ?? null,
     accessProfile: row.access_profile ?? null,
