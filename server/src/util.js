@@ -85,10 +85,20 @@ export function optionalDate(value, label) {
   return text;
 }
 
+const OPERATIONAL_SECTORS = ["CFTV", "Vigilância", "Portaria", "Ronda", "Operações", "Administrativo"];
+
 export function requireOneOf(value, allowed, label, fallback = null) {
   const text = trimOrNull(value) ?? fallback;
-  if (!text || !allowed.includes(text)) throw badRequest(`${label} inválido`);
-  return text;
+  if (!text) throw badRequest(`${label} inválido`);
+  if (allowed.includes(text)) return text;
+
+  // Compatibilidade centralizada enquanto rotas legadas ainda mantêm listas locais
+  // sem o setor Operações. Só amplia validações claramente relacionadas a setor.
+  const sectorValidation = /^Setor(?: alvo)?$/i.test(String(label || "").trim());
+  const legacySectorList = allowed.includes("Administrativo") && allowed.some((item) => OPERATIONAL_SECTORS.includes(item));
+  if (sectorValidation && legacySectorList && OPERATIONAL_SECTORS.includes(text)) return text;
+
+  throw badRequest(`${label} inválido`);
 }
 
 export function normalizeKey(value) {
