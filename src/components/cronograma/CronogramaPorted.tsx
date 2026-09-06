@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { syncCronogramaWithExamAttempts } from "@/lib/cronograma";
+import { invalidateCronogramaFlow } from "@/lib/operational-query-sync";
 import { CronogramaSourceParityV2 } from "@/components/cronograma/CronogramaSourceParityV2";
 import { CronogramaHeaderActions } from "@/components/cronograma/CronogramaHeaderActions";
 
@@ -16,7 +17,7 @@ export function CronogramaPorted() {
     void syncCronogramaWithExamAttempts()
       .then((changed) => {
         if (!active || changed <= 0) return;
-        return queryClient.invalidateQueries();
+        return invalidateCronogramaFlow(queryClient);
       })
       .catch((error) => {
         // A tela continua disponível mesmo se a sincronização automática falhar;
@@ -26,6 +27,10 @@ export function CronogramaPorted() {
 
     return () => {
       active = false;
+      // Qualquer alteração feita dentro do Cronograma deve ser refletida nos
+      // dashboards, relatórios, análise individual, risco e telas do operador
+      // assim que o usuário sair deste módulo.
+      void invalidateCronogramaFlow(queryClient);
     };
   }, [queryClient, user?.isAdmin]);
 
