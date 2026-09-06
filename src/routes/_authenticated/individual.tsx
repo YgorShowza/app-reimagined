@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getOperationalSnapshot } from "@/lib/insights";
 import { formatDate } from "@/lib/cronograma";
-import { operationalYear } from "@/lib/operational-time";
+import { operationalDate, operationalMonth, operationalYear } from "@/lib/operational-time";
 
 export const Route = createFileRoute("/_authenticated/individual")({
   head: () => ({ meta: [{ title: "Análise Individual · SEGEMPAT" }] }),
@@ -45,6 +45,8 @@ type PerfFilter = "todos" | "sem-dados" | "atencao" | "bom" | "excelente";
 
 function IndividualPage() {
   const year = operationalYear();
+  const currentMonth = operationalMonth();
+  const today = operationalDate();
   const query = useQuery({
     queryKey: ["individual-snapshot", year],
     queryFn: () => getOperationalSnapshot(year),
@@ -64,21 +66,27 @@ function IndividualPage() {
     return employees.map((employee) => {
       const attempts = query.data!.attempts.filter((a) => a.matricula === employee.matricula);
       const cron = query.data!.cronograma.filter((entry) => entry.employee_id === employee.id);
+      const pendingEntries = cron.filter((entry) => entry.status === "Pendente");
+      const overdue = pendingEntries.filter(
+        (entry) => entry.month < currentMonth || Boolean(entry.planned_date && entry.planned_date < today),
+      ).length;
       const passed = attempts.filter((a) => a.passed).length;
       const avg = attempts.length
         ? Math.round((attempts.reduce((sum, a) => sum + Number(a.score || 0), 0) / attempts.length) * 10) / 10
         : 0;
       const approval = attempts.length ? Math.round((passed / attempts.length) * 100) : 0;
-      const level: PerfFilter = !attempts.length
-        ? "sem-dados"
-        : avg >= 9
-          ? "excelente"
-          : avg >= 7
-            ? "bom"
-            : "atencao";
-      return { employee, attempts, cron, passed, avg, approval, level };
+      const level: PerfFilter = overdue > 0
+        ? "atencao"
+        : !attempts.length
+          ? "sem-dados"
+          : avg >= 9
+            ? "excelente"
+            : avg >= 7
+              ? "bom"
+              : "atencao";
+      return { employee, attempts, cron, passed, avg, approval, overdue, level };
     });
-  }, [employees, query.data]);
+  }, [currentMonth, employees, query.data, today]);
 
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -114,6 +122,7 @@ function IndividualPage() {
   const cron = activeRow?.cron ?? [];
   const realized = cron.filter((entry) => entry.status === "Realizado").length;
   const pending = cron.filter((entry) => entry.status === "Pendente").length;
+  const overdue = activeRow?.overdue ?? 0;
   const failed = attempts.filter((attempt) => !attempt.passed).length;
   const avg = activeRow?.avg ?? 0;
   const approval = activeRow?.approval ?? 0;
@@ -269,7 +278,7 @@ function IndividualPage() {
                   <div className="mt-4 rounded-xl p-3" style={{ background: "var(--bg-surface-2)", border: "1px solid var(--border-subtle)" }}>
                     <p className="text-[10px] font-black uppercase tracking-[.12em]" style={{ color: "var(--accent)" }}>Análise automatizada</p>
                     <p className="mt-1 text-xs leading-relaxed" style={{ color: "var(--text-3)" }}>
-                      Média geral de {avg.toFixed(1)} com {approval}% de aprovação. {pending > 0 ? `${pending} pendência${pending === 1 ? "" : "s"} no cronograma exigem acompanhamento.` : "Sem pendências relevantes no cronograma."}
+                      Média geral de {avg.toFixed(1)} com {approval}% de aprovação. {pending > 0 ? `${pending} pendência${pending === 1 ? "" : "s"} no cronograma${overdue > 0 ? `, sendo ${overdue} vencida${overdue === 1 ? "" : "s"}.` : ", nenhuma vencida."}` : "Sem pendências no cronograma."}
                     </p>
                   </div>
                 </div>
@@ -277,7 +286,7 @@ function IndividualPage() {
 
               <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
                 {[
-                  ["Atividades", cron.length + attempts.length, "total no período", "#3b82f6", Target],
+                  ["Registros", cron.length + attempts.length, "cronograma + avaliações", "#3b82f6", Target],
                   ["Média geral", avg.toFixed(1), "0 a 10", "#f59e0b", BarChart3],
                   ["Aprovação", `${approval}%`, `${activeRow.passed} aprovações`, "#10b981", CheckCircle2],
                   ["Tendência", trend === 0 ? "→" : trend > 0 ? "↑" : "↓", trend === 0 ? "Estável" : trend > 0 ? `+${trend.toFixed(1)}` : trend.toFixed(1), trend >= 0 ? "#10b981" : "#ef4444", trend >= 0 ? TrendingUp : TrendingDown],
@@ -326,12 +335,12 @@ function IndividualPage() {
                   <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: "1px solid rgba(239,68,68,.18)" }}>
                     <XCircle className="h-4 w-4 text-red-500" />
                     <h2 className="text-sm font-black" style={{ color: "var(--text-1)" }}>Precisa Melhorar</h2>
-                    <span className="ml-auto rounded-full px-2 py-0.5 text-[9px] font-black" style={{ background: "rgba(239,68,68,.10)", color: "#ef4444" }}>{failed + pending} item(ns)</span>
+                    <span className="ml-auto rounded-full px-2 py-0.5 text-[9px] font-black" style={{ background: "rgba(239,68,68,.10)", color: "#ef4444" }}>{failed + overdue} item(ns)</span>
                   </div>
                   <div className="space-y-2 p-3">
                     {failed > 0 && <div className="rounded-xl p-3" style={{ background: "rgba(239,68,68,.06)" }}><p className="text-xs font-bold" style={{ color: "var(--text-2)" }}>{failed} reprovação{failed === 1 ? "" : "ões"} em provas</p></div>}
-                    {pending > 0 && <div className="rounded-xl p-3" style={{ background: "rgba(245,158,11,.06)" }}><p className="text-xs font-bold" style={{ color: "var(--text-2)" }}>{pending} treinamento{pending === 1 ? "" : "s"} pendente{pending === 1 ? "" : "s"}</p></div>}
-                    {failed + pending === 0 && <p className="p-4 text-center text-xs" style={{ color: "var(--text-4)" }}>Nenhum ponto crítico identificado.</p>}
+                    {overdue > 0 && <div className="rounded-xl p-3" style={{ background: "rgba(245,158,11,.06)" }}><p className="text-xs font-bold" style={{ color: "var(--text-2)" }}>{overdue} atividade{overdue === 1 ? "" : "s"} vencida{overdue === 1 ? "" : "s"} no cronograma</p></div>}
+                    {failed + overdue === 0 && <p className="p-4 text-center text-xs" style={{ color: "var(--text-4)" }}>Nenhum ponto crítico identificado.</p>}
                   </div>
                 </Card>
 
@@ -339,11 +348,11 @@ function IndividualPage() {
                   <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: "1px solid rgba(16,185,129,.18)" }}>
                     <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                     <h2 className="text-sm font-black" style={{ color: "var(--text-1)" }}>Pontos Fortes</h2>
-                    <span className="ml-auto rounded-full px-2 py-0.5 text-[9px] font-black" style={{ background: "rgba(16,185,129,.10)", color: "#10b981" }}>{realized + activeRow.passed} item(ns)</span>
+                    <span className="ml-auto rounded-full px-2 py-0.5 text-[9px] font-black" style={{ background: "rgba(16,185,129,.10)", color: "#10b981" }}>{activeRow.passed} aprov. · {realized} real.</span>
                   </div>
                   <div className="space-y-2 p-3">
                     {activeRow.passed > 0 && <div className="rounded-xl p-3" style={{ background: "rgba(16,185,129,.06)" }}><p className="text-xs font-bold" style={{ color: "var(--text-2)" }}>{activeRow.passed} prova{activeRow.passed === 1 ? "" : "s"} aprovada{activeRow.passed === 1 ? "" : "s"}</p></div>}
-                    {realized > 0 && <div className="rounded-xl p-3" style={{ background: "rgba(59,130,246,.06)" }}><p className="text-xs font-bold" style={{ color: "var(--text-2)" }}>{realized} treinamento{realized === 1 ? "" : "s"} realizado{realized === 1 ? "" : "s"}</p></div>}
+                    {realized > 0 && <div className="rounded-xl p-3" style={{ background: "rgba(59,130,246,.06)" }}><p className="text-xs font-bold" style={{ color: "var(--text-2)" }}>{realized} atividade{realized === 1 ? "" : "s"} do cronograma realizada{realized === 1 ? "" : "s"}</p></div>}
                     {realized + activeRow.passed === 0 && <p className="p-4 text-center text-xs" style={{ color: "var(--text-4)" }}>Ainda não há histórico suficiente para destacar pontos fortes.</p>}
                   </div>
                 </Card>
