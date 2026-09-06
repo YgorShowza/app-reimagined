@@ -1,5 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { CronogramaWorkspace } from "@/components/cronograma/CronogramaWorkspace";
+import { invalidateCronogramaFlow } from "@/lib/operational-query-sync";
 
 export const Route = createFileRoute("/_authenticated/cronograma-gestao")({
   validateSearch: (search: Record<string, unknown>): { novo?: boolean } => {
@@ -18,6 +21,15 @@ export const Route = createFileRoute("/_authenticated/cronograma-gestao")({
 function CronogramaGestaoPage() {
   const { novo } = Route.useSearch();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    return () => {
+      // Ao sair da gestão, força a próxima tela a ler o estado mais recente do
+      // Cronograma e recalcular os indicadores operacionais dependentes.
+      void invalidateCronogramaFlow(queryClient);
+    };
+  }, [queryClient]);
 
   return (
     <CronogramaWorkspace
