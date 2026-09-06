@@ -36,6 +36,17 @@ function TakeExamPage() {
   const question = exam?.questions[index];
   const answered = exam ? exam.questions.filter((q) => answers[q.id] !== undefined && String(answers[q.id]).trim() !== "").length : 0;
 
+  const invalidateExamFlow = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["exam-attempts-my"] }),
+      queryClient.invalidateQueries({ queryKey: ["my-progress-attempts"] }),
+      queryClient.invalidateQueries({ queryKey: ["panel-attempts"] }),
+      queryClient.invalidateQueries({ queryKey: ["exams", "operator"] }),
+      queryClient.invalidateQueries({ queryKey: ["my-pending"] }),
+      queryClient.invalidateQueries({ queryKey: ["panel-cron"] }),
+    ]);
+  };
+
   if (isLoading) return <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4" style={{ borderColor: "var(--border)", borderTopColor: "#C8102E" }} /></div>;
   if (isError || !exam || exam.status !== "Publicada") return <Card className="mx-auto max-w-2xl p-10 text-center"><AlertTriangle className="mx-auto h-10 w-10 text-amber-500" /><p className="mt-3 font-bold" style={{ color: "var(--text-1)" }}>Prova indisponível.</p><Button className="mt-4" variant="outline" onClick={() => navigate({ to: "/provas" })}>Voltar</Button></Card>;
 
@@ -47,9 +58,12 @@ function TakeExamPage() {
       const percent = Math.max(0, Math.min(100, Math.round(score * 10)));
       const passed = Boolean(attempt.passed);
       setFinished({ score, percent, passed, attempt });
+      await invalidateExamFlow();
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Não foi possível salvar a prova");
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   };
 
   const finish = () => {
@@ -66,7 +80,7 @@ function TakeExamPage() {
   };
 
   const confirmSignature = async (blob: Blob) => {
-    if (!finished || signed) return;
+    if (!finished || !finished.passed || signed) return;
     setSigning(true);
     try {
       if (!user?.id) throw new Error("Sessão inválida");
@@ -74,14 +88,16 @@ function TakeExamPage() {
       setFinished((current) => current ? { ...current, attempt } : current);
       setSigned(true);
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["exam-attempts-my"] }),
+        invalidateExamFlow(),
         queryClient.invalidateQueries({ queryKey: ["employees-profile"] }),
       ]);
       toast.success("Assinatura registrada com sucesso");
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Não foi possível registrar a assinatura");
       throw error;
-    } finally { setSigning(false); }
+    } finally {
+      setSigning(false);
+    }
   };
 
   if (finished) {
@@ -96,7 +112,7 @@ function TakeExamPage() {
         <div className="rounded-[1.5rem] p-7 text-center" style={{ background: "linear-gradient(135deg,#171118,#2b0b13 50%,#111216)", border: "1px solid rgba(200,16,46,.26)" }}>
           {finished.passed ? <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-500" /> : <AlertTriangle className="mx-auto h-12 w-12 text-red-500" />}
           <h1 className="mt-4 text-2xl font-black text-white">{finished.passed ? "Aprovado" : "Não aprovado"}</h1>
-          <p className="mt-2 text-white/50">Resultado calculado e registrado pelo servidor. A conclusão formal exige sua assinatura eletrônica.</p>
+          <p className="mt-2 text-white/50">{finished.passed ? "Resultado calculado e registrado pelo servidor. A conclusão formal exige sua assinatura eletrônica." : "Resultado calculado e registrado. A tentativa reprovada permanece no histórico e pode exigir nova avaliação."}</p>
         </div>
 
         <div className="grid grid-cols-3 gap-3">
@@ -106,10 +122,13 @@ function TakeExamPage() {
         </div>
 
         <Card className="p-4">
-          <div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" /><div><p className="text-[10px] font-black uppercase tracking-[.16em]" style={{ color: "var(--text-4)" }}>{codeLabel}</p><p className="mt-1 break-all font-mono text-sm font-black" style={{ color: "var(--text-1)" }}>{finished.attempt.certificate_code || finished.attempt.id}</p><p className="mt-1 text-xs" style={{ color: "var(--text-4)" }}>Mat. {user?.matricula || "—"} · {exam.title}</p></div></div>
+          <div className="flex items-start gap-3">
+            {finished.passed ? <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" /> : <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-500" />}
+            <div><p className="text-[10px] font-black uppercase tracking-[.16em]" style={{ color: "var(--text-4)" }}>{codeLabel}</p><p className="mt-1 break-all font-mono text-sm font-black" style={{ color: "var(--text-1)" }}>{finished.attempt.certificate_code || finished.attempt.id}</p><p className="mt-1 text-xs" style={{ color: "var(--text-4)" }}>Mat. {user?.matricula || "—"} · {exam.title}</p></div>
+          </div>
         </Card>
 
-        <SignaturePad signerName={user?.nome || user?.matricula || "Operador"} saving={signing} saved={signed} onConfirm={confirmSignature} />
+        {finished.passed && <SignaturePad signerName={user?.nome || user?.matricula || "Operador"} saving={signing} saved={signed} onConfirm={confirmSignature} />}
 
         <div>
           <h2 className="mb-3 text-xs font-black uppercase tracking-[.16em]" style={{ color: "var(--text-4)" }}>Respostas enviadas</h2>
@@ -122,7 +141,14 @@ function TakeExamPage() {
           </div>
         </div>
 
-        <Button disabled={!signed} className="w-full bg-[#C8102E] text-white hover:bg-[#A00D24] disabled:opacity-40" onClick={() => navigate({ to: "/progresso" })}>{signed ? "Ver meu progresso" : "Assine acima para concluir"}</Button>
+        {finished.passed ? (
+          <Button disabled={!signed} className="w-full bg-[#C8102E] text-white hover:bg-[#A00D24] disabled:opacity-40" onClick={() => navigate({ to: "/progresso" })}>{signed ? "Ver meu progresso" : "Assine acima para concluir"}</Button>
+        ) : (
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button variant="outline" onClick={() => navigate({ to: "/provas" })}>Voltar às provas</Button>
+            <Button className="bg-[#C8102E] text-white hover:bg-[#A00D24]" onClick={() => navigate({ to: "/progresso" })}>Ver meu progresso</Button>
+          </div>
+        )}
       </div>
     );
   }
@@ -151,9 +177,7 @@ function TakeExamPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Finalizar com questões em branco?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Você respondeu {answered} de {exam.questions.length} questões. As questões sem resposta serão consideradas incorretas pelo servidor.
-            </AlertDialogDescription>
+            <AlertDialogDescription>Você respondeu {answered} de {exam.questions.length} questões. As questões sem resposta serão consideradas incorretas pelo servidor.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Continuar respondendo</AlertDialogCancel>
