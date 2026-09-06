@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, BarChart3, CheckCircle2, ClipboardList, RefreshCw, Target, TrendingUp, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getOperationalSnapshot, monthlyExecution, sectorMetrics, snapshotMetrics } from "@/lib/insights";
+import { operationalYear } from "@/lib/operational-time";
 
 export const Route = createFileRoute("/_authenticated/analytics")({
   head: () => ({ meta: [{ title: "Analytics · SEGEMPAT" }] }),
@@ -18,7 +19,7 @@ function KPI({ label, value, icon: Icon }: { label: string; value: string | numb
 }
 
 function AnalyticsPage() {
-  const year = new Date().getFullYear();
+  const year = operationalYear();
   const query = useQuery({ queryKey: ["operational-snapshot", year], queryFn: () => getOperationalSnapshot(year), staleTime:60_000 });
   if (query.isLoading) return <Loading/>;
   if (query.isError || !query.data) return <Card className="mx-auto max-w-xl text-center"><AlertTriangle className="mx-auto h-8 w-8 text-amber-500"/><p className="mt-3 font-bold" style={{ color: "var(--text-1)" }}>Não foi possível carregar os dados analíticos.</p><Button variant="outline" className="mt-4" onClick={()=>query.refetch()}><RefreshCw className="mr-2 h-4 w-4"/> Tentar novamente</Button></Card>;
