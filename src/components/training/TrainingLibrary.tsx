@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, BookOpen, ChevronRight, GraduationCap, Search, Target } from "lucide-react";
+import { AlertTriangle, ArrowLeft, BookOpen, ChevronRight, GraduationCap, RefreshCw, Search, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { listTrainingModules, type TrainingModule } from "@/lib/training-modules";
@@ -49,6 +49,9 @@ export function TrainingLibrary() {
     );
   }
 
+  const loading = modulesQuery.isLoading || (!user?.isAdmin && employeeQuery.isLoading);
+  const loadError = modulesQuery.isError || (!user?.isAdmin && employeeQuery.isError);
+
   return (
     <div className="mx-auto max-w-5xl space-y-5 pb-10">
       <section className="rounded-[1.5rem] p-5 md:p-6" style={{ background: "linear-gradient(135deg,#171118,#2b0b13 50%,#111216)", border: "1px solid rgba(200,16,46,.26)" }}>
@@ -60,7 +63,14 @@ export function TrainingLibrary() {
 
       <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: "var(--text-4)" }} /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar treinamento..." className="pl-10" /></div>
 
-      {modulesQuery.isLoading || (!user?.isAdmin && employeeQuery.isLoading) ? <div className="flex justify-center py-16"><div className="h-8 w-8 animate-spin rounded-full border-4" style={{ borderColor: "var(--border)", borderTopColor: "#C8102E" }} /></div> : modules.length === 0 ? (
+      {loading ? <div className="flex justify-center py-16"><div className="h-8 w-8 animate-spin rounded-full border-4" style={{ borderColor: "var(--border)", borderTopColor: "#C8102E" }} /></div> : loadError ? (
+        <section className="rounded-2xl p-10 text-center" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}>
+          <AlertTriangle className="mx-auto h-9 w-9 text-amber-500" />
+          <p className="mt-3 font-black" style={{ color: "var(--text-1)" }}>Não foi possível carregar os treinamentos.</p>
+          <p className="mt-1 text-sm" style={{ color: "var(--text-4)" }}>Tente novamente. Se o problema persistir, informe a Inspetoria.</p>
+          <Button variant="outline" className="mt-4" onClick={() => { modulesQuery.refetch(); if (!user?.isAdmin) employeeQuery.refetch(); }}><RefreshCw className="mr-2 h-4 w-4" /> Tentar novamente</Button>
+        </section>
+      ) : modules.length === 0 ? (
         <section className="rounded-2xl p-12 text-center" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}><GraduationCap className="mx-auto h-10 w-10 opacity-25" /><p className="mt-3 font-bold" style={{ color: "var(--text-1)" }}>Nenhum treinamento disponível.</p></section>
       ) : (
         <div className="space-y-3">
