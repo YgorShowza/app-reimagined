@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { SignaturePad } from "@/components/exams/SignaturePad";
 import { getExamForAttempt, saveAttempt, signAttempt, type ExamAttempt } from "@/lib/exams";
+import { invalidateExamFlow } from "@/lib/operational-query-sync";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 
 export const Route = createFileRoute("/_authenticated/prova-realizar")({
@@ -36,17 +37,6 @@ function TakeExamPage() {
   const question = exam?.questions[index];
   const answered = exam ? exam.questions.filter((q) => answers[q.id] !== undefined && String(answers[q.id]).trim() !== "").length : 0;
 
-  const invalidateExamFlow = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["exam-attempts-my"] }),
-      queryClient.invalidateQueries({ queryKey: ["my-progress-attempts"] }),
-      queryClient.invalidateQueries({ queryKey: ["panel-attempts"] }),
-      queryClient.invalidateQueries({ queryKey: ["exams", "operator"] }),
-      queryClient.invalidateQueries({ queryKey: ["my-pending"] }),
-      queryClient.invalidateQueries({ queryKey: ["panel-cron"] }),
-    ]);
-  };
-
   if (isLoading) return <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4" style={{ borderColor: "var(--border)", borderTopColor: "#C8102E" }} /></div>;
   if (isError || !exam || exam.status !== "Publicada") return <Card className="mx-auto max-w-2xl p-10 text-center"><AlertTriangle className="mx-auto h-10 w-10 text-amber-500" /><p className="mt-3 font-bold" style={{ color: "var(--text-1)" }}>Prova indisponível.</p><Button className="mt-4" variant="outline" onClick={() => navigate({ to: "/provas" })}>Voltar</Button></Card>;
 
@@ -58,7 +48,7 @@ function TakeExamPage() {
       const percent = Math.max(0, Math.min(100, Math.round(score * 10)));
       const passed = Boolean(attempt.passed);
       setFinished({ score, percent, passed, attempt });
-      await invalidateExamFlow();
+      await invalidateExamFlow(queryClient);
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Não foi possível salvar a prova");
     } finally {
@@ -88,7 +78,7 @@ function TakeExamPage() {
       setFinished((current) => current ? { ...current, attempt } : current);
       setSigned(true);
       await Promise.all([
-        invalidateExamFlow(),
+        invalidateExamFlow(queryClient),
         queryClient.invalidateQueries({ queryKey: ["employees-profile"] }),
       ]);
       toast.success("Assinatura registrada com sucesso");
