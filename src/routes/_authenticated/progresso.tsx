@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { TrendingUp, CheckCircle2, Clock3, Award, Target, AlertTriangle, BarChart3 } from "lucide-react";
 import { listCronogramaEntriesByYear } from "@/lib/cronograma";
-import { listMyAttempts } from "@/lib/exams";
+import { listAttemptsByYear } from "@/lib/exams";
+import { operationalYear } from "@/lib/operational-time";
 
 export const Route = createFileRoute("/_authenticated/progresso")({ head: () => ({ meta: [{ title: "Progresso · SEGEMPAT" }] }), component: ProgressPage });
 
@@ -10,9 +11,9 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
 function Metric({label,value,icon:Icon,accent,sub}:{label:string;value:string|number;icon:typeof Target;accent:string;sub:string}){return <Card className="relative overflow-hidden p-4"><div className="absolute left-0 top-0 h-[3px] w-full" style={{background:accent}}/><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.13em]" style={{color:"var(--text-4)"}}>{label}</p><p className="mt-2 text-3xl font-black" style={{color:"var(--text-1)"}}>{value}</p><p className="mt-1 text-[11px] font-semibold" style={{color:accent}}>{sub}</p></div><div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{background:`${accent}12`,border:`1px solid ${accent}30`}}><Icon className="h-4 w-4" style={{color:accent}}/></div></div></Card>}
 
 function ProgressPage() {
-  const year = new Date().getFullYear();
+  const year = operationalYear();
   const cron = useQuery({ queryKey: ["my-progress-cron", year], queryFn: () => listCronogramaEntriesByYear(year) });
-  const attempts = useQuery({ queryKey: ["my-progress-attempts"], queryFn: listMyAttempts });
+  const attempts = useQuery({ queryKey: ["my-progress-attempts", year], queryFn: () => listAttemptsByYear(year) });
 
   if (cron.isLoading || attempts.isLoading) return <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4" style={{ borderColor: "var(--border)", borderTopColor: "#C8102E" }} /></div>;
   if (cron.isError || attempts.isError) return <Card className="mx-auto max-w-xl p-8 text-center"><AlertTriangle className="mx-auto h-8 w-8 text-amber-500"/><p className="mt-3 font-bold" style={{color:"var(--text-1)"}}>Não foi possível carregar seu progresso.</p><p className="mt-1 text-sm" style={{color:"var(--text-4)"}}>Atualize a página. Se o problema persistir, informe a Inspetoria.</p></Card>;
@@ -39,7 +40,7 @@ function ProgressPage() {
     <div className="grid gap-4 md:grid-cols-2">
       <Card className="overflow-hidden"><div className="flex items-center gap-2 p-4" style={{borderBottom:"1px solid var(--border)"}}><CheckCircle2 className="h-4 w-4 text-emerald-500"/><div><h2 className="text-sm font-black" style={{color:"var(--text-1)"}}>Últimas atividades</h2><p className="mt-0.5 text-[11px]" style={{color:"var(--text-4)"}}>Movimentações recentes do cronograma</p></div></div><div className="divide-y" style={{borderColor:"var(--border-subtle)"}}>{recentRows.map(e=>{const color=e.status==="Realizado"?"#10b981":e.status==="Pendente"?"#f59e0b":"#60a5fa";return <div key={e.id} className="relative flex items-center justify-between gap-3 p-4 pl-5"><div className="absolute bottom-2 left-0 top-2 w-[3px] rounded-r" style={{background:color}}/><div className="min-w-0"><p className="break-words text-sm font-black" style={{color:"var(--text-1)"}}>{e.theme}</p><p className="mt-1 text-xs" style={{color:"var(--text-4)"}}>{e.month}</p></div><span className="shrink-0 rounded-lg px-2 py-1 text-[9px] font-black" style={{color,background:`${color}12`}}>{e.status}</span></div>})}{!rows.length&&<p className="p-6 text-sm" style={{color:"var(--text-4)"}}>Sem atividades registradas.</p>}</div></Card>
 
-      <Card className="overflow-hidden"><div className="flex items-center gap-2 p-4" style={{borderBottom:"1px solid var(--border)"}}><Award className="h-4 w-4 text-amber-500"/><div><h2 className="text-sm font-black" style={{color:"var(--text-1)"}}>Histórico de provas</h2><p className="mt-0.5 text-[11px]" style={{color:"var(--text-4)"}}>Resultados formais mais recentes</p></div></div><div className="divide-y" style={{borderColor:"var(--border-subtle)"}}>{recentAttempts.map(a=>{const color=a.passed?"#10b981":"#ef4444";return <div key={a.id} className="flex items-center justify-between gap-3 p-4"><div><p className="text-sm font-black" style={{color:"var(--text-1)"}}>Nota {Number(a.score||0).toFixed(1)}</p><p className="mt-1 text-xs" style={{color:"var(--text-4)"}}>{new Date(a.finished_at).toLocaleDateString("pt-BR")}</p></div><span className="rounded-lg px-2 py-1 text-[9px] font-black" style={{color,background:`${color}12`}}>{a.passed?"APROVADO":"REPROVADO"}</span></div>})}{!ats.length&&<p className="p-6 text-sm" style={{color:"var(--text-4)"}}>Sem provas realizadas.</p>}</div></Card>
+      <Card className="overflow-hidden"><div className="flex items-center gap-2 p-4" style={{borderBottom:"1px solid var(--border)"}}><Award className="h-4 w-4 text-amber-500"/><div><h2 className="text-sm font-black" style={{color:"var(--text-1)"}}>Histórico de provas</h2><p className="mt-0.5 text-[11px]" style={{color:"var(--text-4)"}}>Resultados formais mais recentes</p></div></div><div className="divide-y" style={{borderColor:"var(--border-subtle)"}}>{recentAttempts.map(a=>{const color=a.passed?"#10b981":"#ef4444";return <div key={a.id} className="flex items-center justify-between gap-3 p-4"><div><p className="text-sm font-black" style={{color:"var(--text-1)"}}>Nota {Number(a.score||0).toFixed(1)}</p><p className="mt-1 text-xs" style={{color:"var(--text-4)"}}>{new Date(a.finished_at).toLocaleDateString("pt-BR", { timeZone: "America/Maceio" })}</p></div><span className="rounded-lg px-2 py-1 text-[9px] font-black" style={{color,background:`${color}12`}}>{a.passed?"APROVADO":"REPROVADO"}</span></div>})}{!ats.length&&<p className="p-6 text-sm" style={{color:"var(--text-4)"}}>Sem provas realizadas.</p>}</div></Card>
     </div>
   </div>;
 }
