@@ -19,7 +19,7 @@ export type EmployeeForm = Pick<
   "full_name" | "matricula" | "sector" | "access_profile" | "status"
 >;
 
-export const SETORES = ["CFTV", "Vigilância", "Portaria", "Ronda", "Administrativo"];
+export const SETORES = ["CFTV", "Vigilância", "Portaria", "Ronda", "Operações", "Administrativo"];
 export const PERFIS = ["Operacional", "Inspetor"];
 export const SITUACOES = ["Ativo", "Inativo"];
 
