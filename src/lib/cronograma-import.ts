@@ -32,6 +32,8 @@ export async function importCronogramaResultsAtomic(rows: AtomicCronogramaImport
 
   // Compatibilidade temporária do preview legado. O modo corporativo não entra
   // neste ramo e executa a importação inteira em uma única transação MySQL.
+  // O trigger do preview continua sendo a última barreira de integridade para
+  // lançamentos vinculados a prova e deriva a data oficial da tentativa aprovada.
   const employees = await listEmployees();
   const employeeByMatricula = new Map(employees.map((employee) => [normalize(employee.matricula), employee]));
   const months = [...new Set(rows.map((row) => row.month))];
@@ -44,7 +46,7 @@ export async function importCronogramaResultsAtomic(rows: AtomicCronogramaImport
 
   for (const row of rows) {
     const employee = employeeByMatricula.get(normalize(row.matricula));
-    if (!employee) {
+    if (!employee || employee.access_profile === "Inspetor" || employee.status !== "Ativo") {
       ignored += 1;
       continue;
     }
@@ -54,6 +56,14 @@ export async function importCronogramaResultsAtomic(rows: AtomicCronogramaImport
     const notes = Number.isFinite(Number(row.nota)) ? `Resultado importado · Nota ${Number(row.nota).toFixed(1)}` : "Resultado importado";
 
     if (existing) {
+      // Uma planilha posterior não reescreve evidência já formalizada. Em um
+      // Pendente ligado a prova, o trigger do banco exige aprovação e substitui
+      // completion_date pela data oficial da primeira tentativa aprovada.
+      if (existing.status === "Realizado" || existing.status === "Justificado") {
+        ignored += 1;
+        continue;
+      }
+
       await updateCronogramaEntry(existing.id, {
         status: "Realizado",
         type: "Realizado",
