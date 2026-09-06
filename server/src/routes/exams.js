@@ -9,6 +9,7 @@ import {
   asBool,
   asyncHandler,
   badRequest,
+  conflict,
   forbidden,
   notFound,
   optionalDate,
@@ -239,8 +240,16 @@ examsRouter.delete("/:id", requireAdmin, asyncHandler(async (req, res) => {
     const existing = rows[0];
     if (!existing) throw notFound("Prova não encontrada");
 
+    const [historyRows] = await connection.execute(
+      `SELECT COUNT(*) AS total FROM exam_attempts WHERE exam_id = ?`,
+      [existing.id],
+    );
+    if (Number(historyRows[0]?.total ?? 0) > 0) {
+      throw conflict("Prova possui tentativas registradas. Despublique a prova para preservar o histórico operacional.");
+    }
+
     await connection.execute(`DELETE FROM exams WHERE id = ?`, [existing.id]);
-    await audit(req.user.id, "DELETE", "exams", existing.id, { title: existing.title, atomic: true }, connection);
+    await audit(req.user.id, "DELETE", "exams", existing.id, { title: existing.title, atomic: true, history_guard_atomic: true }, connection);
   });
 
   res.status(204).end();
