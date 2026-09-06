@@ -3,7 +3,7 @@ import { apiRequest, isSegempatApiConfigured } from "@/lib/backend/api-client";
 
 export type PracticalRecurrence = "once" | "monthly" | "bimonthly" | "quarterly";
 export type PracticalTemplateStatus = "Ativo" | "Inativo";
-export type PracticalTargetSector = "Todos" | "CFTV" | "Vigilância" | "Portaria" | "Ronda" | "Administrativo";
+export type PracticalTargetSector = "Todos" | "CFTV" | "Vigilância" | "Portaria" | "Ronda" | "Administrativo" | "Operações";
 
 export interface PracticalEvalTemplate {
   id: string;
