@@ -2,7 +2,7 @@ import { Router } from "express";
 import { query, withTransaction } from "../db.js";
 import { audit } from "../audit.js";
 import { requireAdmin, requireAuth } from "../session.js";
-import { asBool, asyncHandler, badRequest, notFound, parseJson, requireBoolean, requireOneOf, requireText, trimOrNull, uuid } from "../util.js";
+import { asBool, asyncHandler, badRequest, conflict, notFound, parseJson, requireBoolean, requireOneOf, requireText, trimOrNull, uuid } from "../util.js";
 
 export const questionBankRouter = Router();
 
@@ -166,8 +166,19 @@ questionBankRouter.delete(
       const existing = rows[0];
       if (!existing) throw notFound("Questão não encontrada");
 
-      await connection.execute(`DELETE FROM question_bank WHERE id = ?`, [req.params.id]);
-      await audit(req.user.id, "DELETE", "question_bank", req.params.id, { atomic: true }, connection);
+      const [linkedRows] = await connection.execute(
+        `SELECT id
+           FROM cronograma_entries
+          WHERE JSON_CONTAINS(COALESCE(question_bank_ids, JSON_ARRAY()), JSON_QUOTE(?), '$')
+          LIMIT 1 FOR UPDATE`,
+        [existing.id],
+      );
+      if (linkedRows[0]) {
+        throw conflict("Questão vinculada ao Cronograma não pode ser excluída. Desative-a para preservar o histórico operacional.");
+      }
+
+      await connection.execute(`DELETE FROM question_bank WHERE id = ?`, [existing.id]);
+      await audit(req.user.id, "DELETE", "question_bank", existing.id, { atomic: true, cronograma_history_guard: true }, connection);
     });
 
     res.status(204).end();
