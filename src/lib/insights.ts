@@ -25,20 +25,44 @@ export async function getOperationalSnapshot(year = operationalYear()): Promise<
     }
   }
 
-  const [employees, exams, rawAttempts, cronograma] = await Promise.all([
+  const [employees, exams, rawAttempts, rawCronograma] = await Promise.all([
     listEmployees(),
     listExams(),
     listAdminAttemptsByYear(year),
     listCronogramaEntriesByYear(year),
   ]);
 
-  const canonicalMatricula = new Map(
-    employees.map((employee) => [normalizeMatricula(employee.matricula), employee.matricula]),
+  const employeeById = new Map(employees.map((employee) => [employee.id, employee]));
+  const employeeByMatricula = new Map(
+    employees
+      .map((employee) => [normalizeMatricula(employee.matricula), employee] as const)
+      .filter(([matricula]) => Boolean(matricula)),
   );
+
   const attempts = rawAttempts.map((attempt) => {
     if (!attempt.matricula) return attempt;
-    const matricula = canonicalMatricula.get(normalizeMatricula(attempt.matricula));
-    return matricula && matricula !== attempt.matricula ? { ...attempt, matricula } : attempt;
+    const employee = employeeByMatricula.get(normalizeMatricula(attempt.matricula));
+    return employee && employee.matricula !== attempt.matricula ? { ...attempt, matricula: employee.matricula } : attempt;
+  });
+
+  const cronograma = rawCronograma.map((entry) => {
+    const employee = employeeById.get(entry.employee_id) ?? employeeByMatricula.get(normalizeMatricula(entry.employee_matricula));
+    if (!employee) return entry;
+    if (
+      entry.employee_id === employee.id &&
+      entry.employee_name === employee.full_name &&
+      entry.employee_matricula === employee.matricula &&
+      entry.employee_sector === employee.sector
+    ) {
+      return entry;
+    }
+    return {
+      ...entry,
+      employee_id: employee.id,
+      employee_name: employee.full_name,
+      employee_matricula: employee.matricula,
+      employee_sector: employee.sector,
+    };
   });
 
   return { employees, exams, attempts, cronograma };
@@ -80,7 +104,7 @@ export function sectorMetrics(data: OperationalSnapshot) {
 
 export function monthlyExecution(data: OperationalSnapshot, year = operationalYear()) {
   const months = new Map<string,{planned:number;realized:number;pending:number}>();
-  for (let i=1;i<=12;i+=1) months.set(`${year}-${String(i).padStart(2,"0")}`,{planned:0,realized:0,pending:0});
+  for (let i=1;i<=12;i+=1) months.set(`${year}-${String(i+1).padStart(2,"0")}`,{planned:0,realized:0,pending:0});
   for (const entry of data.cronograma) { const current = months.get(entry.month); if (!current) continue; current.planned += 1; if (entry.status === "Realizado") current.realized += 1; if (entry.status === "Pendente") current.pending += 1; }
   return Array.from({length:12},(_,i)=>{ const month=`${year}-${String(i+1).padStart(2,"0")}`; const current=months.get(month) ?? {planned:0,realized:0,pending:0}; return {month,label:new Date(year,i,1).toLocaleDateString("pt-BR",{month:"short"}).replace(".",""),planned:current.planned,realized:current.realized,pending:current.pending,rate:current.planned?Math.round((current.realized/current.planned)*100):0}; });
 }
