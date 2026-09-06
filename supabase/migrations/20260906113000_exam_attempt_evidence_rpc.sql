@@ -80,7 +80,7 @@ begin
     'attempt_id', v_attempt.id,
     'exam_id', v_attempt.exam_id,
     'exam_title', v_exam.title,
-    'employee_name', coalesce((select p.nome from public.profiles p where p.id = auth.uid()), v_attempt.signature_name, v_attempt.matricula, 'Colaborador'),
+    'employee_name', coalesce((select e.full_name from public.employees e where e.matricula = v_attempt.matricula limit 1), v_attempt.signature_name, v_attempt.matricula, 'Colaborador'),
     'matricula', v_attempt.matricula,
     'sector', coalesce((select e.sector from public.employees e where e.matricula = v_attempt.matricula limit 1), '—'),
     'score', v_attempt.score,
