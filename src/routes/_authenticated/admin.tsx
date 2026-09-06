@@ -118,10 +118,10 @@ function AdminDashboard() {
       </section>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <KPI label="Funcionários" value={m.activeEmployees} icon={Users} sub={`${m.pending} pendência${m.pending === 1 ? "" : "s"}`} accent="#3b82f6" />
+        <KPI label="Equipe ativa" value={m.activeEmployees} icon={Users} sub={`${m.pending} pendência${m.pending === 1 ? "" : "s"}`} accent="#3b82f6" />
         <KPI label="Taxa aprovação" value={`${m.approvalRate}%`} icon={Shield} sub={`${m.passed} aprovações`} accent="#10b981" />
         <KPI label="Média geral" value={m.averageScore} icon={BarChart3} sub={`${m.attempts} tentativas`} accent="#f59e0b" />
-        <KPI label="Cobertura" value={`${m.executionRate}%`} icon={Target} sub={`${m.realized} realizados`} accent="#e11d48" />
+        <KPI label="Execução anual" value={`${m.executionRate}%`} icon={Target} sub={`${m.realized} realizados`} accent="#e11d48" />
       </div>
 
       <Card className="p-3 md:p-4">
@@ -131,7 +131,7 @@ function AdminDashboard() {
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="overflow-hidden lg:col-span-2">
-          <div className="flex items-center gap-2 p-4" style={{ borderBottom: "1px solid var(--border)" }}><BarChart3 className="h-4 w-4" style={{ color: "var(--accent)" }} /><h2 className="text-sm font-black" style={{ color: "var(--text-1)" }}>Média por Setor</h2><div className="ml-auto hidden items-center gap-3 sm:flex">{sectors.slice(0, 3).map((s, i) => <span key={s.sector} className="flex items-center gap-1.5 text-[11px] font-semibold" style={{ color: "var(--text-4)" }}><span className="h-2 w-2 rounded-full" style={{ background: ["#e11d48", "#3b82f6", "#10b981"][i % 3] }} />{s.sector} {s.executionRate}%</span>)}</div></div>
+          <div className="flex items-center gap-2 p-4" style={{ borderBottom: "1px solid var(--border)" }}><BarChart3 className="h-4 w-4" style={{ color: "var(--accent)" }} /><h2 className="text-sm font-black" style={{ color: "var(--text-1)" }}>Execução por Setor</h2><div className="ml-auto hidden items-center gap-3 sm:flex">{sectors.slice(0, 3).map((s, i) => <span key={s.sector} className="flex items-center gap-1.5 text-[11px] font-semibold" style={{ color: "var(--text-4)" }}><span className="h-2 w-2 rounded-full" style={{ background: ["#e11d48", "#3b82f6", "#10b981"][i % 3] }} />{s.sector} {s.executionRate}%</span>)}</div></div>
           {sectors.length === 0 ? <div className="py-16 text-center"><BarChart3 className="mx-auto h-9 w-9" style={{ color: "var(--text-4)" }} /><p className="mt-2 text-sm font-bold" style={{ color: "var(--text-2)" }}>Sem dados por setor</p><p className="mt-1 text-xs" style={{ color: "var(--text-4)" }}>Os indicadores aparecem quando houver lançamentos no Cronograma.</p></div> : <div className="px-5 pb-5 pt-6"><div className="flex h-[210px] items-end justify-around gap-5 border-b border-dashed" style={{ borderColor: "var(--border)" }}>{sectors.map((s, i) => { const color = ["#e11d48", "#3b82f6", "#10b981", "#f59e0b"][i % 4]; const height = Math.max(8, Math.min(100, s.executionRate)); return <div key={s.sector} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2"><span className="text-xs font-black" style={{ color }}>{s.executionRate}%</span><div className="w-full max-w-[78px] rounded-t-xl" style={{ height: `${height}%`, background: color, minHeight: 12 }} /><span className="max-w-full truncate text-[11px] font-semibold" style={{ color: "var(--text-4)" }}>{s.sector}</span></div>; })}</div></div>}
         </Card>
 
