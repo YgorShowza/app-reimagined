@@ -96,7 +96,7 @@ async function validateQuestionLinks(connection, questionIds, employeeSector) {
   return ids;
 }
 
-async function loadExam(connection, examId, employeeSector) {
+async function loadExam(connection, examId, employeeSector, { requirePublished = false } = {}) {
   if (!examId) return null;
   const [rows] = await connection.execute(
     `SELECT id, title, status, target_sector
@@ -107,7 +107,9 @@ async function loadExam(connection, examId, employeeSector) {
   );
   const exam = rows[0];
   if (!exam) throw notFound("Prova vinculada não encontrada");
-  if (exam.status !== "Publicada") throw badRequest("Apenas prova publicada pode permanecer vinculada ao cronograma");
+  if (requirePublished && exam.status !== "Publicada") {
+    throw badRequest("Apenas prova publicada pode ser vinculada ao cronograma");
+  }
   if (exam.target_sector !== "Todos" && exam.target_sector !== employeeSector) {
     throw badRequest(`A prova vinculada não é destinada ao setor ${employeeSector}`);
   }
@@ -159,13 +161,10 @@ cronogramaIntegrityRouter.patch(
         patch.employee_sector = effectiveEmployee.sector;
       }
 
-      const effectiveExamId = Object.prototype.hasOwnProperty.call(patch, "exam_id")
-        ? patch.exam_id
-        : existing.exam_id;
-      const exam = await loadExam(connection, effectiveExamId, effectiveEmployee.sector);
-      if (Object.prototype.hasOwnProperty.call(patch, "exam_id")) {
-        patch.exam_title = exam?.title ?? null;
-      }
+      const examChanged = Object.prototype.hasOwnProperty.call(patch, "exam_id");
+      const effectiveExamId = examChanged ? patch.exam_id : existing.exam_id;
+      const exam = await loadExam(connection, effectiveExamId, effectiveEmployee.sector, { requirePublished: examChanged && Boolean(effectiveExamId) });
+      if (examChanged) patch.exam_title = exam?.title ?? null;
 
       if (Object.prototype.hasOwnProperty.call(patch, "question_bank_ids") || Object.prototype.hasOwnProperty.call(patch, "employee_id")) {
         const ids = Object.prototype.hasOwnProperty.call(patch, "question_bank_ids")
