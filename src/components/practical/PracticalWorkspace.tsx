@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { listEmployees } from "@/lib/employees";
+import { operationalDate } from "@/lib/operational-time";
 import { createPracticalEvaluation, deletePracticalEvaluation, listPracticalEvaluations, updatePracticalEvaluation, type PracticalEvaluation } from "@/lib/operations";
 
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) { return <div className={`rounded-2xl ${className}`} style={{ background:"var(--bg-surface)",border:"1px solid var(--border)",boxShadow:"var(--shadow-card, var(--shadow-md))" }}>{children}</div>; }
@@ -19,11 +20,11 @@ function Metric({label,value,icon:Icon,accent,sub}:{label:string;value:number;ic
 export function PracticalWorkspace({ operatorTitle=false }: { operatorTitle?: boolean }) {
   const qc=useQueryClient(); const {data:user}=useCurrentUser(); const isAdmin=user?.isAdmin??false;
   const [search,setSearch]=useState(""); const [status,setStatus]=useState("Todos"); const [open,setOpen]=useState(false); const [editing,setEditing]=useState<PracticalEvaluation|null>(null);
-  const [form,setForm]=useState({employee_id:"",title:"Avaliação Prática Operacional",evaluation_date:new Date().toISOString().slice(0,10),status:"Planejada",score:0,max_score:10,notes:"",checklist:defaultChecklist});
+  const [form,setForm]=useState({employee_id:"",title:"Avaliação Prática Operacional",evaluation_date:operationalDate(),status:"Planejada",score:0,max_score:10,notes:"",checklist:defaultChecklist});
   const query=useQuery({queryKey:["practical-evaluations"],queryFn:listPracticalEvaluations}); const employees=useQuery({queryKey:["employees"],queryFn:listEmployees,enabled:isAdmin});
   const rows=query.data??[]; const filtered=useMemo(()=>rows.filter((r)=>{if(status!=="Todos"&&r.status!==status)return false;const q=search.toLowerCase().trim();return !q||[r.employee_name,r.employee_matricula,r.employee_sector,r.title].some(v=>v.toLowerCase().includes(q));}),[rows,search,status]);
   const invalidate=()=>qc.invalidateQueries({queryKey:["practical-evaluations"]});
-  const reset=()=>setForm({employee_id:"",title:"Avaliação Prática Operacional",evaluation_date:new Date().toISOString().slice(0,10),status:"Planejada",score:0,max_score:10,notes:"",checklist:defaultChecklist});
+  const reset=()=>setForm({employee_id:"",title:"Avaliação Prática Operacional",evaluation_date:operationalDate(),status:"Planejada",score:0,max_score:10,notes:"",checklist:defaultChecklist});
   const save=useMutation({mutationFn:async()=>{if(!form.title.trim())throw new Error("Informe o título");if(editing){await updatePracticalEvaluation(editing.id,{title:form.title,status:form.status as any,score:Number(form.score),max_score:Number(form.max_score),notes:form.notes||null,evaluation_date:form.evaluation_date||null,checklist:form.checklist,completed_at:form.status==="Concluída"?new Date().toISOString():null} as any);return;}const emp=(employees.data??[]).find(e=>e.id===form.employee_id);if(!emp)throw new Error("Selecione o colaborador");await createPracticalEvaluation({employee_id:emp.id,employee_name:emp.full_name,employee_matricula:emp.matricula,employee_sector:emp.sector,title:form.title,evaluator_name:user?.nome||null,evaluation_date:form.evaluation_date||null,checklist:form.checklist,notes:form.notes||null});},onSuccess:()=>{toast.success(editing?"Avaliação atualizada":"Avaliação planejada");setOpen(false);setEditing(null);reset();invalidate();},onError:(e:Error)=>toast.error(e.message)});
   const remove=useMutation({mutationFn:deletePracticalEvaluation,onSuccess:()=>{toast.success("Avaliação excluída");invalidate();},onError:(e:Error)=>toast.error(e.message)});
   const openEdit=(r:PracticalEvaluation)=>{setEditing(r);setForm({employee_id:r.employee_id,title:r.title,evaluation_date:r.evaluation_date||"",status:r.status,score:r.score,max_score:r.max_score,notes:r.notes||"",checklist:r.checklist.length?r.checklist:defaultChecklist});setOpen(true);};
