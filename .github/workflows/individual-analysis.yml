@@ -1,0 +1,44 @@
+name: SEGEMPAT Individual Analysis
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: segempat-individual-analysis-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  individual-analysis-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate rich individual analysis contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          page=src/routes/_authenticated/individual.tsx
+          model=src/lib/individual-analysis.ts
+          demo=src/lib/backend/admin-attempts.ts
+
+          test -f "$page"
+          test -f "$model"
+          grep -F 'Evolução de Desempenho' "$page" >/dev/null
+          grep -F 'Oportunidades de Reforço' "$page" >/dev/null
+          grep -F 'Pontos Fortes' "$page" >/dev/null
+          grep -F 'Média por Tema' "$page" >/dev/null
+          grep -F 'Histórico de Atividades' "$page" >/dev/null
+          grep -F 'Resposta do colaborador' "$page" >/dev/null
+          grep -F 'Resposta correta' "$page" >/dev/null
+          grep -F 'PerformanceChart' "$page" >/dev/null
+          grep -F 'getIndividualAttemptEvidence' "$page" >/dev/null
+          grep -F 'correct_answer' "$model" >/dev/null
+          grep -F 'getAdminExamAttemptEvidence' "$model" >/dev/null
+          grep -F 'normalizeDemoScore' "$demo" >/dev/null
+          grep -F 'demo-attempt-perf-04' "$demo" >/dev/null
+          echo "Contrato refinado da Análise Individual validado."
