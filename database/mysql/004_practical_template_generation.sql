@@ -7,3 +7,7 @@ CREATE UNIQUE INDEX practical_evaluations_template_slot_unique_idx
 
 CREATE INDEX practical_evaluations_template_idx
   ON practical_evaluations (template_id, evaluation_date);
+
+ALTER TABLE practical_evaluations
+  ADD CONSTRAINT practical_evaluations_template_fk
+  FOREIGN KEY (template_id) REFERENCES practical_eval_templates(id) ON DELETE RESTRICT;
