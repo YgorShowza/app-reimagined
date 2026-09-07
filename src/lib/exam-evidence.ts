@@ -1,5 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
-import { apiRequest, isSegempatApiConfigured } from "@/lib/backend/api-client";
+import { apiRequest } from "@/lib/backend/api-client";
 
 export interface ExamAttemptQuestionEvidence {
   id: string;
@@ -29,12 +28,6 @@ export interface ExamAttemptEvidence {
   questions: ExamAttemptQuestionEvidence[];
 }
 
-export async function getMyExamAttemptEvidence(attemptId: string): Promise<ExamAttemptEvidence> {
-  if (isSegempatApiConfigured()) {
-    return apiRequest<ExamAttemptEvidence>(`/api/me/exam-attempts/${encodeURIComponent(attemptId)}/evidence`);
-  }
-
-  const { data, error } = await (supabase as any).rpc("get_my_exam_attempt_evidence", { p_attempt_id: attemptId });
-  if (error) throw error;
-  return data as ExamAttemptEvidence;
+export function getMyExamAttemptEvidence(attemptId: string): Promise<ExamAttemptEvidence> {
+  return apiRequest<ExamAttemptEvidence>(`/api/me/exam-attempts/${encodeURIComponent(attemptId)}/evidence`);
 }
