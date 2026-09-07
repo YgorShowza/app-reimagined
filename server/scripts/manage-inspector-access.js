@@ -49,7 +49,7 @@ if (!process.exitCode) {
       }
 
       const [accounts] = await connection.execute(
-        `SELECT id, status
+        `SELECT id, status, session_epoch
            FROM app_users
           WHERE LOWER(TRIM(matricula)) = LOWER(TRIM(?))
           LIMIT 1
@@ -57,6 +57,27 @@ if (!process.exitCode) {
         [employee.matricula],
       );
       const account = accounts[0] ?? null;
+
+      if (action === "REVOKE") {
+        // Bloqueia concorrência entre duas revogações e impede que o ambiente fique
+        // sem nenhum Inspetor ativo com conta administrativa utilizável.
+        const [activeInspectors] = await connection.execute(
+          `SELECT e.id AS employee_id, u.id AS user_id
+             FROM employees e
+             JOIN app_users u
+               ON LOWER(TRIM(u.matricula)) = LOWER(TRIM(e.matricula))
+             JOIN user_roles r
+               ON r.user_id = u.id AND r.role = 'admin'
+            WHERE e.access_profile = 'Inspetor'
+              AND e.status = 'Ativo'
+              AND u.status = 'Ativo'
+            FOR UPDATE`,
+        );
+        const targetIsActiveInspector = activeInspectors.some((row) => row.employee_id === employee.id);
+        if (targetIsActiveInspector && activeInspectors.length <= 1) {
+          throw new Error("revogação bloqueada: este é o último Inspetor ativo com acesso administrativo");
+        }
+      }
 
       if (action === "GRANT") {
         await connection.execute(
@@ -70,6 +91,12 @@ if (!process.exitCode) {
             `INSERT IGNORE INTO user_roles (id, user_id, role) VALUES (?, ?, 'admin')`,
             [randomUUID(), account.id],
           );
+          await connection.execute(
+            `UPDATE app_users
+                SET session_epoch = session_epoch + 1, updated_at = UTC_TIMESTAMP(3)
+              WHERE id = ?`,
+            [account.id],
+          );
         }
       } else {
         await connection.execute(
@@ -81,6 +108,12 @@ if (!process.exitCode) {
         if (account) {
           await connection.execute(
             `DELETE FROM user_roles WHERE user_id = ? AND role = 'admin'`,
+            [account.id],
+          );
+          await connection.execute(
+            `UPDATE app_users
+                SET session_epoch = session_epoch + 1, updated_at = UTC_TIMESTAMP(3)
+              WHERE id = ?`,
             [account.id],
           );
         }
@@ -102,8 +135,10 @@ if (!process.exitCode) {
             account_id: account?.id ?? null,
             account_status: account?.status ?? null,
             role_changed: Boolean(account),
+            sessions_revoked: Boolean(account),
             executed_by_ti: tiOperator,
             explicit_confirmation: true,
+            last_inspector_guard: action === "REVOKE",
             via: "server/scripts/manage-inspector-access.js",
           }),
         ],
@@ -114,11 +149,12 @@ if (!process.exitCode) {
         matricula: employee.matricula,
         profile: action === "GRANT" ? "Inspetor" : "Operacional",
         accountLinked: Boolean(account),
+        sessionsRevoked: Boolean(account),
       };
     });
 
     console.log(
-      `[manage-inspector-access] concluído: ${result.employee} (${result.matricula}) -> ${result.profile}; conta vinculada: ${result.accountLinked ? "sim" : "não"}`,
+      `[manage-inspector-access] concluído: ${result.employee} (${result.matricula}) -> ${result.profile}; conta vinculada: ${result.accountLinked ? "sim" : "não"}; sessões anteriores: ${result.sessionsRevoked ? "revogadas" : "não aplicável"}`,
     );
   } catch (error) {
     fail(error?.message || String(error));
