@@ -37,6 +37,7 @@ import {
   ChevronRight,
   type LucideIcon,
 } from "lucide-react";
+import { GlobalSearch } from "@/components/GlobalSearch";
 import { useTheme } from "@/components/ThemeProvider";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { useApiReadiness } from "@/lib/useApiReadiness";
@@ -95,8 +96,7 @@ const adminSections: MenuSection[] = [
     section: "Relatórios & Inteligência",
     icon: BrainCircuit,
     items: [
-      { path: "/relatorios", label: "Relatórios", icon: FileSpreadsheet },
-      { path: "/relatorio-mensal", label: "Relatório Mensal", icon: FileSpreadsheet },
+      { path: "/relatorios", label: "Central de Relatórios", icon: FileSpreadsheet },
       { path: "/ia-base", label: "IA Base", icon: BookOpenCheck },
     ],
   },
@@ -116,12 +116,8 @@ const operadorMenu: MenuItem[] = [
   { path: "/pendencias", label: "Pendências", icon: ClipboardList },
   { path: "/progresso", label: "Progresso", icon: TrendingUp },
   { path: "/certificados", label: "Certificados", icon: Award },
-  { path: "/treinamentos", label: "Treinamentos", icon: GraduationCap },
+  { path: "/treinamentos", label: "Academia SEGEMPAT", icon: GraduationCap },
   { path: "/conteudos", label: "Base de Conhecimento", icon: BookOpen },
-  { path: "/teste-rapido", label: "Teste Rápido", icon: Target },
-  { path: "/simulador", label: "Simulador", icon: Target },
-  { path: "/stress-test", label: "Stress Test", icon: Target },
-  { path: "/desafio-diario", label: "Desafio Diário", icon: Award },
   { path: "/meu-perfil", label: "Meu Perfil", icon: Users },
   { path: "/pratico", label: "Avaliação Prática", icon: ClipboardCheck },
   { path: "/minhas-ocorrencias", label: "Ocorrências", icon: AlertTriangle },
@@ -135,10 +131,7 @@ function ThemeToggle() {
     { value: "auto" as const, icon: Monitor },
   ];
   return (
-    <div
-      className="flex items-center gap-1 rounded-xl p-1"
-      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}
-    >
+    <div className="flex items-center gap-1 rounded-xl p-1" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
       {options.map((opt) => {
         const Icon = opt.icon;
         const active = theme === opt.value;
@@ -181,7 +174,8 @@ function MenuLink({ item }: { item: MenuItem }) {
 
 function MobileNavLink({ item }: { item: MenuItem }) {
   const Icon = item.icon;
-  return <Link to={item.path} className="flex-1" activeOptions={{ exact: true }}>{({ isActive }) => <div className="flex flex-col items-center gap-0.5 rounded-xl py-1.5 transition-colors duration-150" style={isActive ? { background: "var(--accent-soft)" } : {}}><Icon className="h-5 w-5" style={{ color: isActive ? "var(--accent)" : "var(--text-4)" }} /><span className="text-[10px] font-medium" style={{ color: isActive ? "var(--accent)" : "var(--text-4)" }}>{item.label}</span></div>}</Link>;
+  const shortLabel = item.path === "/treinamentos" ? "Academia" : item.label;
+  return <Link to={item.path} className="flex-1" activeOptions={{ exact: true }}>{({ isActive }) => <div className="flex flex-col items-center gap-0.5 rounded-xl py-1.5 transition-colors duration-150" style={isActive ? { background: "var(--accent-soft)" } : {}}><Icon className="h-5 w-5" style={{ color: isActive ? "var(--accent)" : "var(--text-4)" }} /><span className="text-[10px] font-medium" style={{ color: isActive ? "var(--accent)" : "var(--text-4)" }}>{shortLabel}</span></div>}</Link>;
 }
 
 function routeMatches(pathname: string, itemPath: string) {
@@ -249,9 +243,7 @@ function SidebarIdentity({ user, isAdmin }: { user: ReturnType<typeof useCurrent
   return (
     <div className="px-4 py-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-black text-white" style={{ background: "linear-gradient(135deg,#e0142f,#C8102E)", boxShadow: "0 8px 18px rgba(200,16,46,.24)" }}>
-          {initial}
-        </div>
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-black text-white" style={{ background: "linear-gradient(135deg,#e0142f,#C8102E)", boxShadow: "0 8px 18px rgba(200,16,46,.24)" }}>{initial}</div>
         <div className="min-w-0">
           <p className="truncate text-[13px] font-black text-white">{user?.nome ?? "SEGEMPAT"}</p>
           <p className="mt-0.5 text-[10px] font-mono" style={{ color: "rgba(255,255,255,.36)" }}>Mat. {user?.matricula ?? "—"}</p>
@@ -273,7 +265,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const isAdmin = user?.isAdmin ?? false;
   const [menuOpen, setMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
   useEffect(() => { setMenuOpen(false); }, [pathname]);
 
   const apiUnavailable = apiReadiness === "unavailable";
@@ -310,7 +302,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-h-screen flex-col lg:ml-64">
-        <header className="sticky top-0 z-30 flex items-center justify-between gap-4 px-4 py-3 md:px-6" style={{ background: "var(--header-bg)", borderBottom: "1px solid var(--border)", backdropFilter: "blur(12px)" }}>
+        <header className="sticky top-0 z-30 flex items-center justify-between gap-3 px-4 py-3 md:px-6" style={{ background: "var(--header-bg)", borderBottom: "1px solid var(--border)", backdropFilter: "blur(12px)" }}>
           <div className="flex min-w-0 items-center gap-3">
             <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
               <SheetTrigger asChild><button className="shrink-0 rounded-lg p-2 lg:hidden" style={{ color: "var(--text-2)", border: "1px solid var(--border)" }} aria-label="Abrir menu"><Menu className="h-5 w-5" /></button></SheetTrigger>
@@ -330,7 +322,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <div className="shrink-0 overflow-hidden rounded-lg bg-white p-1 lg:hidden"><img src={LOGO_URL} alt="EMPAT" className="h-8 w-auto object-contain" /></div>
             <div className="min-w-0"><p className="truncate text-sm font-bold" style={{ color: "var(--text-1)" }}>{user?.nome ?? "…"}</p><p className="text-[11px] font-mono" style={{ color: "var(--text-4)" }}>Mat. {user?.matricula ?? "—"}</p></div>
           </div>
-          <div className="flex shrink-0 items-center gap-3 md:gap-4"><div className="hidden items-center gap-2 sm:flex" title={apiUnavailable ? "A API corporativa não passou no readiness" : undefined}><div className="relative flex h-2 w-2">{!apiUnavailable && !apiChecking && <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60" style={{ background: apiStatusColor }} />}<span className="relative inline-flex h-2 w-2 rounded-full" style={{ background: apiStatusColor }} /></div><span className="text-xs font-medium" style={{ color: "var(--text-3)" }}>{apiStatusLabel}</span></div><HeaderClock /><button disabled={loggingOut} onClick={handleLogout} className="rounded-lg p-2 transition-colors disabled:opacity-50 lg:hidden" style={{ color: "var(--text-3)" }} aria-label="Sair"><LogOut className="h-4 w-4" /></button></div>
+
+          <div className="min-w-0 flex-1 px-1 md:flex md:justify-center"><GlobalSearch /></div>
+
+          <div className="flex shrink-0 items-center gap-3 md:gap-4">
+            <div className="hidden items-center gap-2 sm:flex" title={apiUnavailable ? "A API corporativa não passou no readiness" : undefined}><div className="relative flex h-2 w-2">{!apiUnavailable && !apiChecking && <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60" style={{ background: apiStatusColor }} />}<span className="relative inline-flex h-2 w-2 rounded-full" style={{ background: apiStatusColor }} /></div><span className="hidden text-xs font-medium xl:inline" style={{ color: "var(--text-3)" }}>{apiStatusLabel}</span></div>
+            <HeaderClock />
+            <button disabled={loggingOut} onClick={handleLogout} className="rounded-lg p-2 transition-colors disabled:opacity-50 lg:hidden" style={{ color: "var(--text-3)" }} aria-label="Sair"><LogOut className="h-4 w-4" /></button>
+          </div>
         </header>
 
         <main className="flex-1 p-4 pb-24 md:p-6 md:pb-24 lg:pb-8">{children}</main>
