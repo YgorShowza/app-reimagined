@@ -72,7 +72,16 @@ examEvidenceRouter.get(
       passed: asBool(row.passed),
       signature_agreed: asBool(row.signature_agreed),
       certificate_revoked: asBool(row.revoked),
-      formally_issued: Boolean(asBool(row.passed) && row.certificate_code && asBool(row.signature_agreed) && row.signature_path && row.signed_at && row.certificate_id && row.verification_code === row.certificate_code),
+      formally_issued: Boolean(
+        asBool(row.passed) &&
+        row.certificate_code &&
+        asBool(row.signature_agreed) &&
+        row.signature_path &&
+        row.signed_at &&
+        row.certificate_id &&
+        row.verification_code === row.certificate_code &&
+        !asBool(row.revoked)
+      ),
     })));
   }),
 );
