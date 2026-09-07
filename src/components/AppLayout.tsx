@@ -35,6 +35,7 @@ import {
   ShieldCheck,
   ChevronDown,
   ChevronRight,
+  Palette,
   type LucideIcon,
 } from "lucide-react";
 import { GlobalSearch } from "@/components/GlobalSearch";
@@ -126,26 +127,31 @@ const operadorMenu: MenuItem[] = [
 function ThemeToggle() {
   const { theme, setTheme } = useTheme();
   const options = [
-    { value: "light" as const, icon: Sun },
-    { value: "dark" as const, icon: Moon },
-    { value: "auto" as const, icon: Monitor },
+    { value: "light" as const, icon: Sun, label: "Claro" },
+    { value: "dark" as const, icon: Moon, label: "Escuro" },
+    { value: "auto" as const, icon: Monitor, label: "Auto" },
   ];
   return (
-    <div className="flex items-center gap-1 rounded-xl p-1" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+    <div className="grid grid-cols-3 gap-1 rounded-xl p-1" style={{ background: "var(--bg-surface-2)", border: "1px solid var(--border)" }}>
       {options.map((opt) => {
         const Icon = opt.icon;
         const active = theme === opt.value;
         return (
           <motion.button
             key={opt.value}
+            type="button"
             onClick={() => setTheme(opt.value)}
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.97 }}
-            className="flex h-8 flex-1 items-center justify-center rounded-lg transition-colors duration-150"
-            style={active ? { background: "#C8102E", color: "#fff", boxShadow: "0 2px 10px rgba(200,16,46,.24)" } : { color: "rgba(255,255,255,0.34)" }}
-            aria-label={`Tema ${opt.value}`}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="flex min-h-9 items-center justify-center gap-1.5 rounded-lg px-2 transition-colors duration-150"
+            style={active
+              ? { background: "#C8102E", color: "#fff", boxShadow: "0 3px 12px rgba(200,16,46,.20)" }
+              : { color: "var(--text-3)" }}
+            aria-label={`Tema ${opt.label}`}
+            title={`Tema ${opt.label}`}
           >
             <Icon className="h-3.5 w-3.5" />
+            <span className="hidden text-[10px] font-bold 2xl:inline">{opt.label}</span>
           </motion.button>
         );
       })}
@@ -159,13 +165,14 @@ function MenuLink({ item }: { item: MenuItem }) {
     <Link to={item.path} className="block" activeOptions={{ exact: item.path === "/admin" || item.path === "/painel" }}>
       {({ isActive }) => (
         <div
-          className="relative flex items-center gap-3 rounded-xl px-3.5 py-2.5 transition-colors duration-150"
+          className="segempat-sidebar-link relative flex items-center gap-3 rounded-xl px-3.5 py-2.5 transition-all duration-150"
+          data-active={isActive ? "true" : "false"}
           style={isActive
-            ? { background: "linear-gradient(135deg,#e0142f,#C8102E)", border: "1px solid rgba(255,84,112,.32)", boxShadow: "0 8px 20px rgba(200,16,46,.20)" }
+            ? { background: "linear-gradient(135deg,#e0142f,#C8102E)", border: "1px solid rgba(255,84,112,.34)", boxShadow: "0 8px 20px rgba(200,16,46,.18)" }
             : { border: "1px solid transparent" }}
         >
-          <Icon className="h-[17px] w-[17px] shrink-0" style={{ color: isActive ? "#fff" : "rgba(255,255,255,0.40)" }} />
-          <span className="text-[13px] font-semibold tracking-wide" style={{ color: isActive ? "#fff" : "rgba(255,255,255,0.62)" }}>{item.label}</span>
+          <Icon className="h-[17px] w-[17px] shrink-0" style={{ color: isActive ? "#fff" : "var(--text-3)" }} />
+          <span className="text-[13px] font-semibold tracking-wide" style={{ color: isActive ? "#fff" : "var(--text-2)" }}>{item.label}</span>
         </div>
       )}
     </Link>
@@ -201,21 +208,28 @@ function AdminNavItems({ pathname }: { pathname: string }) {
         const isOpen = Boolean(openSections[section.section]);
         const isActive = activeSection === section.section;
         return (
-          <div key={section.section} className="overflow-hidden rounded-2xl" style={{ background: isActive ? "rgba(200,16,46,.045)" : "transparent", border: isActive ? "1px solid rgba(200,16,46,.16)" : "1px solid transparent" }}>
+          <div
+            key={section.section}
+            className="overflow-hidden rounded-2xl transition-colors"
+            style={{
+              background: isActive ? "var(--accent-soft)" : "transparent",
+              border: isActive ? "1px solid rgba(200,16,46,.20)" : "1px solid transparent",
+            }}
+          >
             <button
               type="button"
               onClick={() => setOpenSections((current) => ({ ...current, [section.section]: !current[section.section] }))}
-              className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors"
+              className="segempat-sidebar-section flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors"
               aria-expanded={isOpen}
             >
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ background: isActive ? "rgba(200,16,46,.14)" : "rgba(255,255,255,.045)" }}>
-                <SectionIcon className="h-3.5 w-3.5" style={{ color: isActive ? "#ff5470" : "rgba(255,255,255,.40)" }} />
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ background: isActive ? "var(--accent-soft2)" : "var(--bg-surface-2)" }}>
+                <SectionIcon className="h-3.5 w-3.5" style={{ color: isActive ? "var(--accent)" : "var(--text-3)" }} />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[10px] font-black uppercase tracking-[.13em]" style={{ color: isActive ? "#ff7188" : "rgba(255,255,255,.42)" }}>{section.section}</p>
-                <p className="mt-0.5 text-[9px]" style={{ color: "rgba(255,255,255,.22)" }}>{section.items.length} funções</p>
+                <p className="truncate text-[10px] font-black uppercase tracking-[.13em]" style={{ color: isActive ? "var(--accent)" : "var(--text-2)" }}>{section.section}</p>
+                <p className="mt-0.5 text-[9px]" style={{ color: "var(--text-4)" }}>{section.items.length} funções</p>
               </div>
-              {isOpen ? <ChevronDown className="h-3.5 w-3.5" style={{ color: "rgba(255,255,255,.32)" }} /> : <ChevronRight className="h-3.5 w-3.5" style={{ color: "rgba(255,255,255,.32)" }} />}
+              {isOpen ? <ChevronDown className="h-3.5 w-3.5" style={{ color: "var(--text-4)" }} /> : <ChevronRight className="h-3.5 w-3.5" style={{ color: "var(--text-4)" }} />}
             </button>
             {isOpen && <div className="space-y-1 px-1.5 pb-2">{section.items.map((item) => <MenuLink key={item.path} item={item} />)}</div>}
           </div>
@@ -241,18 +255,41 @@ function HeaderClock() {
 function SidebarIdentity({ user, isAdmin }: { user: ReturnType<typeof useCurrentUser>["data"]; isAdmin: boolean }) {
   const initial = user?.nome?.trim()?.charAt(0)?.toUpperCase() || "S";
   return (
-    <div className="px-4 py-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+    <div className="px-4 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-black text-white" style={{ background: "linear-gradient(135deg,#e0142f,#C8102E)", boxShadow: "0 8px 18px rgba(200,16,46,.24)" }}>{initial}</div>
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-black text-white" style={{ background: "linear-gradient(135deg,#e0142f,#C8102E)", boxShadow: "0 8px 18px rgba(200,16,46,.20)" }}>{initial}</div>
         <div className="min-w-0">
-          <p className="truncate text-[13px] font-black text-white">{user?.nome ?? "SEGEMPAT"}</p>
-          <p className="mt-0.5 text-[10px] font-mono" style={{ color: "rgba(255,255,255,.36)" }}>Mat. {user?.matricula ?? "—"}</p>
+          <p className="truncate text-[13px] font-black" style={{ color: "var(--text-1)" }}>{user?.nome ?? "SEGEMPAT"}</p>
+          <p className="mt-0.5 text-[10px] font-mono" style={{ color: "var(--text-4)" }}>Mat. {user?.matricula ?? "—"}</p>
         </div>
       </div>
-      <div className="mt-3 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-black" style={{ background: "rgba(200,16,46,.12)", border: "1px solid rgba(200,16,46,.32)", color: "#ff5470" }}>
-        <span className="h-1.5 w-1.5 rounded-full bg-[#e0142f]" />
+      <div className="mt-3 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-black" style={{ background: "var(--accent-soft)", border: "1px solid rgba(200,16,46,.28)", color: "var(--accent)" }}>
+        <span className="h-1.5 w-1.5 rounded-full bg-[#C8102E]" />
         {isAdmin ? "Inspetor" : "Operador"}{user?.setor ? ` · ${user.setor}` : ""}
       </div>
+    </div>
+  );
+}
+
+function SidebarFooter({ loggingOut, onLogout }: { loggingOut: boolean; onLogout: () => void }) {
+  return (
+    <div className="space-y-3 px-3 pb-4 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
+      <div>
+        <div className="mb-1.5 flex items-center gap-1.5 px-1">
+          <Palette className="h-3.5 w-3.5" style={{ color: "var(--text-4)" }} />
+          <span className="text-[9px] font-black uppercase tracking-[.14em]" style={{ color: "var(--text-4)" }}>Tema da interface</span>
+        </div>
+        <ThemeToggle />
+      </div>
+      <button
+        disabled={loggingOut}
+        onClick={onLogout}
+        className="flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 transition-colors duration-150 disabled:opacity-50"
+        style={{ border: "1px solid rgba(200,16,46,.26)", background: "var(--accent-soft)" }}
+      >
+        <LogOut className="h-[17px] w-[17px]" style={{ color: "var(--accent)" }} />
+        <span className="text-[13px] font-semibold" style={{ color: "var(--accent)" }}>{loggingOut ? "Saindo..." : "Sair do sistema"}</span>
+      </button>
     </div>
   );
 }
@@ -291,35 +328,48 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-base)" }}>
-      <aside className="fixed bottom-0 left-0 top-0 z-40 hidden w-64 flex-col lg:flex" style={{ background: "var(--sidebar-bg)", borderRight: "1px solid rgba(255,255,255,0.05)" }}>
-        <div className="px-4 pb-4 pt-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}><div className="flex items-center justify-center"><div className="overflow-hidden rounded-xl bg-white p-1.5" style={{ boxShadow: "0 8px 22px rgba(0,0,0,.18)" }}><img src={LOGO_URL} alt="EMPAT" className="h-12 w-auto object-contain" /></div></div></div>
+      <aside
+        className="fixed bottom-0 left-0 top-0 z-40 hidden w-72 flex-col lg:flex"
+        style={{ background: "var(--header-bg)", borderRight: "1px solid var(--border)", boxShadow: "8px 0 24px rgba(15,23,42,.035)" }}
+      >
+        <div className="px-4 pb-4 pt-5" style={{ borderBottom: "1px solid var(--border)" }}>
+          <div className="flex items-center justify-center">
+            <div className="overflow-hidden rounded-xl bg-white p-1.5" style={{ border: "1px solid var(--border)", boxShadow: "var(--shadow-card)" }}>
+              <img src={LOGO_URL} alt="EMPAT" className="h-12 w-auto object-contain" />
+            </div>
+          </div>
+        </div>
         <SidebarIdentity user={user} isAdmin={isAdmin} />
         <nav className="flex-1 overflow-y-auto px-3 py-3"><NavItems isAdmin={isAdmin} pathname={pathname} /></nav>
-        <div className="space-y-2.5 px-3 pb-4 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-          <ThemeToggle />
-          <button disabled={loggingOut} onClick={handleLogout} className="flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 transition-colors duration-150 disabled:opacity-50" style={{ border: "1px solid rgba(200,16,46,.28)", background: "rgba(200,16,46,.08)" }}><LogOut className="h-[17px] w-[17px]" style={{ color: "#ff5470" }} /><span className="text-[13px] font-semibold" style={{ color: "#ff5470" }}>{loggingOut ? "Saindo..." : "Sair do sistema"}</span></button>
-        </div>
+        <SidebarFooter loggingOut={loggingOut} onLogout={handleLogout} />
       </aside>
 
-      <div className="flex min-h-screen flex-col lg:ml-64">
+      <div className="flex min-h-screen flex-col lg:ml-72">
         <header className="sticky top-0 z-30 flex items-center justify-between gap-3 px-4 py-3 md:px-6" style={{ background: "var(--header-bg)", borderBottom: "1px solid var(--border)", backdropFilter: "blur(12px)" }}>
           <div className="flex min-w-0 items-center gap-3">
             <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
-              <SheetTrigger asChild><button className="shrink-0 rounded-lg p-2 lg:hidden" style={{ color: "var(--text-2)", border: "1px solid var(--border)" }} aria-label="Abrir menu"><Menu className="h-5 w-5" /></button></SheetTrigger>
-              <SheetContent side="left" className="w-[300px] border-0 p-0" style={{ background: "var(--sidebar-bg)" }}>
+              <SheetTrigger asChild><button className="shrink-0 rounded-lg p-2 lg:hidden" style={{ color: "var(--text-2)", border: "1px solid var(--border)", background: "var(--bg-surface)" }} aria-label="Abrir menu"><Menu className="h-5 w-5" /></button></SheetTrigger>
+              <SheetContent
+                side="left"
+                className="segempat-sidebar-sheet w-[86vw] max-w-[340px] border-0 p-0 sm:max-w-[340px]"
+                style={{ background: "var(--header-bg)", color: "var(--text-1)" }}
+              >
                 <SheetTitle className="sr-only">Menu</SheetTitle>
-                <div className="flex h-full flex-col">
-                  <div className="px-4 pb-4 pt-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}><div className="flex items-center justify-center"><div className="overflow-hidden rounded-xl bg-white p-1.5"><img src={LOGO_URL} alt="EMPAT" className="h-10 w-auto object-contain" /></div></div></div>
+                <div className="flex h-full flex-col" style={{ background: "var(--header-bg)" }}>
+                  <div className="px-4 pb-4 pt-5" style={{ borderBottom: "1px solid var(--border)" }}>
+                    <div className="flex items-center justify-center">
+                      <div className="overflow-hidden rounded-xl bg-white p-1.5" style={{ border: "1px solid var(--border)", boxShadow: "var(--shadow-card)" }}>
+                        <img src={LOGO_URL} alt="EMPAT" className="h-10 w-auto object-contain" />
+                      </div>
+                    </div>
+                  </div>
                   <SidebarIdentity user={user} isAdmin={isAdmin} />
                   <nav className="flex-1 overflow-y-auto px-3 py-3"><NavItems isAdmin={isAdmin} pathname={pathname} /></nav>
-                  <div className="space-y-2.5 px-3 pb-4 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                    <ThemeToggle />
-                    <button disabled={loggingOut} onClick={handleLogout} className="flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 disabled:opacity-50" style={{ border: "1px solid rgba(200,16,46,.28)", background: "rgba(200,16,46,.08)" }}><LogOut className="h-[17px] w-[17px]" style={{ color: "#ff5470" }} /><span className="text-[13px] font-semibold" style={{ color: "#ff5470" }}>{loggingOut ? "Saindo..." : "Sair do sistema"}</span></button>
-                  </div>
+                  <SidebarFooter loggingOut={loggingOut} onLogout={handleLogout} />
                 </div>
               </SheetContent>
             </Sheet>
-            <div className="shrink-0 overflow-hidden rounded-lg bg-white p-1 lg:hidden"><img src={LOGO_URL} alt="EMPAT" className="h-8 w-auto object-contain" /></div>
+            <div className="shrink-0 overflow-hidden rounded-lg bg-white p-1 lg:hidden" style={{ border: "1px solid var(--border)" }}><img src={LOGO_URL} alt="EMPAT" className="h-8 w-auto object-contain" /></div>
             <div className="min-w-0"><p className="truncate text-sm font-bold" style={{ color: "var(--text-1)" }}>{user?.nome ?? "…"}</p><p className="text-[11px] font-mono" style={{ color: "var(--text-4)" }}>Mat. {user?.matricula ?? "—"}</p></div>
           </div>
 
@@ -332,7 +382,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="flex-1 p-4 pb-24 md:p-6 md:pb-24 lg:pb-8">{children}</main>
+        <main className="flex-1 p-4 pb-24 md:p-6 md:pb-24 lg:p-7 lg:pb-8 xl:p-8">{children}</main>
 
         {!isAdmin && <nav className="fixed bottom-0 left-0 right-0 z-40 px-2 py-1.5 lg:hidden" style={{ background: "var(--header-bg)", borderTop: "1px solid var(--border)", backdropFilter: "blur(12px)", paddingBottom: "max(.375rem, env(safe-area-inset-bottom))" }}><div className="flex items-center justify-around gap-1">{operadorMenu.slice(0, 5).map((item) => <MobileNavLink key={item.path} item={item} />)}</div></nav>}
       </div>
