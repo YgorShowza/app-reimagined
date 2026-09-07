@@ -1,0 +1,45 @@
+name: SEGEMPAT TV Dashboard
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: segempat-tv-dashboard-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tv-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate operational TV contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f src/components/tv/TvOperationalDashboard.tsx
+          test -f src/lib/tv-dashboard.ts
+          grep -F 'Sala Operacional' src/routes/_authenticated/tv.tsx >/dev/null
+          grep -F 'pathname === "/tv"' src/routes/_authenticated/route.tsx >/dev/null
+          grep -F 'Abrir Painel TV' src/routes/_authenticated/analytics.tsx >/dev/null
+          grep -F 'Sem exposição de dados individuais' src/components/tv/TvOperationalDashboard.tsx >/dev/null
+          grep -F 'refetchInterval: 60_000' src/components/tv/TvOperationalDashboard.tsx >/dev/null
+          grep -F 'requestFullscreen' src/components/tv/TvOperationalDashboard.tsx >/dev/null
+          grep -F 'Ritmo Operacional' src/components/tv/TvOperationalDashboard.tsx >/dev/null
+          grep -F 'Saúde da Equipe' src/components/tv/TvOperationalDashboard.tsx >/dev/null
+          grep -F 'Desempenho' src/components/tv/TvOperationalDashboard.tsx >/dev/null
+          grep -F 'Execução por Setor' src/components/tv/TvOperationalDashboard.tsx >/dev/null
+          grep -F 'Radar Operacional' src/components/tv/TvOperationalDashboard.tsx >/dev/null
+          grep -F 'listOccurrences()' src/lib/tv-dashboard.ts >/dev/null
+          grep -F 'listPracticalEvaluations()' src/lib/tv-dashboard.ts >/dev/null
+          grep -F 'employeeRisk(snapshot)' src/lib/tv-dashboard.ts >/dev/null
+          if grep -E 'employee_name|employee_matricula|\.matricula|\.full_name' src/components/tv/TvOperationalDashboard.tsx; then
+            echo 'Painel TV não pode expor identificação individual.' >&2
+            exit 1
+          fi
+          echo 'Contrato do Painel TV operacional validado.'
