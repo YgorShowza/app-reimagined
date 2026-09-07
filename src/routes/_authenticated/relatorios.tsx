@@ -23,7 +23,7 @@ function ReportsCenterPage() {
   const [tab, setTab] = useState<ReportTab>("executivo");
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5 pb-10">
+    <div className="segempat-analytical-reports mx-auto max-w-7xl space-y-5 pb-10">
       <section className="relative overflow-hidden rounded-[1.75rem] p-5 md:p-6 lg:p-7" style={{ background: "linear-gradient(135deg,#171117 0%,#310912 55%,#160f14 100%)", border: "1px solid rgba(200,16,46,.28)", boxShadow: "0 12px 38px rgba(80,0,18,.16)" }}>
         <div className="absolute -right-20 -top-24 h-72 w-72 rounded-full" style={{ background: "radial-gradient(circle,rgba(200,16,46,.25),transparent 68%)" }} />
         <div className="relative flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
