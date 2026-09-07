@@ -433,6 +433,12 @@ export function RefinedAuthScreen() {
             <div className="mt-7 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-[.12em]" style={{ color: "var(--text-4)" }}>
               <ShieldCheck className="h-3.5 w-3.5" /> Acesso restrito a usuários autorizados
             </div>
+            <div className="mt-3 text-center text-[10px] leading-5" style={{ color: "var(--text-4)" }}>
+              <p>Porto de Maceió · {new Date().getFullYear()}</p>
+              <p>
+                Desenvolvido por <span className="font-black" style={{ color: "var(--accent)" }}>YGOR SOUZA</span>
+              </p>
+            </div>
           </div>
         </section>
       </div>
