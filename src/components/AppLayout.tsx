@@ -4,10 +4,38 @@ import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import {
-  LayoutDashboard, ClipboardList, TrendingUp, Award, ClipboardCheck,
-  Users, BarChart3, FileText, BookOpen, BookOpenCheck, Sun, Moon, Monitor,
-  LogOut, Target, FileBarChart, History, AlertTriangle, BellRing,
-  FileSpreadsheet, PlusCircle, Menu, CalendarDays, Layers3, CalendarClock, GraduationCap, type LucideIcon,
+  LayoutDashboard,
+  ClipboardList,
+  TrendingUp,
+  Award,
+  ClipboardCheck,
+  Users,
+  BarChart3,
+  FileText,
+  BookOpen,
+  BookOpenCheck,
+  Sun,
+  Moon,
+  Monitor,
+  LogOut,
+  Target,
+  FileBarChart,
+  History,
+  AlertTriangle,
+  BellRing,
+  FileSpreadsheet,
+  PlusCircle,
+  Menu,
+  CalendarDays,
+  Layers3,
+  CalendarClock,
+  GraduationCap,
+  Activity,
+  BrainCircuit,
+  ShieldCheck,
+  ChevronDown,
+  ChevronRight,
+  type LucideIcon,
 } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { useCurrentUser } from "@/lib/useCurrentUser";
@@ -19,50 +47,66 @@ const LOGO_URL =
   "https://media.base44.com/images/public/6a1117d573bbf85981b1abee/8271ac857_IMG_9226.png";
 
 type MenuItem = { path: string; label: string; icon: LucideIcon };
-type MenuSection = { section: string; items: MenuItem[] };
+type MenuSection = { section: string; icon: LucideIcon; items: MenuItem[] };
 
 const adminSections: MenuSection[] = [
   {
-    section: "Geral",
+    section: "Comando Operacional",
+    icon: Activity,
     items: [
       { path: "/admin", label: "Dashboard", icon: LayoutDashboard },
       { path: "/atencao", label: "Central de Atenção", icon: BellRing },
-      { path: "/equipe", label: "Equipe", icon: Users },
       { path: "/analytics", label: "Analytics", icon: BarChart3 },
+    ],
+  },
+  {
+    section: "Equipe & Desempenho",
+    icon: Users,
+    items: [
+      { path: "/equipe", label: "Equipe", icon: Users },
       { path: "/risco", label: "Zona de Risco", icon: Target },
       { path: "/individual", label: "Análise Individual", icon: FileBarChart },
-      { path: "/relatorios", label: "Relatórios", icon: FileSpreadsheet },
-      { path: "/relatorio-mensal", label: "Relatório Mensal", icon: FileSpreadsheet },
-      { path: "/auditoria", label: "Auditoria", icon: History },
-      { path: "/documento-seguranca", label: "Documento de Segurança", icon: FileText },
     ],
   },
   {
-    section: "Administração",
-    items: [
-      { path: "/acessos", label: "Acessos", icon: ClipboardList },
-      { path: "/ia-base", label: "IA Base", icon: BookOpenCheck },
-    ],
-  },
-  {
-    section: "Treinamento",
+    section: "Operação",
+    icon: ClipboardCheck,
     items: [
       { path: "/cronograma", label: "Cronograma", icon: CalendarDays },
+      { path: "/ocorrencias", label: "Ocorrências", icon: AlertTriangle },
+      { path: "/avaliacao-pratica", label: "Avaliação Prática", icon: ClipboardCheck },
+    ],
+  },
+  {
+    section: "Capacitação",
+    icon: GraduationCap,
+    items: [
       { path: "/provas-criar", label: "Criar Prova", icon: PlusCircle },
       { path: "/provas", label: "Provas", icon: FileText },
       { path: "/banco-questoes", label: "Banco de Questões", icon: BookOpenCheck },
       { path: "/modulos-treinamento", label: "Módulos", icon: Layers3 },
       { path: "/ciclos-treinamento", label: "Ciclos e Vencimentos", icon: CalendarClock },
-      { path: "/validar-certificados", label: "Validar Certificados", icon: Award },
-      { path: "/assinaturas-provas", label: "Certificados e Assinaturas", icon: ClipboardCheck },
       { path: "/conteudos", label: "Conteúdos", icon: BookOpen },
-      { path: "/avaliacao-pratica", label: "Avaliação Prática", icon: ClipboardCheck },
+      { path: "/assinaturas-provas", label: "Certificados e Assinaturas", icon: ClipboardCheck },
+      { path: "/validar-certificados", label: "Validar Certificados", icon: Award },
     ],
   },
   {
-    section: "Ocorrências",
+    section: "Relatórios & Inteligência",
+    icon: BrainCircuit,
     items: [
-      { path: "/ocorrencias", label: "Ocorrências", icon: AlertTriangle },
+      { path: "/relatorios", label: "Relatórios", icon: FileSpreadsheet },
+      { path: "/relatorio-mensal", label: "Relatório Mensal", icon: FileSpreadsheet },
+      { path: "/ia-base", label: "IA Base", icon: BookOpenCheck },
+    ],
+  },
+  {
+    section: "Governança",
+    icon: ShieldCheck,
+    items: [
+      { path: "/acessos", label: "Acessos", icon: ClipboardList },
+      { path: "/auditoria", label: "Auditoria", icon: History },
+      { path: "/documento-seguranca", label: "Documento de Segurança", icon: FileText },
     ],
   },
 ];
@@ -140,9 +184,56 @@ function MobileNavLink({ item }: { item: MenuItem }) {
   return <Link to={item.path} className="flex-1" activeOptions={{ exact: true }}>{({ isActive }) => <div className="flex flex-col items-center gap-0.5 rounded-xl py-1.5 transition-colors duration-150" style={isActive ? { background: "var(--accent-soft)" } : {}}><Icon className="h-5 w-5" style={{ color: isActive ? "var(--accent)" : "var(--text-4)" }} /><span className="text-[10px] font-medium" style={{ color: isActive ? "var(--accent)" : "var(--text-4)" }}>{item.label}</span></div>}</Link>;
 }
 
-function NavItems({ isAdmin }: { isAdmin: boolean }) {
+function routeMatches(pathname: string, itemPath: string) {
+  if (itemPath === "/admin") return pathname === itemPath;
+  return pathname === itemPath || pathname.startsWith(`${itemPath}/`);
+}
+
+function AdminNavItems({ pathname }: { pathname: string }) {
+  const activeSection = adminSections.find((section) => section.items.some((item) => routeMatches(pathname, item.path)))?.section;
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => Object.fromEntries(
+    adminSections.map((section) => [section.section, section.section === "Comando Operacional" || section.section === activeSection]),
+  ));
+
+  useEffect(() => {
+    if (!activeSection) return;
+    setOpenSections((current) => current[activeSection] ? current : { ...current, [activeSection]: true });
+  }, [activeSection]);
+
+  return (
+    <div className="space-y-2">
+      {adminSections.map((section) => {
+        const SectionIcon = section.icon;
+        const isOpen = Boolean(openSections[section.section]);
+        const isActive = activeSection === section.section;
+        return (
+          <div key={section.section} className="overflow-hidden rounded-2xl" style={{ background: isActive ? "rgba(200,16,46,.045)" : "transparent", border: isActive ? "1px solid rgba(200,16,46,.16)" : "1px solid transparent" }}>
+            <button
+              type="button"
+              onClick={() => setOpenSections((current) => ({ ...current, [section.section]: !current[section.section] }))}
+              className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors"
+              aria-expanded={isOpen}
+            >
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ background: isActive ? "rgba(200,16,46,.14)" : "rgba(255,255,255,.045)" }}>
+                <SectionIcon className="h-3.5 w-3.5" style={{ color: isActive ? "#ff5470" : "rgba(255,255,255,.40)" }} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[10px] font-black uppercase tracking-[.13em]" style={{ color: isActive ? "#ff7188" : "rgba(255,255,255,.42)" }}>{section.section}</p>
+                <p className="mt-0.5 text-[9px]" style={{ color: "rgba(255,255,255,.22)" }}>{section.items.length} funções</p>
+              </div>
+              {isOpen ? <ChevronDown className="h-3.5 w-3.5" style={{ color: "rgba(255,255,255,.32)" }} /> : <ChevronRight className="h-3.5 w-3.5" style={{ color: "rgba(255,255,255,.32)" }} />}
+            </button>
+            {isOpen && <div className="space-y-1 px-1.5 pb-2">{section.items.map((item) => <MenuLink key={item.path} item={item} />)}</div>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function NavItems({ isAdmin, pathname }: { isAdmin: boolean; pathname: string }) {
   if (!isAdmin) return <div className="space-y-1.5">{operadorMenu.map((item) => <MenuLink key={item.path} item={item} />)}</div>;
-  return <>{adminSections.map((sec) => <div key={sec.section} className="space-y-1.5"><p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: "rgba(255,255,255,0.25)" }}>{sec.section}</p>{sec.items.map((item) => <MenuLink key={item.path} item={item} />)}</div>)}</>;
+  return <AdminNavItems pathname={pathname} />;
 }
 
 function HeaderClock() {
@@ -208,27 +299,27 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-base)" }}>
-      <aside className="fixed bottom-0 left-0 top-0 z-40 hidden w-60 flex-col lg:flex" style={{ background: "var(--sidebar-bg)", borderRight: "1px solid rgba(255,255,255,0.05)" }}>
+      <aside className="fixed bottom-0 left-0 top-0 z-40 hidden w-64 flex-col lg:flex" style={{ background: "var(--sidebar-bg)", borderRight: "1px solid rgba(255,255,255,0.05)" }}>
         <div className="px-4 pb-4 pt-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}><div className="flex items-center justify-center"><div className="overflow-hidden rounded-xl bg-white p-1.5" style={{ boxShadow: "0 8px 22px rgba(0,0,0,.18)" }}><img src={LOGO_URL} alt="EMPAT" className="h-12 w-auto object-contain" /></div></div></div>
         <SidebarIdentity user={user} isAdmin={isAdmin} />
-        <nav className="flex-1 space-y-4 overflow-y-auto px-3 py-4"><NavItems isAdmin={isAdmin} /></nav>
+        <nav className="flex-1 overflow-y-auto px-3 py-3"><NavItems isAdmin={isAdmin} pathname={pathname} /></nav>
         <div className="space-y-2.5 px-3 pb-4 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
           <ThemeToggle />
           <button disabled={loggingOut} onClick={handleLogout} className="flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 transition-colors duration-150 disabled:opacity-50" style={{ border: "1px solid rgba(200,16,46,.28)", background: "rgba(200,16,46,.08)" }}><LogOut className="h-[17px] w-[17px]" style={{ color: "#ff5470" }} /><span className="text-[13px] font-semibold" style={{ color: "#ff5470" }}>{loggingOut ? "Saindo..." : "Sair do sistema"}</span></button>
         </div>
       </aside>
 
-      <div className="flex min-h-screen flex-col lg:ml-60">
+      <div className="flex min-h-screen flex-col lg:ml-64">
         <header className="sticky top-0 z-30 flex items-center justify-between gap-4 px-4 py-3 md:px-6" style={{ background: "var(--header-bg)", borderBottom: "1px solid var(--border)", backdropFilter: "blur(12px)" }}>
           <div className="flex min-w-0 items-center gap-3">
             <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
               <SheetTrigger asChild><button className="shrink-0 rounded-lg p-2 lg:hidden" style={{ color: "var(--text-2)", border: "1px solid var(--border)" }} aria-label="Abrir menu"><Menu className="h-5 w-5" /></button></SheetTrigger>
-              <SheetContent side="left" className="w-[280px] border-0 p-0" style={{ background: "var(--sidebar-bg)" }}>
+              <SheetContent side="left" className="w-[300px] border-0 p-0" style={{ background: "var(--sidebar-bg)" }}>
                 <SheetTitle className="sr-only">Menu</SheetTitle>
                 <div className="flex h-full flex-col">
                   <div className="px-4 pb-4 pt-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}><div className="flex items-center justify-center"><div className="overflow-hidden rounded-xl bg-white p-1.5"><img src={LOGO_URL} alt="EMPAT" className="h-10 w-auto object-contain" /></div></div></div>
                   <SidebarIdentity user={user} isAdmin={isAdmin} />
-                  <nav className="flex-1 space-y-4 overflow-y-auto px-3 py-4"><NavItems isAdmin={isAdmin} /></nav>
+                  <nav className="flex-1 overflow-y-auto px-3 py-3"><NavItems isAdmin={isAdmin} pathname={pathname} /></nav>
                   <div className="space-y-2.5 px-3 pb-4 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                     <ThemeToggle />
                     <button disabled={loggingOut} onClick={handleLogout} className="flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 disabled:opacity-50" style={{ border: "1px solid rgba(200,16,46,.28)", background: "rgba(200,16,46,.08)" }}><LogOut className="h-[17px] w-[17px]" style={{ color: "#ff5470" }} /><span className="text-[13px] font-semibold" style={{ color: "#ff5470" }}>{loggingOut ? "Saindo..." : "Sair do sistema"}</span></button>
