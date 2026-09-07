@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type FocusEvent } from "react";
+import { useEffect, useState, type CSSProperties, type FocusEvent, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
   Activity,
@@ -58,7 +58,7 @@ function navigateHome(navigate: Navigate, user: SessionUser) {
   navigate({ to: user.isAdmin ? "/admin" : "/painel", replace: true });
 }
 
-function Feature({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
+function Feature({ icon, title, description }: { icon: ReactNode; title: string; description: string }) {
   return (
     <div className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[.055] p-4 backdrop-blur-sm">
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[.07] text-white">
@@ -296,7 +296,7 @@ export function RefinedAuthScreen() {
                 <div className="space-y-2">
                   <label htmlFor="segempat-matricula" className={labelClass} style={{ color: "var(--text-3)" }}>Matrícula</label>
                   <div className="relative">
-                    <User className="absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2" style={{ color: "var(--text-4)" }} />
+                    <User className="absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2" style={{ color: "var(--text-4)" }} />
                     <input
                       id="segempat-matricula"
                       value={matricula}
@@ -333,7 +333,7 @@ export function RefinedAuthScreen() {
                   <div className="space-y-2">
                     <label htmlFor="segempat-activation" className={labelClass} style={{ color: "var(--text-3)" }}>Código de ativação</label>
                     <div className="relative">
-                      <KeyRound className="absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2" style={{ color: "var(--text-4)" }} />
+                      <KeyRound className="absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2" style={{ color: "var(--text-4)" }} />
                       <input
                         id="segempat-activation"
                         value={activationCode}
@@ -354,7 +354,7 @@ export function RefinedAuthScreen() {
                 <div className="space-y-2">
                   <label htmlFor="segempat-password" className={labelClass} style={{ color: "var(--text-3)" }}>{step === "signup" ? "Criar senha" : "Senha"}</label>
                   <div className="relative">
-                    <Lock className="absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2" style={{ color: "var(--text-4)" }} />
+                    <Lock className="absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2" style={{ color: "var(--text-4)" }} />
                     <input
                       id="segempat-password"
                       type={showPassword ? "text" : "password"}
@@ -369,7 +369,7 @@ export function RefinedAuthScreen() {
                       onBlur={blurBorder}
                     />
                     <button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} className="absolute right-4 top-1/2 -translate-y-1/2 rounded-md p-1" style={{ color: "var(--text-4)" }}>
-                      {showPassword ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
+                      {showPassword ? <EyeOff className="h-[18px] w-[18px]" /> : <Eye className="h-[18px] w-[18px]" />}
                     </button>
                   </div>
                 </div>
@@ -378,7 +378,7 @@ export function RefinedAuthScreen() {
                   <div className="space-y-2">
                     <label htmlFor="segempat-confirm-password" className={labelClass} style={{ color: "var(--text-3)" }}>Confirmar senha</label>
                     <div className="relative">
-                      <Lock className="absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2" style={{ color: "var(--text-4)" }} />
+                      <Lock className="absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2" style={{ color: "var(--text-4)" }} />
                       <input
                         id="segempat-confirm-password"
                         type={showPassword ? "text" : "password"}
