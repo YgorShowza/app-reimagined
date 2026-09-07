@@ -54,7 +54,7 @@ function AuditPage() {
 
   const metrics=[["Registros",data.length,Database],["Alterações",data.filter(l=>l.action==="UPDATE").length,UserCog],["Exclusões / revogações",data.filter(l=>l.action==="DELETE"||l.action==="REVOKE_ACTIVATION_CODE").length,FileText]] as const;
 
-  return <div className="mx-auto max-w-6xl space-y-5 pb-10">
+  return <div className="segempat-governance-audit mx-auto max-w-6xl space-y-5 pb-10">
     <div className="rounded-[1.5rem] p-5 md:p-6" style={{background:"linear-gradient(135deg,#171118,#2b0b13 50%,#111216)",border:"1px solid rgba(200,16,46,.26)"}}><div className="flex items-center gap-2 text-[11px] uppercase tracking-[.2em] font-black text-white/40"><History className="w-4 h-4"/> Rastreabilidade</div><h1 className="mt-2 text-2xl md:text-3xl font-black text-white">Auditoria</h1><p className="mt-1 text-sm text-white/50">Histórico automático das principais alterações e eventos de segurança do sistema.</p></div>
 
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">{metrics.map(([label,value,Icon])=><Card key={label} className="p-4"><div className="flex justify-between"><div><p className="text-[10px] uppercase font-black" style={{color:"var(--text-4)"}}>{label}</p><p className="mt-2 text-2xl font-black" style={{color:"var(--text-1)"}}>{value}</p></div><Icon className="w-4 h-4" style={{color:"var(--accent)"}}/></div></Card>)}</div>
