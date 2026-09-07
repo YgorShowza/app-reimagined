@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { execute, query, queryOne, withTransaction } from "../db.js";
+import { query, queryOne, withTransaction } from "../db.js";
 import { audit } from "../audit.js";
 import { requireAdmin, requireAuth } from "../session.js";
 import { asBool, asyncHandler, badRequest, conflict, notFound, optionalDate, parseJson, requireOneOf, requireText, trimOrNull, uuid } from "../util.js";
@@ -176,12 +176,14 @@ adminTrainingRouter.post(
   asyncHandler(async (req, res) => {
     const input = readModuleInput(req.body);
     const id = uuid();
-    await execute(
-      `INSERT INTO training_modules (id,title,description,content,display_order,min_score,target_sector,status,created_by,created_at,updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))`,
-      [id, input.title, input.description, input.content, input.display_order, input.min_score, input.target_sector, input.status, req.user.id],
-    );
-    await audit(req.user.id, "INSERT", "training_modules", id, { title: input.title });
+    await withTransaction(async (connection) => {
+      await connection.execute(
+        `INSERT INTO training_modules (id,title,description,content,display_order,min_score,target_sector,status,created_by,created_at,updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))`,
+        [id, input.title, input.description, input.content, input.display_order, input.min_score, input.target_sector, input.status, req.user.id],
+      );
+      await audit(req.user.id, "INSERT", "training_modules", id, { title: input.title, atomic: true }, connection);
+    });
     res.status(201).json({ id });
   }),
 );
@@ -190,12 +192,18 @@ adminTrainingRouter.patch(
   "/modules/:id",
   requireAdmin,
   asyncHandler(async (req, res) => {
-    const current = await queryOne(`SELECT * FROM training_modules WHERE id = ?`, [req.params.id]);
-    if (!current) throw notFound("Módulo não encontrado");
     const input = readModuleInput(req.body, { partial: true });
     const fields = Object.keys(input);
-    await execute(`UPDATE training_modules SET ${fields.map((field) => `${field} = ?`).join(", ")}, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`, [...fields.map((field) => input[field]), current.id]);
-    await audit(req.user.id, "UPDATE", "training_modules", current.id, { changed: fields });
+    await withTransaction(async (connection) => {
+      const [rows] = await connection.execute(`SELECT * FROM training_modules WHERE id = ? LIMIT 1 FOR UPDATE`, [req.params.id]);
+      const current = rows[0];
+      if (!current) throw notFound("Módulo não encontrado");
+      await connection.execute(
+        `UPDATE training_modules SET ${fields.map((field) => `${field} = ?`).join(", ")}, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`,
+        [...fields.map((field) => input[field]), current.id],
+      );
+      await audit(req.user.id, "UPDATE", "training_modules", current.id, { changed: fields, atomic: true }, connection);
+    });
     res.status(204).end();
   }),
 );
@@ -204,10 +212,13 @@ adminTrainingRouter.delete(
   "/modules/:id",
   requireAdmin,
   asyncHandler(async (req, res) => {
-    const current = await queryOne(`SELECT id,title FROM training_modules WHERE id = ?`, [req.params.id]);
-    if (!current) throw notFound("Módulo não encontrado");
-    await execute(`DELETE FROM training_modules WHERE id = ?`, [current.id]);
-    await audit(req.user.id, "DELETE", "training_modules", current.id, { title: current.title });
+    await withTransaction(async (connection) => {
+      const [rows] = await connection.execute(`SELECT id,title FROM training_modules WHERE id = ? LIMIT 1 FOR UPDATE`, [req.params.id]);
+      const current = rows[0];
+      if (!current) throw notFound("Módulo não encontrado");
+      await connection.execute(`DELETE FROM training_modules WHERE id = ?`, [current.id]);
+      await audit(req.user.id, "DELETE", "training_modules", current.id, { title: current.title, atomic: true }, connection);
+    });
     res.status(204).end();
   }),
 );
@@ -226,20 +237,28 @@ adminTrainingRouter.post(
   requireAdmin,
   asyncHandler(async (req, res) => {
     const input = readScheduleInput(req.body);
-    const employee = await queryOne(`SELECT id,full_name,matricula,status,access_profile FROM employees WHERE id = ?`, [input.employee_id]);
-    if (!employee) throw notFound("Colaborador não encontrado");
-    if (employee.status !== "Ativo") throw badRequest("O ciclo só pode ser criado para colaborador ativo");
-    if (employee.access_profile === "Inspetor") throw badRequest("Ciclo operacional não pode ser criado para Inspetor");
-    const duplicate = await queryOne(`SELECT id FROM training_schedules WHERE employee_id = ?`, [employee.id]);
-    if (duplicate) throw conflict("Este colaborador já possui um ciclo de treinamento");
-    const values = serverScheduleValues({ employee, input });
     const id = uuid();
-    await execute(
-      `INSERT INTO training_schedules (id,employee_id,employee_name,employee_matricula,cycle_days,last_training_date,window_start,window_end,observations,status,created_by,created_at,updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))`,
-      [id,values.employee_id,values.employee_name,values.employee_matricula,values.cycle_days,values.last_training_date,values.window_start,values.window_end,values.observations,values.status,req.user.id],
-    );
-    await audit(req.user.id, "INSERT", "training_schedules", id, { employee_id: values.employee_id, server_derived: true });
+    await withTransaction(async (connection) => {
+      const [employees] = await connection.execute(
+        `SELECT id,full_name,matricula,status,access_profile FROM employees WHERE id = ? LIMIT 1 FOR UPDATE`,
+        [input.employee_id],
+      );
+      const employee = employees[0];
+      if (!employee) throw notFound("Colaborador não encontrado");
+      if (employee.status !== "Ativo") throw badRequest("O ciclo só pode ser criado para colaborador ativo");
+      if (employee.access_profile === "Inspetor") throw badRequest("Ciclo operacional não pode ser criado para Inspetor");
+
+      const [duplicates] = await connection.execute(`SELECT id FROM training_schedules WHERE employee_id = ? LIMIT 1 FOR UPDATE`, [employee.id]);
+      if (duplicates[0]) throw conflict("Este colaborador já possui um ciclo de treinamento");
+
+      const values = serverScheduleValues({ employee, input });
+      await connection.execute(
+        `INSERT INTO training_schedules (id,employee_id,employee_name,employee_matricula,cycle_days,last_training_date,window_start,window_end,observations,status,created_by,created_at,updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))`,
+        [id,values.employee_id,values.employee_name,values.employee_matricula,values.cycle_days,values.last_training_date,values.window_start,values.window_end,values.observations,values.status,req.user.id],
+      );
+      await audit(req.user.id, "INSERT", "training_schedules", id, { employee_id: values.employee_id, server_derived: true, atomic: true }, connection);
+    });
     res.status(201).json({ id });
   }),
 );
@@ -248,20 +267,29 @@ adminTrainingRouter.patch(
   "/schedules/:id",
   requireAdmin,
   asyncHandler(async (req, res) => {
-    const current = await queryOne(`SELECT * FROM training_schedules WHERE id = ?`, [req.params.id]);
-    if (!current) throw notFound("Ciclo não encontrado");
     const input = readScheduleInput(req.body, { partial: true });
-    if (input.employee_id && input.employee_id !== current.employee_id) throw badRequest("Não é permitido trocar o colaborador de um ciclo existente");
-    const employee = await queryOne(`SELECT id,full_name,matricula,status,access_profile FROM employees WHERE id = ?`, [current.employee_id]);
-    if (!employee) throw notFound("Colaborador vinculado ao ciclo não encontrado");
-    if (employee.status !== "Ativo") throw badRequest("O ciclo só pode ser editado para colaborador ativo");
-    if (employee.access_profile === "Inspetor") throw badRequest("Ciclo operacional não pode ser mantido para Inspetor");
-    const values = serverScheduleValues({ employee, current, input });
-    await execute(
-      `UPDATE training_schedules SET employee_name = ?, employee_matricula = ?, cycle_days = ?, last_training_date = ?, window_start = ?, window_end = ?, observations = ?, status = ?, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`,
-      [values.employee_name,values.employee_matricula,values.cycle_days,values.last_training_date,values.window_start,values.window_end,values.observations,values.status,current.id],
-    );
-    await audit(req.user.id, "UPDATE", "training_schedules", current.id, { changed: Object.keys(input), server_derived: ["employee_name","employee_matricula","window_start","window_end","status"] });
+    await withTransaction(async (connection) => {
+      const [rows] = await connection.execute(`SELECT * FROM training_schedules WHERE id = ? LIMIT 1 FOR UPDATE`, [req.params.id]);
+      const current = rows[0];
+      if (!current) throw notFound("Ciclo não encontrado");
+      if (input.employee_id && input.employee_id !== current.employee_id) throw badRequest("Não é permitido trocar o colaborador de um ciclo existente");
+
+      const [employees] = await connection.execute(
+        `SELECT id,full_name,matricula,status,access_profile FROM employees WHERE id = ? LIMIT 1 FOR UPDATE`,
+        [current.employee_id],
+      );
+      const employee = employees[0];
+      if (!employee) throw notFound("Colaborador vinculado ao ciclo não encontrado");
+      if (employee.status !== "Ativo") throw badRequest("O ciclo só pode ser editado para colaborador ativo");
+      if (employee.access_profile === "Inspetor") throw badRequest("Ciclo operacional não pode ser mantido para Inspetor");
+
+      const values = serverScheduleValues({ employee, current, input });
+      await connection.execute(
+        `UPDATE training_schedules SET employee_name = ?, employee_matricula = ?, cycle_days = ?, last_training_date = ?, window_start = ?, window_end = ?, observations = ?, status = ?, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`,
+        [values.employee_name,values.employee_matricula,values.cycle_days,values.last_training_date,values.window_start,values.window_end,values.observations,values.status,current.id],
+      );
+      await audit(req.user.id, "UPDATE", "training_schedules", current.id, { changed: Object.keys(input), server_derived: ["employee_name","employee_matricula","window_start","window_end","status"], atomic: true }, connection);
+    });
     res.status(204).end();
   }),
 );
@@ -270,10 +298,13 @@ adminTrainingRouter.delete(
   "/schedules/:id",
   requireAdmin,
   asyncHandler(async (req, res) => {
-    const current = await queryOne(`SELECT id FROM training_schedules WHERE id = ?`, [req.params.id]);
-    if (!current) throw notFound("Ciclo não encontrado");
-    await execute(`DELETE FROM training_schedules WHERE id = ?`, [current.id]);
-    await audit(req.user.id, "DELETE", "training_schedules", current.id);
+    await withTransaction(async (connection) => {
+      const [rows] = await connection.execute(`SELECT id FROM training_schedules WHERE id = ? LIMIT 1 FOR UPDATE`, [req.params.id]);
+      const current = rows[0];
+      if (!current) throw notFound("Ciclo não encontrado");
+      await connection.execute(`DELETE FROM training_schedules WHERE id = ?`, [current.id]);
+      await audit(req.user.id, "DELETE", "training_schedules", current.id, { atomic: true }, connection);
+    });
     res.status(204).end();
   }),
 );
