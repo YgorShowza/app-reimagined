@@ -1,6 +1,6 @@
 # SEGEMPAT · Auditoria de Segurança — Arquitetura MySQL/API
 
-Atualizado em 05/09/2026.
+Atualizado em 07/09/2026.
 
 > Este documento substitui a auditoria de 01/09/2026 baseada em Supabase/RLS/RPC. A versão anterior continua preservada no histórico do Git, mas **não representa a arquitetura corporativa alvo atual**.
 
@@ -19,7 +19,7 @@ API SEGEMPAT — Node.js / Express
       +--> storage privado persistente
 ```
 
-O navegador não recebe host, usuário, senha ou CA do MySQL. A autorização que antes dependia de RLS/RPC foi movida para a API própria.
+O navegador não recebe host, usuário, senha ou CA do MySQL. A autorização é executada pela API própria. Supabase e Lovable não fazem parte do runtime corporativo atual.
 
 ## Controles implementados no código
 
@@ -31,7 +31,8 @@ O navegador não recebe host, usuário, senha ou CA do MySQL. A autorização qu
 - o cliente MySQL usa `rejectUnauthorized: true`;
 - conexões são inicializadas com UTC, `FOREIGN_KEY_CHECKS=1` e modo SQL estrito;
 - pool possui limite configurável e charset `utf8mb4`;
-- `preflight`, `smoke` e `/health/ready` verificam invariantes do ambiente real.
+- `preflight`, `smoke`, `cutover:audit` e `/health/ready` verificam invariantes do ambiente real;
+- auditoria dedicada valida geração recorrente de avaliações práticas, vínculo 1:1 com Cronograma e guardas de histórico das migrations 003–005.
 
 ### Sessão, identidade e autorização
 
@@ -39,12 +40,26 @@ O navegador não recebe host, usuário, senha ou CA do MySQL. A autorização qu
 - token de sessão usa HMAC-SHA256 e possui expiração;
 - contexto funcional é reconstruído do MySQL em toda requisição protegida;
 - conta e colaborador precisam permanecer `Ativo`;
-- privilégio administrativo exige simultaneamente role `admin` e perfil funcional atual `Inspetor`;
+- privilégio operacional de Inspetor exige simultaneamente role `admin` e perfil funcional atual `Inspetor`;
 - o token contém uma versão opaca derivada por HMAC da credencial armazenada, sem expor o bcrypt; troca de senha invalida tokens antigos;
 - alterações de conta, vínculo funcional e role continuam sendo reavaliadas diretamente no MySQL a cada requisição, sem depender do conteúdo antigo do cookie;
 - `last_login_at` e outros updates não relacionados à credencial não invalidam acidentalmente a sessão recém-criada;
 - após troca de senha, a sessão atual é rotacionada e as demais sessões antigas deixam de ser aceitas;
 - tokens malformados, com segmentos extras, sem versão, expirados ou excessivamente grandes são rejeitados.
+
+### Segregação TI × Inspetoria
+
+- a Gestão de Equipe operacional não oferece a opção de promover alguém para `Inspetor`;
+- a API rejeita criação ou promoção de colaborador para `Inspetor` pela rota operacional;
+- um Inspetor não pode rebaixar, inativar, alterar matrícula ou excluir outro cadastro privilegiado de Inspetor;
+- perfil, status e identidade privilegiada de Inspetor ficam sob controle explícito da TI;
+- concessão/revogação posterior ao bootstrap é feita no servidor por `npm run manage-inspector-access`;
+- o comando técnico exige `CONFIRM_PRIVILEGED_ACCESS=SIM`, ação `GRANT`/`REVOKE`, matrícula e identificação `TI_OPERATOR`;
+- a alteração é transacional e registra `TI_GRANT_INSPECTOR` ou `TI_REVOKE_INSPECTOR` em `audit_logs`;
+- a TI não recebe, por esse mecanismo, acesso rotineiro aos módulos operacionais ou aos dados pessoais de desempenho;
+- a interface identifica cadastro privilegiado como `Inspetor · TI` e bloqueia edição operacional de matrícula, perfil e situação.
+
+A especificação de responsabilidades e governança de privacidade está em `LGPD_GOVERNANCE.md`.
 
 ### Proteção contra CSRF e origem indevida
 
@@ -62,16 +77,16 @@ O navegador não recebe host, usuário, senha ou CA do MySQL. A autorização qu
 - senha é armazenada somente como bcrypt;
 - primeiro acesso exige colaborador ativo e código de ativação de 8 dígitos;
 - código temporário é bcrypt, expira e é de uso único;
-- criação de Inspetor inicial é uma operação explícita e auditada;
+- criação do primeiro Inspetor é uma operação explícita e auditada executada no servidor;
 - bootstrap suporta senha via `stdin`, evitando registrar a senha no histórico do shell;
 - mudança de senha exige a senha atual e proíbe reutilizar exatamente a mesma senha.
 
 ### Autorização funcional
 
-- rotas administrativas usam `requireAdmin`;
+- rotas administrativas operacionais usam `requireAdmin`;
 - rotas pessoais usam `requireAuth` e derivam identidade da sessão;
 - cadastro funcional inativo bloqueia acesso mesmo com cookie ainda dentro do TTL;
-- alterações de perfil funcional sincronizam a role administrativa no backend;
+- mudanças de privilégio de Inspetor não ficam disponíveis à gestão operacional;
 - matrícula com conta ou histórico operacional não pode ser alterada/excluída de forma destrutiva;
 - notas de provas e atividades são calculadas no servidor;
 - gabaritos são removidos das respostas operacionais antes da entrega ao navegador;
@@ -89,7 +104,8 @@ O navegador não recebe host, usuário, senha ou CA do MySQL. A autorização qu
 ### Integração do frontend corporativo
 
 - `VITE_SEGEMPAT_REQUIRE_API=true` impede publicação corporativa sem `VITE_SEGEMPAT_API_URL`;
-- o cliente legado Supabase também possui bloqueio explícito em modo API-only, evitando acesso silencioso mesmo se algum código antigo for chamado por engano;
+- `VITE_SEGEMPAT_API_URL` deve ser URL HTTP(S) absoluta e, em produção, obrigatoriamente HTTPS;
+- o modo demonstração é permitido apenas quando nenhuma API corporativa está configurada e `VITE_SEGEMPAT_REQUIRE_API` não está ativo;
 - gateway de primeiro acesso usa as rotas reais `/api/access/activation-codes`;
 - importação de resultados do Cronograma usa endpoint MySQL único e transacional no modo corporativo.
 
@@ -104,17 +120,18 @@ O navegador não recebe host, usuário, senha ou CA do MySQL. A autorização qu
 
 ## Controles automáticos no CI
 
-O workflow do GitHub valida continuamente:
+Os workflows do GitHub validam continuamente:
 
 - versões de migrations MySQL e alinhamento de foreign keys críticas;
 - sintaxe de todos os arquivos JavaScript da API/scripts;
 - configuração segura de produção e rejeição de configurações inseguras;
 - sessão/CSRF por testes de contrato e execução HTTP local;
-- contrato `VITE_SEGEMPAT_REQUIRE_API=true` e bloqueio do backend legado;
+- contrato `VITE_SEGEMPAT_REQUIRE_API=true` e arquitetura API-only/Cloudflare;
 - rotas críticas de primeiro acesso e importação atômica do Cronograma;
 - build do container e metadados de usuário/healthcheck;
 - hardening do Compose, Nginx e systemd;
-- typecheck, lint e build de produção do frontend em modo API-only.
+- typecheck, lint e build de produção do frontend em modo API-only;
+- existência das barreiras de privilégio entre TI e Inspetoria, incluindo o comando técnico auditado de concessão/revogação de Inspetor.
 
 ## Limitações que só podem ser encerradas no ambiente da empresa
 
@@ -129,14 +146,18 @@ Ainda não é possível afirmar segurança operacional final sem verificar no am
 - logs/monitoramento e retenção definidos pela TI;
 - contas reais Inspetor/Operador e dispositivos reais;
 - restauração testada a partir de backup;
-- plano de rollback aprovado.
+- plano de rollback aprovado;
+- política corporativa de retenção, finalidades/bases legais e processo de atendimento aos titulares aprovados pelo controlador/Encarregado quando aplicável.
 
 ## Riscos residuais conhecidos e tratamento
 
 - A sessão é stateless: logout limpa o cookie do dispositivo, enquanto revogação imediata de um token copiado depende de inativação da conta ou rotação da credencial. O TTL padrão é 12 horas e o contexto da conta é revalidado em toda requisição.
 - O limitador de autenticação implementado na aplicação é por instância. Em implantação com múltiplas réplicas, a TI deve complementar com rate limiting central no proxy/WAF.
 - `trust proxy=1` pressupõe exatamente um proxy corporativo confiável à frente da API; se a topologia for diferente, a TI deve ajustar essa configuração antes da publicação.
+- O comando técnico de privilégio registra a identidade informada em `TI_OPERATOR`; a empresa deve limitar a execução do servidor aos administradores técnicos autorizados e preservar os logs de sistema correspondentes.
 
 ## Critério de aceite de segurança
 
-A auditoria de código pode ser considerada concluída quando o CI do HEAD final estiver verde. A **homologação de segurança de produção** somente termina depois de TLS, grants, rede, backup, restore, proxy, cookies, CORS, storage e testes ponta a ponta serem comprovados no ambiente corporativo.
+A auditoria de código pode ser considerada concluída quando os gates do HEAD final estiverem verdes. A **homologação de segurança de produção** somente termina depois de TLS, grants, rede, backup, restore, proxy, cookies, CORS, storage, segregação de acessos e testes ponta a ponta serem comprovados no ambiente corporativo.
+
+A aprovação técnica deste documento não constitui certificação jurídica de conformidade com a LGPD; a governança final depende também das decisões do controlador, Encarregado/DPO e áreas responsáveis da empresa.
