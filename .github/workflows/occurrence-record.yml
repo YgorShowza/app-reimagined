@@ -23,9 +23,12 @@ jobs:
         run: |
           set -euo pipefail
           test -f database/mysql/007_occurrence_operational_record.sql
+          test -f database/mysql/008_occurrence_history_guard.sql
           grep -F 'people_involved JSON' database/mysql/007_occurrence_operational_record.sql >/dev/null
           grep -F 'CREATE TABLE occurrence_updates' database/mysql/007_occurrence_operational_record.sql >/dev/null
           grep -F 'CREATE TABLE occurrence_attachments' database/mysql/007_occurrence_operational_record.sql >/dev/null
+          grep -F 'occurrences_guard_delete' database/mysql/008_occurrence_history_guard.sql >/dev/null
+          grep -F 'occurrences_guard_completed_update' database/mysql/008_occurrence_history_guard.sql >/dev/null
           grep -F 'current_situation' server/src/routes/occurrence-integrity.js >/dev/null
           grep -F 'immediate_risk' server/src/routes/occurrence-integrity.js >/dev/null
           grep -F 'information_source' server/src/routes/occurrence-integrity.js >/dev/null
