@@ -110,7 +110,8 @@ Os principais controles implementados incluem:
 - cookies seguros exigidos em produção;
 - suporte a TLS/CA corporativa para MySQL;
 - auditoria de operações críticas;
-- modo corporativo do frontend com API obrigatória e HTTPS.
+- modo corporativo do frontend com API obrigatória e HTTPS;
+- readiness que revalida o histórico completo e os checksums das migrations do banco contra o deploy.
 
 ## MySQL e migrations
 
@@ -122,23 +123,32 @@ database/mysql/001_schema.sql
 
 O runner de migrations mantém versão, checksum e histórico, rejeitando divergências ou lacunas. O schema foi preparado para MySQL 8, InnoDB, `utf8mb4`, foreign keys e índices críticos.
 
+As migrations posteriores preservam evolução versionada, incluindo nota mínima, geração recorrente e proteção histórica da Avaliação Prática. Os gates `smoke` e `cutover:audit` verificam também o vínculo 1:1 das avaliações geradas com o Cronograma.
+
 ## Validação do ambiente corporativo
 
 Antes de executar qualquer comando no ambiente da empresa, a TI deve preencher os dados de infraestrutura solicitados em [`MYSQL_TI_INPUTS.md`](MYSQL_TI_INPUTS.md). Senhas reais não devem ser colocadas no GitHub, em documentação ou no frontend.
 
-Dentro de `server/`, a sequência de homologação prevista é:
+Dentro de `server/`, a sequência técnica inicial é:
 
 ```bash
 npm ci
 npm run preflight
 npm run migrate
-npm run bootstrap-admin   # somente na preparação do primeiro Inspetor, quando necessário
 npm run smoke
+```
+
+Depois do `smoke`, a TI deve carregar/migrar os dados oficiais e as evidências. Em seguida:
+
+```bash
 npm run cutover:audit
+npm run bootstrap-admin   # somente se a carga não trouxer um Inspetor válido
 npm start
 ```
 
-O `preflight` valida o ambiente antes da migration. O `smoke` valida o schema depois da migration. O `cutover:audit` valida integridade funcional depois da carga dos dados.
+O `preflight` valida o ambiente antes da migration. O `smoke` valida o schema depois da migration. O `cutover:audit` valida integridade funcional depois da carga dos dados. O bootstrap administrativo é excepcional e só deve ocorrer depois de schema e dados estarem coerentes.
+
+Após iniciar a API, `GET /health/ready` precisa permanecer saudável. O readiness compara **todo o histórico de `schema_migrations`**, incluindo versão, nome e checksum, com os arquivos de migration presentes no deploy.
 
 ## Backend
 
@@ -155,7 +165,9 @@ Secrets reais nunca devem ser versionados.
 - [`MYSQL_MIGRATION_PLAN.md`](MYSQL_MIGRATION_PLAN.md) — plano técnico da migração para MySQL;
 - [`MYSQL_CORPORATE_HANDOFF.md`](MYSQL_CORPORATE_HANDOFF.md) — roteiro operacional para a TI executar a conexão e os gates no ambiente real;
 - [`CORPORATE_HOMOLOGATION_CHECKLIST.md`](CORPORATE_HOMOLOGATION_CHECKLIST.md) — checklist para TI e gestão durante a homologação;
+- [`HOMOLOGATION_EVIDENCE_TEMPLATE.md`](HOMOLOGATION_EVIDENCE_TEMPLATE.md) — registro único das evidências e do aceite técnico/funcional final;
 - [`PRODUCTION_CHECKLIST.md`](PRODUCTION_CHECKLIST.md) — checklist geral de publicação;
+- [`SECURITY_AUDIT.md`](SECURITY_AUDIT.md) — auditoria da arquitetura MySQL/API atual;
 - [`HOMOLOGATION_STATUS.md`](HOMOLOGATION_STATUS.md) — registro histórico da etapa anterior baseada em Supabase; **não é evidência de homologação MySQL**.
 
 ## Desenvolvimento do frontend
@@ -189,6 +201,8 @@ O status **SEGEMPAT HOMOLOGADO NO MYSQL DA EMPRESA** só poderá ser declarado a
 2. `preflight`, migrations e `smoke` aprovados;
 3. dados e evidências migrados;
 4. `cutover:audit` aprovado;
-5. testes ponta a ponta com Inspetor e Operador;
-6. validação de TLS, CORS, cookies, firewall, storage, backup e permissões;
-7. aprovação do plano de rollback/cutover.
+5. `/health/ready` saudável com histórico completo de migrations íntegro;
+6. testes ponta a ponta com Inspetor e Operador;
+7. validação de TLS, CORS, cookies, firewall, storage, backup e permissões;
+8. aprovação do plano de rollback/cutover;
+9. preenchimento do `HOMOLOGATION_EVIDENCE_TEMPLATE.md` sem pendência crítica.
