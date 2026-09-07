@@ -9,13 +9,13 @@ function sign(payload) {
   return createHmac("sha256", config.session.secret).update(payload).digest("base64url");
 }
 
-function credentialVersion(passwordHash) {
-  // Não envia o bcrypt ao navegador. A versão é derivada por HMAC e muda somente
-  // quando a credencial armazenada muda, evitando invalidar a sessão em updates
-  // não relacionados (por exemplo, last_login_at). Os primeiros 48 bits cabem
-  // com segurança em um inteiro JavaScript e não revelam o password_hash.
+function credentialVersion(passwordHash, sessionEpoch = 0) {
+  // Não envia o bcrypt nem o contador de sessão ao navegador. A versão é derivada
+  // por HMAC e muda quando a credencial muda OU quando a TI/API incrementa
+  // session_epoch por alteração de privilégio/status. Updates comuns, como
+  // last_login_at, não invalidam a sessão.
   return createHmac("sha256", config.session.secret)
-    .update(`credential-version:${passwordHash}`)
+    .update(`credential-version:${passwordHash}:epoch:${Number(sessionEpoch) || 0}`)
     .digest()
     .readUIntBE(0, 6);
 }
@@ -78,7 +78,7 @@ export function clearSessionCookie(res) {
  */
 export async function loadAuthContext(userId) {
   const row = await queryOne(
-    `SELECT u.id, u.matricula, u.password_hash, u.status AS account_status, p.nome,
+    `SELECT u.id, u.matricula, u.password_hash, u.session_epoch, u.status AS account_status, p.nome,
             e.id AS employee_id, e.full_name, e.sector, e.access_profile,
             e.status AS employee_status
        FROM app_users u
@@ -94,7 +94,7 @@ export async function loadAuthContext(userId) {
   const roles = await query(`SELECT role FROM user_roles WHERE user_id = ?`, [userId]);
   const hasAdminRole = roles.some((entry) => entry.role === "admin");
   const isAdmin = hasAdminRole && row.access_profile === "Inspetor";
-  const sessionVersion = credentialVersion(row.password_hash);
+  const sessionVersion = credentialVersion(row.password_hash, row.session_epoch);
 
   return {
     id: row.id,
