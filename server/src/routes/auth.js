@@ -201,15 +201,18 @@ authRouter.post(
     const nextHash = await bcrypt.hash(next, 12);
     const result = await withTransaction(async (connection) => {
       const [accounts] = await connection.execute(
-        `SELECT id, password_hash, status
-           FROM app_users
-          WHERE LOWER(TRIM(matricula)) = ?
+        `SELECT u.id, u.password_hash, u.status AS account_status, e.status AS employee_status
+           FROM app_users u
+           JOIN employees e ON LOWER(TRIM(e.matricula)) = LOWER(TRIM(u.matricula))
+          WHERE LOWER(TRIM(u.matricula)) = ?
           LIMIT 1
           FOR UPDATE`,
         [matricula],
       );
       const account = accounts[0];
-      if (!account || account.status !== "Ativo") return { ok: false };
+      if (!account || account.account_status !== "Ativo" || account.employee_status !== "Ativo") {
+        return { ok: false };
+      }
 
       const [tokens] = await connection.execute(
         `SELECT code_hash, failed_attempts
