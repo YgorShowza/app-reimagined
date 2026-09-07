@@ -39,3 +39,10 @@
     grid-column: 1 / -1;
   }
 }
+
+@media print {
+  .segempat-governance-security > div {
+    width: 100% !important;
+    max-width: none !important;
+  }
+}
