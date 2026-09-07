@@ -55,6 +55,29 @@ export function buildSegempatApiUrl(path: string) {
   return `${baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
+export async function checkSegempatApiReadiness(timeoutMs = 5000): Promise<boolean | null> {
+  if (!isSegempatApiConfigured()) return null;
+
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(buildSegempatApiUrl("/health/ready"), {
+      method: "GET",
+      credentials: "include",
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+      cache: "no-store",
+    });
+    if (!response.ok) return false;
+    const body = (await response.json().catch(() => null)) as { ok?: boolean } | null;
+    return body?.ok === true;
+  } catch {
+    return false;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
 async function parseError(response: Response): Promise<Error> {
   try {
     const body = (await response.json()) as Partial<ApiErrorBody>;
