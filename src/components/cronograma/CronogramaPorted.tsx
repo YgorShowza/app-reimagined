@@ -5,6 +5,7 @@ import { syncCronogramaWithExamAttempts } from "@/lib/cronograma";
 import { invalidateCronogramaFlow } from "@/lib/operational-query-sync";
 import { CronogramaSourceParityV2 } from "@/components/cronograma/CronogramaSourceParityV2";
 import { CronogramaHeaderActions } from "@/components/cronograma/CronogramaHeaderActions";
+import "@/operational-desktop.css";
 
 export function CronogramaPorted() {
   const { data: user } = useCurrentUser();
@@ -35,7 +36,7 @@ export function CronogramaPorted() {
   }, [queryClient, user?.isAdmin]);
 
   return (
-    <div className="relative">
+    <div className="segempat-operational-cronograma relative">
       <CronogramaSourceParityV2 actions={user?.isAdmin ? <CronogramaHeaderActions /> : undefined} />
     </div>
   );
