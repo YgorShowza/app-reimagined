@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
 import { checkSegempatApiReadiness, isSegempatApiConfigured } from "@/lib/backend/api-client";
 
-export type ApiReadinessStatus = "preview" | "checking" | "ready" | "unavailable";
+export type ApiReadinessStatus = "checking" | "ready" | "unavailable";
 
 export function useApiReadiness() {
   const configured = isSegempatApiConfigured();
-  const [status, setStatus] = useState<ApiReadinessStatus>(() => (configured ? "checking" : "preview"));
+  const [status, setStatus] = useState<ApiReadinessStatus>(() => (configured ? "checking" : "unavailable"));
 
   useEffect(() => {
     if (!configured) {
-      setStatus("preview");
+      setStatus("unavailable");
       return undefined;
     }
 
