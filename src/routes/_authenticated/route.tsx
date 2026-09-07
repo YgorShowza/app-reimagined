@@ -1,5 +1,5 @@
 import { createFileRoute, Outlet, redirect, useRouterState } from "@tanstack/react-router";
-import { AppLayout } from "@/components/AppLayout";
+import { AppLayoutV2 } from "@/components/AppLayoutV2";
 import { DemoModeBadge } from "@/components/DemoModeBadge";
 import { getCurrentSessionUser } from "@/lib/backend/current-user-gateway";
 
@@ -41,10 +41,10 @@ function AuthenticatedShell() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   if (pathname === "/tv") return <Outlet />;
   return (
-    <AppLayout>
+    <AppLayoutV2>
       <DemoModeBadge />
       <Outlet />
-    </AppLayout>
+    </AppLayoutV2>
   );
 }
 
