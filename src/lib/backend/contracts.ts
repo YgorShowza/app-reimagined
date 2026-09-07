@@ -47,11 +47,5 @@ export interface SegempatBackend {
   employees: EmployeeGateway;
 }
 
-/**
- * Contrato de fronteira do frontend.
- *
- * O objetivo é impedir que telas saibam se os dados vêm de Supabase/PostgreSQL,
- * MySQL ou outro backend. Durante a migração o adapter Supabase pode continuar
- * ativo; no cutover, o adapter HTTP/MySQL assume sem reescrever as telas.
- */
-export type BackendProvider = "supabase-legacy" | "segempat-api";
+/** Frontend SEGEMPAT conectado exclusivamente à API corporativa/MySQL. */
+export type BackendProvider = "segempat-api";
