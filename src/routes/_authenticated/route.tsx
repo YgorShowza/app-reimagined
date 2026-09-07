@@ -50,6 +50,15 @@ const OPERATOR_DESKTOP_PATHS = new Set([
   "/desafio-diario",
 ]);
 
+const INSPECTOR_DESKTOP_PATHS = new Set([
+  "/atencao",
+  "/risco",
+  "/ia-base",
+  "/provas-criar",
+  "/modulos-treinamento",
+  "/validar-certificados",
+]);
+
 function isAdminOnlyPath(pathname: string) {
   return ADMIN_ONLY_PATHS.has(pathname) || pathname.startsWith("/certificado/");
 }
@@ -58,11 +67,16 @@ function AuthenticatedShell() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   if (pathname === "/tv") return <Outlet />;
   const operatorDesktopRoute = OPERATOR_DESKTOP_PATHS.has(pathname) ? pathname : null;
+  const inspectorDesktopRoute = INSPECTOR_DESKTOP_PATHS.has(pathname) ? pathname : null;
   return (
     <AppLayoutV2>
       <DemoModeBadge />
       {operatorDesktopRoute ? (
         <div className="segempat-operator-desktop min-w-0 w-full" data-operator-route={operatorDesktopRoute}>
+          <Outlet />
+        </div>
+      ) : inspectorDesktopRoute ? (
+        <div className="segempat-inspector-desktop min-w-0 w-full" data-inspector-route={inspectorDesktopRoute}>
           <Outlet />
         </div>
       ) : (
