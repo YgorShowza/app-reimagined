@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import {
   LayoutDashboard, ClipboardList, TrendingUp, Award, ClipboardCheck,
   Users, BarChart3, FileText, BookOpen, BookOpenCheck, Sun, Moon, Monitor,
-  LogOut, Target, FileBarChart, History, AlertTriangle,
+  LogOut, Target, FileBarChart, History, AlertTriangle, BellRing,
   FileSpreadsheet, PlusCircle, Menu, CalendarDays, Layers3, CalendarClock, GraduationCap, type LucideIcon,
 } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
@@ -26,6 +26,7 @@ const adminSections: MenuSection[] = [
     section: "Geral",
     items: [
       { path: "/admin", label: "Dashboard", icon: LayoutDashboard },
+      { path: "/atencao", label: "Central de Atenção", icon: BellRing },
       { path: "/equipe", label: "Equipe", icon: Users },
       { path: "/analytics", label: "Analytics", icon: BarChart3 },
       { path: "/risco", label: "Zona de Risco", icon: Target },
