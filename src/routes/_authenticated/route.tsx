@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { AppLayout } from "@/components/AppLayout";
+import { DemoModeBadge } from "@/components/DemoModeBadge";
 import { getCurrentSessionUser } from "@/lib/backend/current-user-gateway";
 
 const ADMIN_ONLY_PATHS = new Set([
@@ -49,6 +50,7 @@ export const Route = createFileRoute("/_authenticated")({
   },
   component: () => (
     <AppLayout>
+      <DemoModeBadge />
       <Outlet />
     </AppLayout>
   ),
