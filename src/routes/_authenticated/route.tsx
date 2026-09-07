@@ -23,7 +23,6 @@ const ADMIN_ONLY_PATHS = new Set([
   "/ciclos-treinamento",
   "/validar-certificados",
   "/assinaturas-provas",
-  "/conteudos",
   "/ia-base",
   "/avaliacao-pratica",
   "/resumos",
