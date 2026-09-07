@@ -106,6 +106,30 @@ async function main() {
       throw new Error("practical_evaluations_template_fk: definição ou regras referenciais divergentes da migration 004");
     }
 
+    const deleteGuard = await queryOne(
+      `SELECT action_timing, event_manipulation, action_statement
+         FROM information_schema.triggers
+        WHERE trigger_schema = DATABASE()
+          AND event_object_table = 'practical_evaluations'
+          AND trigger_name = 'practical_evaluations_guard_delete'
+        LIMIT 1`,
+    );
+    if (!deleteGuard) throw new Error("practical_evaluations_guard_delete: trigger de histórico ausente");
+    if (
+      String(deleteGuard.action_timing).toUpperCase() !== "BEFORE" ||
+      String(deleteGuard.event_manipulation).toUpperCase() !== "DELETE"
+    ) {
+      throw new Error("practical_evaluations_guard_delete: timing/evento divergente da migration 005");
+    }
+    const guardStatement = String(deleteGuard.action_statement ?? "").toLowerCase();
+    if (
+      !guardStatement.includes("practical:") ||
+      !guardStatement.includes("cronograma_entries") ||
+      !guardStatement.includes("pendente")
+    ) {
+      throw new Error("practical_evaluations_guard_delete: regra de vínculo formalizado divergente da migration 005");
+    }
+
     const inconsistentPair = await queryOne(
       `SELECT COUNT(*) AS total
          FROM practical_evaluations
@@ -163,7 +187,7 @@ async function main() {
     }
 
     console.log(
-      "[segempat-api] geração recorrente de Avaliação Prática OK; migrations 003/004, colunas, índices, FK, slots, período e nota mínima auditados",
+      "[segempat-api] geração recorrente de Avaliação Prática OK; migrations 003/004/005, colunas, índices, FK, trigger de histórico, slots, período e nota mínima auditados",
     );
   } finally {
     await pool.end();
