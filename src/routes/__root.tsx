@@ -15,6 +15,7 @@ import contrastCss from "../theme-contrast-fixes.css?url";
 import operationalDesktopCss from "../operational-desktop.css?url";
 import analyticalDesktopCss from "../analytical-desktop.css?url";
 import governanceDesktopCss from "../governance-desktop.css?url";
+import trainingManagementDesktopCss from "../training-management-desktop.css?url";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -177,6 +178,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "stylesheet", href: operationalDesktopCss },
       { rel: "stylesheet", href: analyticalDesktopCss },
       { rel: "stylesheet", href: governanceDesktopCss },
+      { rel: "stylesheet", href: trainingManagementDesktopCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
