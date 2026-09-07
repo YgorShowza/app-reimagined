@@ -1,6 +1,7 @@
 import type { ApiErrorBody } from "./contracts";
 import { getDemoRole, isDemoModeEnabled } from "@/lib/demo-mode";
 import { demoApiRequest } from "@/lib/demo-api";
+import { isSharedDemoExamPath, sharedDemoExamApiRequest } from "@/lib/demo-exam-store";
 import { operatorDemoApiRequest } from "@/lib/operator-demo-api";
 
 const TRUE_VALUES = new Set(["1", "true", "yes", "on"]);
@@ -95,6 +96,7 @@ export async function apiRequest<T>(
   init: RequestInit = {},
 ): Promise<T> {
   if (isDemoModeEnabled()) {
+    if (isSharedDemoExamPath(path)) return sharedDemoExamApiRequest<T>(path, init);
     return getDemoRole() === "operator"
       ? operatorDemoApiRequest<T>(path, init)
       : demoApiRequest<T>(path, init);
