@@ -87,8 +87,22 @@ export function RefinedAuthScreen() {
   const demoAllowed = isDemoModeAllowed();
   const apiUnavailable = apiReadiness === "unavailable";
   const apiChecking = apiReadiness === "checking";
-  const apiStatusLabel = apiUnavailable ? "Sistema indisponível" : apiChecking ? "Verificando sistema" : "Sistema online";
-  const apiStatusColor = apiUnavailable ? "#ef4444" : apiChecking ? "#f59e0b" : "#22c55e";
+  const apiStatusLabel = demoAllowed && apiUnavailable
+    ? "Demonstração disponível"
+    : apiUnavailable
+      ? "Sistema indisponível"
+      : apiChecking
+        ? "Verificando sistema"
+        : apiReadiness === "demo"
+          ? "Modo demonstração"
+          : "Sistema online";
+  const apiStatusColor = demoAllowed && apiUnavailable
+    ? "#f59e0b"
+    : apiUnavailable
+      ? "#ef4444"
+      : apiChecking
+        ? "#f59e0b"
+        : "#22c55e";
 
   useEffect(() => {
     let active = true;
@@ -285,7 +299,7 @@ export function RefinedAuthScreen() {
               </div>
             </div>
 
-            <div className="mb-6 flex items-center gap-2 rounded-xl border px-3 py-2.5" style={{ borderColor: "var(--border)", background: "var(--bg-surface-2)" }} title={apiUnavailable ? "A API corporativa não passou no readiness" : undefined}>
+            <div className="mb-6 flex items-center gap-2 rounded-xl border px-3 py-2.5" style={{ borderColor: "var(--border)", background: "var(--bg-surface-2)" }} title={apiUnavailable && !demoAllowed ? "A API corporativa não passou no readiness" : undefined}>
               <span className="pulse-dot h-2.5 w-2.5 rounded-full" style={{ background: apiStatusColor }} />
               <span className="text-xs font-bold" style={{ color: "var(--text-3)" }}>{apiStatusLabel}</span>
               <span className="ml-auto text-[10px] font-black uppercase tracking-[.12em]" style={{ color: "var(--text-4)" }}>Ambiente protegido</span>
