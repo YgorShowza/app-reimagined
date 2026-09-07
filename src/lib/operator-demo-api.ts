@@ -59,8 +59,8 @@ function operatorScoped(row: DemoRow) {
   return row["employee_id"] === DEMO_OPERATOR_USER.id || row["user_id"] === DEMO_OPERATOR_USER.id || row["employee_matricula"] === DEMO_OPERATOR_USER.matricula || row["matricula"] === DEMO_OPERATOR_USER.matricula;
 }
 
-function sectorAllowed(row: DemoRow) {
-  const target = String(row["target_sector"] ?? "Todos");
+function sectorAllowed(row: { target_sector?: unknown }) {
+  const target = String(row.target_sector ?? "Todos");
   return target === "Todos" || target === OPERATOR_SECTOR;
 }
 
@@ -145,13 +145,13 @@ function writeAttempts(attempts: DemoAttempt[]) {
 
 async function availableExams() {
   const exams = await listSharedDemoExams();
-  return exams.filter((exam) => exam.status === "Publicada" && sectorAllowed(exam as DemoRow)) as DemoExam[];
+  return exams.filter((exam) => exam.status === "Publicada" && sectorAllowed(exam)) as DemoExam[];
 }
 
 async function submitAttempt(pathname: string, init: RequestInit) {
   const examId = decodeURIComponent(pathname.split("/")[4] || "");
   const exams = await listSharedDemoExams();
-  const exam = exams.find((item) => item.id === examId && item.status === "Publicada" && sectorAllowed(item as DemoRow)) as DemoExam | undefined;
+  const exam = exams.find((item) => item.id === examId && item.status === "Publicada" && sectorAllowed(item)) as DemoExam | undefined;
   if (!exam) throw new Error("Prova demonstrativa indisponível para este operador.");
 
   const body = bodyObject(init);
