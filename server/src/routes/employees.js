@@ -2,7 +2,7 @@ import { Router } from "express";
 import { query, queryOne, withTransaction } from "../db.js";
 import { audit } from "../audit.js";
 import { requireAdmin, requireAuth } from "../session.js";
-import { asBool, asyncHandler, badRequest, conflict, notFound, requireOneOf, requireText, uuid } from "../util.js";
+import { asBool, asyncHandler, badRequest, conflict, forbidden, notFound, requireOneOf, requireText, uuid } from "../util.js";
 
 export const employeesRouter = Router();
 
@@ -67,6 +67,25 @@ function readEmployeeInput(body, { partial = false } = {}) {
   return input;
 }
 
+function assertOperationalPrivilegeBoundary(input, lockedEmployee = null) {
+  if (!lockedEmployee && input.access_profile === "Inspetor") {
+    throw forbidden("Perfil Inspetor é administrado exclusivamente pela TI");
+  }
+
+  if (!lockedEmployee) return;
+
+  const isCurrentInspector = lockedEmployee.access_profile === "Inspetor";
+  const changesProfile = Object.prototype.hasOwnProperty.call(input, "access_profile") && input.access_profile !== lockedEmployee.access_profile;
+  const changesStatus = Object.prototype.hasOwnProperty.call(input, "status") && input.status !== lockedEmployee.status;
+  const changesMatricula = Object.prototype.hasOwnProperty.call(input, "matricula")
+    && String(input.matricula).trim().toLowerCase() !== String(lockedEmployee.matricula).trim().toLowerCase();
+  const promotesToInspector = input.access_profile === "Inspetor" && !isCurrentInspector;
+
+  if (promotesToInspector || (isCurrentInspector && (changesProfile || changesStatus || changesMatricula))) {
+    throw forbidden("Privilégio de Inspetor, status e identidade privilegiada são administrados exclusivamente pela TI");
+  }
+}
+
 async function hasAccountOrHistory(connection, employee) {
   const [rows] = await connection.execute(
     `SELECT
@@ -86,6 +105,7 @@ employeesRouter.post(
   requireAdmin,
   asyncHandler(async (req, res) => {
     const input = readEmployeeInput(req.body);
+    assertOperationalPrivilegeBoundary(input);
     const id = uuid();
     await withTransaction(async (connection) => {
       const [duplicates] = await connection.execute(
@@ -98,7 +118,7 @@ employeesRouter.post(
          VALUES (?, ?, ?, ?, ?, ?, 1, 0, 1, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
         [id, input.full_name, input.matricula, input.sector, input.access_profile, input.status],
       );
-      await audit(req.user.id, "INSERT", "employees", id, { new: { ...input, id }, atomic: true }, connection);
+      await audit(req.user.id, "INSERT", "employees", id, { new: { ...input, id }, atomic: true, privilege_boundary: "operational" }, connection);
     });
     res.status(201).json({ id });
   }),
@@ -114,6 +134,8 @@ employeesRouter.patch(
       const [lockedRows] = await connection.execute(`SELECT * FROM employees WHERE id = ? FOR UPDATE`, [req.params.id]);
       const lockedEmployee = lockedRows[0];
       if (!lockedEmployee) throw notFound("Colaborador não encontrado");
+
+      assertOperationalPrivilegeBoundary(input, lockedEmployee);
 
       if (input.matricula && input.matricula.trim().toLowerCase() !== String(lockedEmployee.matricula).trim().toLowerCase()) {
         if (await hasAccountOrHistory(connection, lockedEmployee)) {
@@ -148,7 +170,7 @@ employeesRouter.patch(
         }
       }
 
-      await audit(req.user.id, "UPDATE", "employees", lockedEmployee.id, { old: lockedEmployee, new: input, role_sync_atomic: true }, connection);
+      await audit(req.user.id, "UPDATE", "employees", lockedEmployee.id, { old: lockedEmployee, new: input, role_sync_atomic: true, privilege_boundary: "operational" }, connection);
     });
     res.status(204).end();
   }),
@@ -162,11 +184,14 @@ employeesRouter.delete(
       const [lockedRows] = await connection.execute(`SELECT * FROM employees WHERE id = ? FOR UPDATE`, [req.params.id]);
       const lockedEmployee = lockedRows[0];
       if (!lockedEmployee) throw notFound("Colaborador não encontrado");
+      if (lockedEmployee.access_profile === "Inspetor") {
+        throw forbidden("Cadastro de Inspetor é administrado exclusivamente pela TI");
+      }
       if (await hasAccountOrHistory(connection, lockedEmployee)) {
         throw conflict("Colaborador possui conta ou histórico operacional. Inative o cadastro em vez de excluir.");
       }
       await connection.execute(`DELETE FROM employees WHERE id = ?`, [lockedEmployee.id]);
-      await audit(req.user.id, "DELETE", "employees", lockedEmployee.id, { old: lockedEmployee, history_guard_atomic: true }, connection);
+      await audit(req.user.id, "DELETE", "employees", lockedEmployee.id, { old: lockedEmployee, history_guard_atomic: true, privilege_boundary: "operational" }, connection);
     });
     res.status(204).end();
   }),
