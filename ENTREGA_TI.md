@@ -23,6 +23,7 @@ A API é a única camada que acessa o banco. O navegador nunca recebe credenciai
 | Dados que a TI precisa fornecer | `MYSQL_TI_INPUTS.md` |
 | Roteiro detalhado de homologação | `MYSQL_CORPORATE_HANDOFF.md` |
 | Checklist de homologação | `CORPORATE_HOMOLOGATION_CHECKLIST.md` |
+| Registro final de evidências/aceite | `HOMOLOGATION_EVIDENCE_TEMPLATE.md` |
 | Checklist de produção/cutover | `PRODUCTION_CHECKLIST.md` |
 | Auditoria de segurança atual | `SECURITY_AUDIT.md` |
 | Schema MySQL | `database/mysql/001_schema.sql` |
@@ -96,6 +97,8 @@ npm run cutover:audit
 
 Qualquer inconsistência crítica bloqueia a continuidade.
 
+A auditoria inclui a integridade da geração recorrente de Avaliação Prática: data operacional, slots, vínculo 1:1 com o Cronograma, coerência de colaborador/tema/data e ausência de marcadores `[PRACTICAL:<id>]` órfãos.
+
 ### 6. Primeiro Inspetor, somente se necessário
 
 Se a carga não trouxer uma conta administrativa válida, executar o bootstrap depois da carga/auditoria. Não digitar a senha na linha de comando:
@@ -126,7 +129,7 @@ GET /health
 GET /health/ready
 ```
 
-`/health/ready` deve permanecer verde.
+`/health/ready` deve permanecer verde. O readiness valida o **histórico completo** de migrations do banco contra os arquivos versionados do deploy; migration ausente, extra, renomeada ou com checksum divergente torna a API não pronta.
 
 ### 8. Ligar o frontend corporativo
 
@@ -149,7 +152,9 @@ A origem deve ser exata e HTTPS.
 
 ### 9. E2E
 
-Executar pelo menos um ciclo completo com Inspetor e um com Operador, incluindo primeiro acesso, login/logout, Equipe, Cronograma, Banco de Questões, Provas, assinatura, certificados, Treinamentos, gamificação, Avaliação Prática, Ocorrências, Base de Conhecimento, Perfil e Auditoria.
+Executar pelo menos um ciclo completo com Inspetor e um com Operador, incluindo primeiro acesso, login/logout, Equipe, Cronograma, Banco de Questões, Provas, assinatura, certificados, Treinamentos, gamificação, Avaliação Prática manual e recorrente, Ocorrências, Base de Conhecimento, Perfil e Auditoria.
+
+Na Avaliação Prática recorrente, confirmar também uma segunda execução sem duplicação, respeito a suspensões, vínculo com o Cronograma/indicadores e proteção do histórico formalizado.
 
 ### 10. Infraestrutura e cutover
 
@@ -167,6 +172,22 @@ Confirmar:
 - topologia de proxy compatível com `trust proxy=1` ou ajuste correspondente;
 - plano de rollback e responsáveis.
 
+## Registro obrigatório das evidências
+
+Usar `HOMOLOGATION_EVIDENCE_TEMPLATE.md` para registrar, sem secrets:
+
+- commit implantado;
+- versão do MySQL/Node e ambiente;
+- resultados de `preflight`, `migrate`, `smoke` e `cutover:audit`;
+- contagens antes/depois da carga;
+- estado de `/health` e `/health/ready`;
+- E2E de Inspetor e Operador;
+- TLS, rede, CORS, cookies, storage e dispositivos;
+- backup, restore e rollback;
+- pendências e aceite técnico/funcional.
+
+Sem esse registro preenchido e sem os gates reais aprovados, não declarar homologação concluída.
+
 ## Segurança já implementada na API
 
 - sessão HMAC em cookie HTTP-only;
@@ -179,7 +200,8 @@ Confirmar:
 - troca de senha invalida sessões antigas;
 - senhas e códigos temporários usam bcrypt;
 - evidências ficam em storage privado;
-- container e serviços possuem hardening de referência.
+- container e serviços possuem hardening de referência;
+- readiness detecta drift no histórico completo das migrations.
 
 ## Status
 
@@ -187,6 +209,6 @@ Antes da execução real dos gates:
 
 **PARTE DO MYSQL NO CÓDIGO CONCLUÍDA — PRONTO PARA CONECTAR AO BANCO DA EMPRESA.**
 
-Somente depois da homologação real:
+Somente depois da homologação real e do registro de evidências:
 
 **SEGEMPAT HOMOLOGADO NO MYSQL DA EMPRESA.**
