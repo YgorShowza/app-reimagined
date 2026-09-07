@@ -6,7 +6,6 @@ import {
   BellRing,
   CalendarDays,
   ChevronRight,
-  ClipboardCheck,
   FileSpreadsheet,
   FileText,
   Maximize2,
@@ -141,7 +140,7 @@ export function AdminDashboardV2() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-            <Link to="/atencao" className="inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-black text-white" style={{ background: "rgba(200,16,46,.22)", border: "1px solid rgba(255,104,128,.26)" }}><BellRing className="h-4 w-4" />Central de Atenção</Link>
+            <Link to={"/atencao" as never} className="inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-black text-white" style={{ background: "rgba(200,16,46,.22)", border: "1px solid rgba(255,104,128,.26)" }}><BellRing className="h-4 w-4" />Central de Atenção</Link>
             <Link to="/tv" className="inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-bold text-white" style={{ background: "rgba(255,255,255,.07)", border: "1px solid rgba(255,255,255,.13)" }}><Maximize2 className="h-4 w-4" />Painel TV</Link>
             <button type="button" onClick={() => refetch()} disabled={isFetching} className="flex h-11 w-11 items-center justify-center rounded-xl text-white transition-opacity disabled:opacity-50" style={{ background: "rgba(255,255,255,.07)", border: "1px solid rgba(255,255,255,.13)" }} aria-label="Atualizar dashboard"><RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} /></button>
           </div>
