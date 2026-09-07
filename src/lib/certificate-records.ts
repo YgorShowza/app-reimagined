@@ -25,8 +25,37 @@ export type CertificateRecord = {
   formally_issued: boolean;
 };
 
+export type MyCertificateState = {
+  attempt_id: string;
+  verification_code: string;
+  issued_at: string;
+  revoked: boolean;
+  revoked_at: string | null;
+  revoked_reason: string | null;
+};
+
 function normalizedMatricula(value: unknown) {
   return String(value ?? "").trim().toLowerCase();
+}
+
+export async function listMyCertificateStates(): Promise<MyCertificateState[]> {
+  if (isSegempatApiConfigured()) {
+    return apiRequest<MyCertificateState[]>("/api/me/certificate-states");
+  }
+
+  const { data, error } = await (supabase as any)
+    .from("certificates")
+    .select("attempt_id, verification_code, issued_at, revoked, revoked_at, revoked_reason")
+    .order("issued_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((row: any) => ({
+    attempt_id: String(row.attempt_id),
+    verification_code: String(row.verification_code ?? ""),
+    issued_at: String(row.issued_at ?? ""),
+    revoked: Boolean(row.revoked),
+    revoked_at: row.revoked_at ?? null,
+    revoked_reason: row.revoked_reason ?? null,
+  }));
 }
 
 export async function listCertificateRecords(): Promise<CertificateRecord[]> {
