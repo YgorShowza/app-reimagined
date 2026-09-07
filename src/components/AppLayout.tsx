@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { useCurrentUser } from "@/lib/useCurrentUser";
+import { useApiReadiness } from "@/lib/useApiReadiness";
 import { logoutSession } from "@/lib/backend/auth-gateway";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
@@ -175,11 +176,17 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: user } = useCurrentUser();
+  const apiReadiness = useApiReadiness();
   const isAdmin = user?.isAdmin ?? false;
   const [menuOpen, setMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   useEffect(() => { setMenuOpen(false); }, [pathname]);
+
+  const apiUnavailable = apiReadiness === "unavailable";
+  const apiChecking = apiReadiness === "checking";
+  const apiStatusLabel = apiUnavailable ? "Indisponível" : apiChecking ? "Verificando" : "Online";
+  const apiStatusColor = apiUnavailable ? "#ef4444" : apiChecking ? "#f59e0b" : "#22c55e";
 
   const handleLogout = async () => {
     if (loggingOut) return;
@@ -230,7 +237,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <div className="shrink-0 overflow-hidden rounded-lg bg-white p-1 lg:hidden"><img src={LOGO_URL} alt="EMPAT" className="h-8 w-auto object-contain" /></div>
             <div className="min-w-0"><p className="truncate text-sm font-bold" style={{ color: "var(--text-1)" }}>{user?.nome ?? "…"}</p><p className="text-[11px] font-mono" style={{ color: "var(--text-4)" }}>Mat. {user?.matricula ?? "—"}</p></div>
           </div>
-          <div className="flex shrink-0 items-center gap-3 md:gap-4"><div className="hidden items-center gap-2 sm:flex"><div className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-60" /><span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" /></div><span className="text-xs font-medium" style={{ color: "var(--text-3)" }}>Online</span></div><HeaderClock /><button disabled={loggingOut} onClick={handleLogout} className="rounded-lg p-2 transition-colors disabled:opacity-50 lg:hidden" style={{ color: "var(--text-3)" }} aria-label="Sair"><LogOut className="h-4 w-4" /></button></div>
+          <div className="flex shrink-0 items-center gap-3 md:gap-4"><div className="hidden items-center gap-2 sm:flex" title={apiUnavailable ? "A API corporativa não passou no readiness" : undefined}><div className="relative flex h-2 w-2">{!apiUnavailable && !apiChecking && <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60" style={{ background: apiStatusColor }} />}<span className="relative inline-flex h-2 w-2 rounded-full" style={{ background: apiStatusColor }} /></div><span className="text-xs font-medium" style={{ color: "var(--text-3)" }}>{apiStatusLabel}</span></div><HeaderClock /><button disabled={loggingOut} onClick={handleLogout} className="rounded-lg p-2 transition-colors disabled:opacity-50 lg:hidden" style={{ color: "var(--text-3)" }} aria-label="Sair"><LogOut className="h-4 w-4" /></button></div>
         </header>
 
         <main className="flex-1 p-4 pb-24 md:p-6 md:pb-24 lg:pb-8">{children}</main>
