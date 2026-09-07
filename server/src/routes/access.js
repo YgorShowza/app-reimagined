@@ -8,6 +8,7 @@ import { asyncHandler, badRequest, conflict, notFound, numericCode } from "../ut
 export const accessRouter = Router();
 
 const CODE_TTL_HOURS = 24;
+const RESET_CODE_TTL_MINUTES = 30;
 
 function boundedInteger(value, { fallback, min, max, label }) {
   if (value === undefined || value === null || value === "") return fallback;
@@ -20,16 +21,22 @@ accessRouter.get(
   "/activation-codes",
   requireAdmin,
   asyncHandler(async (_req, res) => {
-    // Retorna todos os colaboradores ativos para que a tela administrativa
-    // diferencie conta criada, código ativo, código expirado e ausência de código.
-    // Nunca retorna o código puro — somente o estado do convite.
+    // Retorna os colaboradores ativos com o estado de primeiro acesso e, quando
+    // a conta já existe, o estado do código de recuperação de senha. Nenhum
+    // endpoint administrativo devolve hashes ou códigos antigos.
     const rows = await query(
       `SELECT e.id AS employee_id, e.full_name, e.matricula, e.sector,
               r.expires_at, r.used_at, r.created_at,
               (r.used_at IS NULL AND r.expires_at IS NOT NULL AND r.expires_at < UTC_TIMESTAMP(3)) AS expired,
-              (SELECT COUNT(*) FROM app_users u WHERE LOWER(TRIM(u.matricula)) = LOWER(TRIM(e.matricula))) AS has_account
+              u.id AS account_id, u.status AS account_status,
+              pr.expires_at AS reset_expires_at, pr.used_at AS reset_used_at,
+              pr.created_at AS reset_created_at, pr.locked_at AS reset_locked_at,
+              pr.failed_attempts AS reset_failed_attempts,
+              (pr.used_at IS NULL AND pr.expires_at IS NOT NULL AND pr.expires_at < UTC_TIMESTAMP(3)) AS reset_expired
          FROM employees e
          LEFT JOIN registration_activation_codes r ON r.employee_id = e.id
+         LEFT JOIN app_users u ON LOWER(TRIM(u.matricula)) = LOWER(TRIM(e.matricula))
+         LEFT JOIN password_reset_codes pr ON pr.user_id = u.id
         WHERE e.status = 'Ativo'
         ORDER BY e.full_name ASC`,
     );
@@ -42,8 +49,15 @@ accessRouter.get(
         expires_at: row.expires_at ?? null,
         used_at: row.used_at ?? null,
         created_at: row.created_at ?? null,
-        has_account: Number(row.has_account) > 0,
+        has_account: Boolean(row.account_id),
+        account_active: row.account_status === "Ativo",
         expired: Number(row.expired) > 0,
+        reset_expires_at: row.reset_expires_at ?? null,
+        reset_used_at: row.reset_used_at ?? null,
+        reset_created_at: row.reset_created_at ?? null,
+        reset_locked_at: row.reset_locked_at ?? null,
+        reset_failed_attempts: Number(row.reset_failed_attempts ?? 0),
+        reset_expired: Number(row.reset_expired) > 0,
       })),
     );
   }),
@@ -129,6 +143,111 @@ accessRouter.delete(
       if (!rows.length) throw notFound("Código de ativação não encontrado");
       await connection.execute(`DELETE FROM registration_activation_codes WHERE employee_id = ?`, [employeeId]);
       await audit(req.user.id, "REVOKE_ACTIVATION_CODE", "registration_activation_codes", employeeId, { atomic: true }, connection);
+    });
+    res.status(204).end();
+  }),
+);
+
+accessRouter.post(
+  "/password-resets/:employeeId",
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const employeeId = String(req.params.employeeId || "").trim();
+    if (!employeeId) throw badRequest("Colaborador não informado");
+
+    const code = numericCode(8);
+    const codeHash = await bcrypt.hash(code, 10);
+    const expiresAt = new Date(Date.now() + RESET_CODE_TTL_MINUTES * 60_000);
+
+    const issued = await withTransaction(async (connection) => {
+      const [employees] = await connection.execute(
+        `SELECT id, full_name, matricula, sector, status
+           FROM employees
+          WHERE id = ?
+          LIMIT 1
+          FOR UPDATE`,
+        [employeeId],
+      );
+      const employee = employees[0];
+      if (!employee || employee.status !== "Ativo") throw notFound("Colaborador ativo não encontrado");
+
+      const [accounts] = await connection.execute(
+        `SELECT id, status
+           FROM app_users
+          WHERE LOWER(TRIM(matricula)) = LOWER(TRIM(?))
+          LIMIT 1
+          FOR UPDATE`,
+        [employee.matricula],
+      );
+      const account = accounts[0];
+      if (!account) throw conflict("Esta matrícula ainda não possui acesso cadastrado");
+      if (account.status !== "Ativo") throw conflict("A conta de acesso está inativa");
+
+      await connection.execute(
+        `INSERT INTO password_reset_codes
+           (user_id, code_hash, expires_at, used_at, failed_attempts, locked_at, created_by, created_at, updated_at)
+         VALUES (?, ?, ?, NULL, 0, NULL, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))
+         ON DUPLICATE KEY UPDATE code_hash = VALUES(code_hash), expires_at = VALUES(expires_at),
+                                 used_at = NULL, failed_attempts = 0, locked_at = NULL,
+                                 created_by = VALUES(created_by), created_at = UTC_TIMESTAMP(3), updated_at = UTC_TIMESTAMP(3)`,
+        [account.id, codeHash, expiresAt, req.user.id],
+      );
+      await audit(req.user.id, "ISSUE_PASSWORD_RESET_CODE", "password_reset_codes", account.id, {
+        matricula: employee.matricula,
+        employee_id: employee.id,
+        ttl_minutes: RESET_CODE_TTL_MINUTES,
+        atomic: true,
+      }, connection);
+
+      return {
+        employee_id: employee.id,
+        employee_name: employee.full_name,
+        matricula: employee.matricula,
+      };
+    });
+
+    // Assim como no primeiro acesso, o código puro só existe nesta resposta.
+    res.status(201).json({
+      code,
+      ...issued,
+      expires_at: expiresAt.toISOString(),
+    });
+  }),
+);
+
+accessRouter.delete(
+  "/password-resets/:employeeId",
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const employeeId = String(req.params.employeeId || "").trim();
+    if (!employeeId) throw badRequest("Colaborador não informado");
+
+    await withTransaction(async (connection) => {
+      const [employees] = await connection.execute(
+        `SELECT matricula FROM employees WHERE id = ? LIMIT 1 FOR UPDATE`,
+        [employeeId],
+      );
+      const employee = employees[0];
+      if (!employee) throw notFound("Colaborador não encontrado");
+
+      const [accounts] = await connection.execute(
+        `SELECT id FROM app_users WHERE LOWER(TRIM(matricula)) = LOWER(TRIM(?)) LIMIT 1 FOR UPDATE`,
+        [employee.matricula],
+      );
+      const account = accounts[0];
+      if (!account) throw notFound("Conta de acesso não encontrada");
+
+      const [rows] = await connection.execute(
+        `SELECT user_id FROM password_reset_codes WHERE user_id = ? FOR UPDATE`,
+        [account.id],
+      );
+      if (!rows.length) throw notFound("Código de recuperação não encontrado");
+
+      await connection.execute(`DELETE FROM password_reset_codes WHERE user_id = ?`, [account.id]);
+      await audit(req.user.id, "REVOKE_PASSWORD_RESET_CODE", "password_reset_codes", account.id, {
+        employee_id: employeeId,
+        atomic: true,
+      }, connection);
     });
     res.status(204).end();
   }),

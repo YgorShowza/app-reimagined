@@ -37,6 +37,7 @@ const READINESS_TABLES = [
   "profiles",
   "user_roles",
   "registration_activation_codes",
+  "password_reset_codes",
   "exams",
   "exam_attempts",
   "certificates",

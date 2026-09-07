@@ -12,6 +12,7 @@ const MAX_PASSWORD = 128;
 const MAX_MATRICULA = 80;
 const AUTH_WINDOW_MS = 15 * 60_000;
 const AUTH_BUCKET_LIMIT = 5_000;
+const MAX_RESET_CODE_ATTEMPTS = 5;
 const authAttempts = new Map();
 let lastAuthSweepAt = 0;
 
@@ -185,6 +186,98 @@ authRouter.post(
   }),
 );
 
+authRouter.post(
+  "/reset-password",
+  asyncHandler(async (req, res) => {
+    const matricula = normalizeMatricula(req.body?.matricula);
+    const resetCode = requireText(req.body?.resetCode, "Código de recuperação").trim();
+    const next = assertStrongPassword(req.body?.newPassword);
+    const rateKey = consumeAuthAttempt(req, "reset-password", matricula, 8);
+
+    if (!/^[0-9]{8}$/.test(resetCode)) {
+      throw badRequest("Código de recuperação inválido, expirado ou bloqueado");
+    }
+
+    const nextHash = await bcrypt.hash(next, 12);
+    const result = await withTransaction(async (connection) => {
+      const [accounts] = await connection.execute(
+        `SELECT u.id, u.password_hash, u.status AS account_status, e.status AS employee_status
+           FROM app_users u
+           JOIN employees e ON LOWER(TRIM(e.matricula)) = LOWER(TRIM(u.matricula))
+          WHERE LOWER(TRIM(u.matricula)) = ?
+          LIMIT 1
+          FOR UPDATE`,
+        [matricula],
+      );
+      const account = accounts[0];
+      if (!account || account.account_status !== "Ativo" || account.employee_status !== "Ativo") {
+        return { ok: false };
+      }
+
+      const [tokens] = await connection.execute(
+        `SELECT code_hash, failed_attempts
+           FROM password_reset_codes
+          WHERE user_id = ?
+            AND used_at IS NULL
+            AND locked_at IS NULL
+            AND expires_at > UTC_TIMESTAMP(3)
+          FOR UPDATE`,
+        [account.id],
+      );
+      const token = tokens[0];
+      if (!token) return { ok: false };
+
+      const matches = await bcrypt.compare(resetCode, token.code_hash);
+      if (!matches) {
+        const failedAttempts = Math.min(MAX_RESET_CODE_ATTEMPTS, Number(token.failed_attempts || 0) + 1);
+        await connection.execute(
+          `UPDATE password_reset_codes
+              SET failed_attempts = ?,
+                  locked_at = CASE WHEN ? >= ? THEN UTC_TIMESTAMP(3) ELSE locked_at END,
+                  updated_at = UTC_TIMESTAMP(3)
+            WHERE user_id = ?`,
+          [failedAttempts, failedAttempts, MAX_RESET_CODE_ATTEMPTS, account.id],
+        );
+        return { ok: false };
+      }
+
+      if (await bcrypt.compare(next, account.password_hash)) {
+        return { ok: false, samePassword: true };
+      }
+
+      await connection.execute(
+        `UPDATE app_users
+            SET password_hash = ?,
+                session_epoch = session_epoch + 1,
+                updated_at = UTC_TIMESTAMP(3)
+          WHERE id = ?`,
+        [nextHash, account.id],
+      );
+      await connection.execute(
+        `UPDATE password_reset_codes
+            SET used_at = UTC_TIMESTAMP(3), failed_attempts = 0, updated_at = UTC_TIMESTAMP(3)
+          WHERE user_id = ?`,
+        [account.id],
+      );
+      await audit(account.id, "PASSWORD_RESET", "app_users", account.id, {
+        atomic: true,
+        recovery_code_used: true,
+        sessions_rotated: true,
+      }, connection);
+      return { ok: true };
+    });
+
+    if (!result.ok) {
+      if (result.samePassword) throw badRequest("A nova senha deve ser diferente da senha atual");
+      throw badRequest("Código de recuperação inválido, expirado ou bloqueado");
+    }
+
+    clearAuthAttempts(rateKey);
+    clearSessionCookie(res);
+    res.status(204).end();
+  }),
+);
+
 authRouter.get(
   "/me",
   asyncHandler(async (req, res) => {
@@ -219,6 +312,7 @@ authRouter.post(
         `UPDATE app_users SET password_hash = ?, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`,
         [nextHash, req.user.id],
       );
+      await connection.execute(`DELETE FROM password_reset_codes WHERE user_id = ?`, [req.user.id]);
       await audit(req.user.id, "PASSWORD_CHANGE", "app_users", req.user.id, { atomic: true, sessions_rotated: true }, connection);
     });
 
