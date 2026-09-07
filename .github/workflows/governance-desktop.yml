@@ -29,6 +29,8 @@ jobs:
           grep -F 'max-width: 1536px' src/governance-desktop.css >/dev/null
           grep -F 'max-width: 1152px' src/governance-desktop.css >/dev/null
           grep -F '@media (min-width: 1536px)' src/governance-desktop.css >/dev/null
+          grep -F '@media print' src/governance-desktop.css >/dev/null
+          grep -F 'max-width: none !important' src/governance-desktop.css >/dev/null
           grep -F 'governanceDesktopCss from "../governance-desktop.css?url"' src/routes/__root.tsx >/dev/null
           grep -F '{ rel: "stylesheet", href: governanceDesktopCss }' src/routes/__root.tsx >/dev/null
           grep -F 'O frontend atual não possui fallback de backend' src/components/security/SecurityDocumentWorkspace.tsx >/dev/null
@@ -36,4 +38,4 @@ jobs:
             echo "::error::Documento de Segurança voltou a descrever fallback legado ativo"
             exit 1
           fi
-          echo "Experiência desktop de governança do SEGEMPAT validada e arquitetura atual documentada."
+          echo "Experiência desktop de governança do SEGEMPAT validada, impressão preservada e arquitetura atual documentada."
