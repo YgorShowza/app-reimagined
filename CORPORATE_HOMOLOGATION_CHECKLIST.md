@@ -90,7 +90,10 @@ npm run smoke
 - [ ] `utf8mb4` preservado;
 - [ ] FKs e UNIQUE críticos presentes;
 - [ ] `FOREIGN_KEY_CHECKS=1`;
-- [ ] UTC e SQL estrito ativos.
+- [ ] UTC e SQL estrito ativos;
+- [ ] migrations 003/004/005 da Avaliação Prática auditadas;
+- [ ] colunas, índices, FK, trigger de histórico e nota mínima da Avaliação Prática coerentes;
+- [ ] geração recorrente sem slots duplicados ou vínculo incompleto com Cronograma.
 
 ## 6. Migração de dados e evidências
 
@@ -98,6 +101,8 @@ npm run smoke
 - [ ] preservar UUIDs e matrículas;
 - [ ] preservar vínculos usuário/colaborador;
 - [ ] preservar provas, tentativas e certificados;
+- [ ] preservar modelos e avaliações práticas recorrentes;
+- [ ] preservar os marcadores `[PRACTICAL:<id>]` de vínculo com o Cronograma quando houver histórico gerado;
 - [ ] copiar assinaturas/evidências para storage corporativo;
 - [ ] registrar contagens antes/depois;
 - [ ] validar amostras históricas e funcionais.
@@ -115,7 +120,11 @@ npm run cutover:audit
 - [ ] certificados coerentes com tentativas;
 - [ ] códigos/revogações coerentes;
 - [ ] assinaturas registradas existem no storage;
-- [ ] arquivos de assinatura válidos.
+- [ ] arquivos de assinatura válidos;
+- [ ] cada avaliação prática gerada por modelo possui data operacional;
+- [ ] cada avaliação prática recorrente possui exatamente um vínculo correspondente no Cronograma;
+- [ ] colaborador, tema e data da avaliação prática coincidem com o lançamento do Cronograma;
+- [ ] nenhum marcador `[PRACTICAL:<id>]` órfão permanece no Cronograma.
 
 ## 8. Primeiro Inspetor, se necessário
 
@@ -138,6 +147,9 @@ Ou runtime corporativo preparado em Docker/systemd.
 
 - [ ] `GET /health` responde;
 - [ ] `GET /health/ready` permanece verde;
+- [ ] `/health/ready` confirma o histórico **completo** de migrations, não apenas a última versão;
+- [ ] alterar/remover/adicionar indevidamente uma linha de `schema_migrations` faz o readiness ficar indisponível;
+- [ ] checksum divergente de qualquer migration faz o readiness ficar indisponível;
 - [ ] HTTPS válido no proxy;
 - [ ] API acessível somente conforme rede prevista.
 
@@ -173,7 +185,13 @@ Executar com **Inspetor** e **Operador**:
 - [ ] Stress Test;
 - [ ] Teste Rápido;
 - [ ] Desafio Diário;
-- [ ] Avaliação Prática;
+- [ ] Avaliação Prática manual;
+- [ ] criação de modelo de Avaliação Prática;
+- [ ] geração recorrente de Avaliação Prática;
+- [ ] repetição da geração sem duplicar o mesmo slot;
+- [ ] suspensão do Cronograma respeitada pela geração recorrente;
+- [ ] vínculo gerado aparece corretamente no Cronograma e nos indicadores;
+- [ ] histórico formalizado não é removido por exclusão indevida da avaliação;
 - [ ] Ocorrências;
 - [ ] Base de Conhecimento;
 - [ ] Meu Perfil;
@@ -206,7 +224,7 @@ TI inputs
   -> cutover:audit
   -> bootstrap-admin (se necessário)
   -> subir API
-  -> /health/ready verde
+  -> /health/ready verde e histórico completo de migrations íntegro
   -> frontend REQUIRE_API=true
   -> E2E Inspetor + Operador
   -> aceite/rollback
