@@ -1,14 +1,17 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, KeyRound, RefreshCw, Search, ShieldCheck, XCircle, CheckCircle2, Clock3, AlertTriangle } from "lucide-react";
+import { Check, Copy, KeyRound, RefreshCw, RotateCcw, Search, ShieldCheck, XCircle, CheckCircle2, Clock3, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { isDemoModeAllowed } from "@/lib/demo-mode";
 import {
   generateActivationCode,
+  generatePasswordResetCode,
   listActivationCodes,
   revokeActivationCode,
+  revokePasswordResetCode,
   type ActivationCodeStatus,
   type GeneratedAccess,
 } from "@/lib/backend/access-gateway";
@@ -28,7 +31,7 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
   );
 }
 
-function formatDateTime(value: string | null) {
+function formatDateTime(value: string | null | undefined) {
   if (!value) return "—";
   return new Date(value).toLocaleString("pt-BR", {
     timeZone: "America/Maceio",
@@ -48,11 +51,17 @@ function accessState(row: ActivationCodeStatus) {
   return { label: "SEM CÓDIGO", color: "var(--text-4)", bg: "var(--bg-surface-3)" };
 }
 
+type GeneratedCredential = {
+  kind: "activation" | "reset";
+  data: GeneratedAccess;
+};
+
 export function AccessActivationAdmin() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
-  const [generated, setGenerated] = useState<GeneratedAccess | null>(null);
+  const [generated, setGenerated] = useState<GeneratedCredential | null>(null);
   const [copied, setCopied] = useState(false);
+  const recoveryUnavailableInDemo = isDemoModeAllowed();
 
   const access = useQuery({
     queryKey: ["activation-codes-status"],
@@ -82,7 +91,7 @@ export function AccessActivationAdmin() {
     mutationFn: async (row: ActivationCodeStatus) => generateActivationCode(row.employee_id),
     onSuccess: async (data) => {
       setCopied(false);
-      setGenerated(data);
+      setGenerated({ kind: "activation", data });
       await refresh();
       toast.success("Código de primeiro acesso gerado");
     },
@@ -108,10 +117,33 @@ export function AccessActivationAdmin() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const generateReset = useMutation({
+    mutationFn: async (row: ActivationCodeStatus) => generatePasswordResetCode(row.employee_id),
+    onSuccess: async (data) => {
+      setCopied(false);
+      setGenerated({ kind: "reset", data });
+      await refresh();
+      toast.success("Código seguro de recuperação gerado");
+    },
+    onError: (error: Error) => toast.error(error.message || "Não foi possível gerar o código de recuperação"),
+  });
+
+  const revokeReset = useMutation({
+    mutationFn: async (row: ActivationCodeStatus) => {
+      await revokePasswordResetCode(row.employee_id);
+      return row;
+    },
+    onSuccess: async (row) => {
+      await refresh();
+      toast.success(`Recuperação de senha de ${row.employee_name} revogada`);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const copyCode = async () => {
     if (!generated) return;
     try {
-      await navigator.clipboard.writeText(generated.code);
+      await navigator.clipboard.writeText(generated.data.code);
       setCopied(true);
       toast.success("Código copiado");
     } catch {
@@ -143,7 +175,7 @@ export function AccessActivationAdmin() {
       <section className="rounded-[1.5rem] p-5 md:p-6" style={{ background: "linear-gradient(135deg,#171118,#2b0b13 50%,#111216)", border: "1px solid rgba(200,16,46,.26)" }}>
         <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[.2em] text-white/40"><ShieldCheck className="h-4 w-4" /> Controle de identidade</div>
         <h1 className="mt-2 text-2xl font-black text-white md:text-3xl">Primeiro acesso</h1>
-        <p className="mt-1 max-w-2xl text-sm text-white/50">Acompanhe o ciclo completo do acesso: sem código, código ativo, expirado e conta efetivamente criada.</p>
+        <p className="mt-1 max-w-2xl text-sm text-white/50">Acompanhe o ciclo completo do acesso e, para contas já criadas, emita uma recuperação segura de senha quando necessário.</p>
       </section>
 
       <div className="grid gap-3 sm:grid-cols-3">
@@ -161,6 +193,9 @@ export function AccessActivationAdmin() {
           const state = accessState(row);
           const canRevoke = Boolean(row.expires_at && !row.has_account && !row.used_at);
           const hasLiveCode = Boolean(row.expires_at && !row.expired && !row.used_at && !row.has_account);
+          const hasResetRecord = Boolean(row.reset_expires_at && !row.reset_used_at);
+          const hasLiveReset = Boolean(hasResetRecord && !row.reset_expired && !row.reset_locked_at);
+          const resetBusy = generateReset.isPending || revokeReset.isPending;
           return (
             <Card key={row.employee_id} className="p-4">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -174,22 +209,54 @@ export function AccessActivationAdmin() {
                     <p className="mt-1 text-[11px]" style={{ color: row.expired ? "#ef4444" : "var(--text-4)" }}>{row.expired ? "Expirou" : "Válido até"} {formatDateTime(row.expires_at)}</p>
                   )}
                   {row.has_account && <p className="mt-1 text-[11px] text-emerald-500">A matrícula já possui credencial cadastrada no SEGEMPAT.</p>}
+                  {row.has_account && hasResetRecord && (
+                    <p className="mt-1 text-[11px]" style={{ color: row.reset_locked_at || row.reset_expired ? "#ef4444" : "#f59e0b" }}>
+                      {row.reset_locked_at ? "Recuperação bloqueada por tentativas incorretas" : row.reset_expired ? "Código de recuperação expirado" : `Recuperação válida até ${formatDateTime(row.reset_expires_at)}`}
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
-                  {canRevoke ? (
-                    <Button variant="outline" onClick={() => { if (confirm(`Revogar o código de ${row.employee_name}?`)) revoke.mutate(row); }} disabled={revoke.isPending || generate.isPending}>Revogar</Button>
-                  ) : <span />}
-                  <Button
-                    onClick={() => {
-                      if (hasLiveCode && !confirm("Gerar um novo código invalidará o código atual. Continuar?")) return;
-                      generate.mutate(row);
-                    }}
-                    disabled={row.has_account || generate.isPending || revoke.isPending}
-                    className="bg-[#C8102E] font-bold text-white hover:bg-[#A00D24] disabled:bg-[var(--bg-surface-3)] disabled:text-[var(--text-4)]"
-                  >
-                    <KeyRound className="mr-2 h-4 w-4" /> {row.has_account ? "Acesso ativo" : row.expires_at ? "Gerar novo" : "Gerar código"}
-                  </Button>
+                  {row.has_account ? (
+                    <>
+                      {hasResetRecord ? (
+                        <Button
+                          variant="outline"
+                          onClick={() => { if (confirm(`Revogar a recuperação de senha de ${row.employee_name}?`)) revokeReset.mutate(row); }}
+                          disabled={resetBusy || recoveryUnavailableInDemo}
+                        >
+                          Revogar
+                        </Button>
+                      ) : <span />}
+                      <Button
+                        onClick={() => {
+                          if (hasLiveReset && !confirm("Gerar um novo código invalidará o código de recuperação atual. Continuar?")) return;
+                          generateReset.mutate(row);
+                        }}
+                        disabled={resetBusy || recoveryUnavailableInDemo || row.account_active === false}
+                        title={recoveryUnavailableInDemo ? "Disponível no ambiente corporativo conectado à API SEGEMPAT" : undefined}
+                        className="bg-[#C8102E] font-bold text-white hover:bg-[#A00D24] disabled:bg-[var(--bg-surface-3)] disabled:text-[var(--text-4)]"
+                      >
+                        <RotateCcw className="mr-2 h-4 w-4" /> {hasResetRecord ? "Gerar novo" : "Redefinir senha"}
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      {canRevoke ? (
+                        <Button variant="outline" onClick={() => { if (confirm(`Revogar o código de ${row.employee_name}?`)) revoke.mutate(row); }} disabled={revoke.isPending || generate.isPending}>Revogar</Button>
+                      ) : <span />}
+                      <Button
+                        onClick={() => {
+                          if (hasLiveCode && !confirm("Gerar um novo código invalidará o código atual. Continuar?")) return;
+                          generate.mutate(row);
+                        }}
+                        disabled={generate.isPending || revoke.isPending}
+                        className="bg-[#C8102E] font-bold text-white hover:bg-[#A00D24] disabled:bg-[var(--bg-surface-3)] disabled:text-[var(--text-4)]"
+                      >
+                        <KeyRound className="mr-2 h-4 w-4" /> {row.expires_at ? "Gerar novo" : "Gerar código"}
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             </Card>
@@ -201,17 +268,21 @@ export function AccessActivationAdmin() {
 
       <Dialog open={!!generated} onOpenChange={(open) => { if (!open) { setGenerated(null); setCopied(false); } }}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Código de primeiro acesso</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{generated?.kind === "reset" ? "Código de recuperação de senha" : "Código de primeiro acesso"}</DialogTitle></DialogHeader>
           {generated && (
             <div className="space-y-4">
-              <div><p className="font-bold" style={{ color: "var(--text-1)" }}>{generated.employee_name}</p><p className="text-xs" style={{ color: "var(--text-4)" }}>Matrícula {generated.matricula}</p></div>
+              <div><p className="font-bold" style={{ color: "var(--text-1)" }}>{generated.data.employee_name}</p><p className="text-xs" style={{ color: "var(--text-4)" }}>Matrícula {generated.data.matricula}</p></div>
               <div className="rounded-2xl p-5 text-center" style={{ background: "var(--bg-surface-2)", border: "1px solid var(--border)" }}>
-                <p className="text-[10px] font-black uppercase tracking-[.18em]" style={{ color: "var(--text-4)" }}>Código temporário</p>
-                <p className="mt-2 text-3xl font-black tracking-[.24em]" style={{ color: "var(--accent)" }}>{generated.code}</p>
-                <p className="mt-3 text-xs" style={{ color: "var(--text-4)" }}>Válido até {formatDateTime(generated.expires_at)}</p>
+                <p className="text-[10px] font-black uppercase tracking-[.18em]" style={{ color: "var(--text-4)" }}>{generated.kind === "reset" ? "Código de recuperação" : "Código temporário"}</p>
+                <p className="mt-2 text-3xl font-black tracking-[.24em]" style={{ color: "var(--accent)" }}>{generated.data.code}</p>
+                <p className="mt-3 text-xs" style={{ color: "var(--text-4)" }}>Válido até {formatDateTime(generated.data.expires_at)}</p>
               </div>
               <Button onClick={copyCode} className="w-full" variant="outline">{copied ? <Check className="mr-2 h-4 w-4 text-emerald-500" /> : <Copy className="mr-2 h-4 w-4" />}{copied ? "Código copiado" : "Copiar código"}</Button>
-              <p className="text-xs leading-relaxed" style={{ color: "var(--text-4)" }}>Compartilhe apenas com o titular da matrícula. O código é de uso único, expira em 24 horas e não é armazenado em texto puro no banco.</p>
+              <p className="text-xs leading-relaxed" style={{ color: "var(--text-4)" }}>
+                {generated.kind === "reset"
+                  ? "Compartilhe somente com o titular da matrícula. O código é de uso único, expira em 30 minutos, é armazenado apenas como hash e bloqueia após cinco tentativas incorretas."
+                  : "Compartilhe apenas com o titular da matrícula. O código é de uso único, expira em 24 horas e não é armazenado em texto puro no banco."}
+              </p>
             </div>
           )}
         </DialogContent>
