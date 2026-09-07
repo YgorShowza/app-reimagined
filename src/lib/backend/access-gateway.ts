@@ -14,9 +14,9 @@ export interface ActivationCodeStatus {
   employee_name: string;
   matricula: string;
   sector: string;
-  expires_at: string;
+  expires_at: string | null;
   used_at: string | null;
-  created_at: string;
+  created_at: string | null;
   has_account: boolean;
   expired: boolean;
 }
@@ -25,7 +25,14 @@ export async function listActivationCodes(): Promise<ActivationCodeStatus[]> {
   if (isSegempatApiConfigured()) {
     return apiRequest<ActivationCodeStatus[]>("/api/access/activation-codes");
   }
-  return [];
+
+  const { data, error } = await (supabase as any).rpc("list_registration_access_status");
+  if (error) throw new Error(error.message || "Não foi possível consultar os acessos");
+  return (data ?? []).map((row: ActivationCodeStatus) => ({
+    ...row,
+    has_account: Boolean(row.has_account),
+    expired: Boolean(row.expired),
+  }));
 }
 
 export async function generateActivationCode(employeeId: string): Promise<GeneratedAccess> {
