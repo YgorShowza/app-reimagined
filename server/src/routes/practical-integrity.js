@@ -21,13 +21,13 @@ export const practicalIntegrityRouter = Router();
 const PRACTICAL_STATUS = ["Planejada", "Em andamento", "Concluída"];
 const MARKER_PREFIX = "[PRACTICAL:";
 
-function operationalDate() {
+function operationalDate(date = new Date()) {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: config.timezone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(new Date());
+  }).format(date);
 }
 
 function mysqlDateOrNull(value, label) {
@@ -132,7 +132,6 @@ async function ensureCronogramaPlan(connection, evaluation, actorId) {
       );
       return { action: "linked", entryId: existing.id };
     }
-    // Histórico formal não é reaproveitado para uma nova avaliação.
     if (String(existing.notes ?? "").includes(marker(evaluation.id))) {
       throw conflict("A avaliação está vinculada a um lançamento de Cronograma já formalizado. Planeje uma nova avaliação para continuar.");
     }
@@ -157,7 +156,8 @@ async function completeCronograma(connection, evaluation, actorId) {
     throw badRequest("Conclua todos os itens do checklist antes de finalizar a avaliação prática");
   }
 
-  const completionDate = evaluation.evaluation_date || operationalDate();
+  const completedAt = evaluation.completed_at ? new Date(evaluation.completed_at) : new Date();
+  const completionDate = operationalDate(Number.isNaN(completedAt.getTime()) ? new Date() : completedAt);
   const existing = await findCronogramaEntry(connection, evaluation);
 
   if (existing?.status === "Justificado") {
@@ -197,6 +197,7 @@ practicalIntegrityRouter.post(
     const employeeId = requireText(req.body?.employee_id, "Colaborador");
     const title = requireText(req.body?.title, "Título").slice(0, 255);
     const evaluationDate = mysqlDateOrNull(req.body?.evaluation_date, "Data da avaliação");
+    if (!evaluationDate) throw badRequest("Informe a data da avaliação para sincronizar com o Cronograma");
     const checklist = normalizeChecklist(req.body?.checklist ?? []);
     const id = uuid();
 
@@ -245,6 +246,9 @@ practicalIntegrityRouter.patch(
       const [rows] = await connection.execute(`SELECT * FROM practical_evaluations WHERE id = ? LIMIT 1 FOR UPDATE`, [req.params.id]);
       const current = rows[0];
       if (!current) throw notFound("Avaliação não encontrada");
+      if (current.status === "Concluída") {
+        throw conflict("Avaliação prática concluída pertence ao histórico operacional e não pode ser alterada");
+      }
 
       const patch = {};
       const has = (key) => Object.prototype.hasOwnProperty.call(req.body ?? {}, key);
@@ -254,21 +258,22 @@ practicalIntegrityRouter.patch(
       if (has("max_score")) patch.max_score = finiteNumber(req.body.max_score, "Nota máxima", { min: 0.01, max: 100 });
       if (has("checklist")) patch.checklist = JSON.stringify(normalizeChecklist(req.body.checklist));
       if (has("notes")) patch.notes = trimOrNull(req.body.notes);
-      if (has("evaluation_date")) patch.evaluation_date = mysqlDateOrNull(req.body.evaluation_date, "Data da avaliação");
-      if (!Object.keys(patch).length) throw badRequest("Nenhum campo para atualizar");
-
-      if (current.status === "Concluída" && patch.status && patch.status !== "Concluída") {
-        throw conflict("Avaliação prática concluída pertence ao histórico e não pode ser reaberta");
+      if (has("evaluation_date")) {
+        patch.evaluation_date = mysqlDateOrNull(req.body.evaluation_date, "Data da avaliação");
+        if (!patch.evaluation_date) throw badRequest("A data da avaliação é obrigatória para manter a sincronização com o Cronograma");
       }
+      if (!Object.keys(patch).length) throw badRequest("Nenhum campo para atualizar");
 
       const effectiveMax = Number(patch.max_score ?? current.max_score ?? 10);
       const effectiveScore = Number(patch.score ?? current.score ?? 0);
       if (effectiveScore > effectiveMax) throw badRequest("A nota não pode ser maior que a nota máxima");
 
       const effectiveStatus = patch.status ?? current.status;
+      const effectiveDate = Object.prototype.hasOwnProperty.call(patch, "evaluation_date") ? patch.evaluation_date : current.evaluation_date;
       const effectiveChecklistRaw = Object.prototype.hasOwnProperty.call(patch, "checklist") ? patch.checklist : current.checklist;
       const effectiveChecklist = parseJson(effectiveChecklistRaw, []);
       if (effectiveStatus === "Concluída") {
+        if (!effectiveDate) throw badRequest("Informe a data da avaliação antes de concluir");
         if (effectiveChecklist.length > 0 && effectiveChecklist.some((item) => !item?.done)) {
           throw badRequest("Conclua todos os itens do checklist antes de finalizar a avaliação prática");
         }
@@ -288,7 +293,7 @@ practicalIntegrityRouter.patch(
         ...patch,
         checklist: effectiveChecklist,
         title: patch.title ?? current.title,
-        evaluation_date: Object.prototype.hasOwnProperty.call(patch, "evaluation_date") ? patch.evaluation_date : current.evaluation_date,
+        evaluation_date: effectiveDate,
       };
       const cronograma = effectiveStatus === "Concluída"
         ? await completeCronograma(connection, evaluation, req.user.id)
@@ -299,6 +304,7 @@ practicalIntegrityRouter.patch(
         evaluator_derived_server_side: true,
         completed_history_guard: true,
         checklist_completion_guard: effectiveStatus === "Concluída",
+        completion_date_server_derived: effectiveStatus === "Concluída",
         cronograma_synchronized: cronograma.action,
         cronograma_entry_id: cronograma.entryId,
         atomic: true,
@@ -318,8 +324,8 @@ practicalIntegrityRouter.delete(
       const [rows] = await connection.execute(`SELECT * FROM practical_evaluations WHERE id = ? LIMIT 1 FOR UPDATE`, [req.params.id]);
       const current = rows[0];
       if (!current) throw notFound("Avaliação não encontrada");
-      if (current.status === "Concluída") {
-        throw conflict("Avaliação prática concluída pertence ao histórico operacional e não pode ser excluída");
+      if (current.status !== "Planejada") {
+        throw conflict("Avaliação prática em andamento ou concluída pertence ao histórico operacional e não pode ser excluída");
       }
 
       const cronograma = await findCronogramaEntry(connection, current);
