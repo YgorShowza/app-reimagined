@@ -16,6 +16,7 @@ const REQUIRED_FOREIGN_KEYS = [
   "occurrence_attachments_occurrence_fk",
   "occurrence_attachments_uploader_fk",
 ];
+const REQUIRED_TRIGGERS = ["occurrences_guard_delete", "occurrences_guard_completed_update"];
 
 async function main() {
   try {
@@ -57,6 +58,18 @@ async function main() {
     }
     if (missingFks.length) throw new Error(`Foreign keys de ocorrências ausentes: ${missingFks.join(", ")}`);
 
+    const missingTriggers = [];
+    for (const trigger of REQUIRED_TRIGGERS) {
+      const row = await queryOne(
+        `SELECT COUNT(*) AS total
+           FROM information_schema.triggers
+          WHERE trigger_schema = DATABASE() AND trigger_name = ?`,
+        [trigger],
+      );
+      if (Number(row?.total ?? 0) !== 1) missingTriggers.push(trigger);
+    }
+    if (missingTriggers.length) throw new Error(`Triggers de proteção de ocorrências ausentes: ${missingTriggers.join(", ")}`);
+
     const invalidPeople = await queryOne(
       `SELECT COUNT(*) AS total
          FROM occurrences
@@ -95,7 +108,7 @@ async function main() {
     if (invalidAttachments.length) throw new Error(`Metadados de evidência inválidos em ${invalidAttachments.length} registro(s)`);
 
     console.log(
-      `[segempat-api] integridade de ocorrências OK; campos=${REQUIRED_COLUMNS.length}; tabelas=${REQUIRED_TABLES.length}; fks=${REQUIRED_FOREIGN_KEYS.length}; pessoas=json-array; evidências=privadas`,
+      `[segempat-api] integridade de ocorrências OK; campos=${REQUIRED_COLUMNS.length}; tabelas=${REQUIRED_TABLES.length}; fks=${REQUIRED_FOREIGN_KEYS.length}; triggers=${REQUIRED_TRIGGERS.length}; pessoas=json-array; evidências=privadas`,
     );
   } finally {
     await pool.end();
