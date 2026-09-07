@@ -1,4 +1,4 @@
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createFileRoute, Outlet, redirect, useRouterState } from "@tanstack/react-router";
 import { AppLayout } from "@/components/AppLayout";
 import { DemoModeBadge } from "@/components/DemoModeBadge";
 import { getCurrentSessionUser } from "@/lib/backend/current-user-gateway";
@@ -36,6 +36,17 @@ function isAdminOnlyPath(pathname: string) {
   return ADMIN_ONLY_PATHS.has(pathname) || pathname.startsWith("/certificado/");
 }
 
+function AuthenticatedShell() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  if (pathname === "/tv") return <Outlet />;
+  return (
+    <AppLayout>
+      <DemoModeBadge />
+      <Outlet />
+    </AppLayout>
+  );
+}
+
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: async ({ location }) => {
@@ -48,10 +59,5 @@ export const Route = createFileRoute("/_authenticated")({
 
     return { user };
   },
-  component: () => (
-    <AppLayout>
-      <DemoModeBadge />
-      <Outlet />
-    </AppLayout>
-  ),
+  component: AuthenticatedShell,
 });
