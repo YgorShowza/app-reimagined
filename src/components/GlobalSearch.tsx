@@ -57,7 +57,7 @@ type StaticResult = {
   keywords: string;
   path: SearchPath;
   icon: LucideIcon;
-  adminOnly?: boolean;
+  audience: "admin" | "operator" | "all";
 };
 
 type SearchResult = {
@@ -71,29 +71,29 @@ type SearchResult = {
 };
 
 const staticResults: StaticResult[] = [
-  { id: "dashboard-admin", title: "Dashboard", subtitle: "Visão geral da Inspetoria", keywords: "inicio indicadores gestão", path: "/admin", icon: LayoutDashboard, adminOnly: true },
-  { id: "attention", title: "Central de Atenção", subtitle: "Prioridades e sinais que exigem acompanhamento", keywords: "alerta pendência crítico atenção", path: "/atencao", icon: BellRing, adminOnly: true },
-  { id: "analytics", title: "Analytics", subtitle: "Indicadores e gráficos operacionais", keywords: "grafico desempenho dados painel tv", path: "/analytics", icon: BarChart3, adminOnly: true },
-  { id: "team", title: "Equipe", subtitle: "Gestão dos colaboradores operacionais", keywords: "colaborador matrícula setor funcionário", path: "/equipe", icon: Users, adminOnly: true },
-  { id: "risk", title: "Zona de Risco", subtitle: "Sinais de desempenho e pendências da equipe", keywords: "risco atenção desempenho", path: "/risco", icon: Target, adminOnly: true },
-  { id: "individual", title: "Análise Individual", subtitle: "Dossiê de desempenho do colaborador", keywords: "pessoa nota histórico evolução prova", path: "/individual", icon: UserRoundSearch, adminOnly: true },
-  { id: "schedule", title: "Cronograma", subtitle: "Planejamento e execução operacional", keywords: "agenda atividade treinamento planejamento", path: "/cronograma", icon: CalendarDays, adminOnly: true },
-  { id: "occurrences", title: "Ocorrências", subtitle: "Registros, evidências e acompanhamento", keywords: "incidente foto pessoa envolvida registro", path: "/ocorrencias", icon: ShieldAlert, adminOnly: true },
-  { id: "practical-admin", title: "Avaliação Prática", subtitle: "Gestão das avaliações práticas", keywords: "pratico checklist desempenho", path: "/avaliacao-pratica", icon: Target, adminOnly: true },
-  { id: "reports", title: "Central de Relatórios", subtitle: "Visão executiva e fechamento mensal", keywords: "relatório mensal csv imprimir setor", path: "/relatorios", icon: FileSpreadsheet, adminOnly: true },
-  { id: "knowledge-admin", title: "IA Base", subtitle: "Pesquisa de procedimentos e conhecimento operacional", keywords: "procedimento documento conteúdo pesquisa", path: "/ia-base", icon: BookOpen, adminOnly: true },
-  { id: "exams", title: "Provas", subtitle: "Avaliações cadastradas", keywords: "teste avaliação questões", path: "/provas", icon: Target, adminOnly: true },
-  { id: "question-bank", title: "Banco de Questões", subtitle: "Questões para avaliações", keywords: "pergunta resposta prova", path: "/banco-questoes", icon: BookOpen, adminOnly: true },
-  { id: "access", title: "Acessos", subtitle: "Gestão operacional de acesso", keywords: "conta ativação usuário", path: "/acessos", icon: Users, adminOnly: true },
-  { id: "audit", title: "Auditoria", subtitle: "Rastreabilidade das ações do sistema", keywords: "log histórico segurança", path: "/auditoria", icon: ShieldAlert, adminOnly: true },
-  { id: "operator-home", title: "Início", subtitle: "Painel pessoal", keywords: "dashboard painel", path: "/painel", icon: LayoutDashboard },
-  { id: "operator-pending", title: "Pendências", subtitle: "Atividades e ações pendentes", keywords: "atividade vencimento atenção", path: "/pendencias", icon: BellRing },
-  { id: "operator-progress", title: "Progresso", subtitle: "Evolução pessoal", keywords: "nota desempenho evolução", path: "/progresso", icon: BarChart3 },
-  { id: "academy", title: "Academia SEGEMPAT", subtitle: "Capacitação, prática e desenvolvimento", keywords: "treinamento simulador desafio teste rápido stress", path: "/treinamentos", icon: GraduationCap },
-  { id: "operator-certificates", title: "Certificados", subtitle: "Aprovações e documentos pessoais", keywords: "certificado prova aprovação", path: "/certificados", icon: FileSpreadsheet },
-  { id: "operator-knowledge", title: "Base de Conhecimento", subtitle: "Procedimentos e referências operacionais", keywords: "conteúdo procedimento documento", path: "/conteudos", icon: BookOpen },
-  { id: "operator-practical", title: "Avaliação Prática", subtitle: "Minhas avaliações práticas", keywords: "prático checklist", path: "/pratico", icon: Target },
-  { id: "operator-occurrences", title: "Minhas Ocorrências", subtitle: "Registros vinculados ao seu perfil", keywords: "incidente ocorrência", path: "/minhas-ocorrencias", icon: AlertTriangle },
+  { id: "dashboard-admin", title: "Dashboard", subtitle: "Visão geral da Inspetoria", keywords: "inicio indicadores gestão", path: "/admin", icon: LayoutDashboard, audience: "admin" },
+  { id: "attention", title: "Central de Atenção", subtitle: "Prioridades e sinais que exigem acompanhamento", keywords: "alerta pendência crítico atenção", path: "/atencao", icon: BellRing, audience: "admin" },
+  { id: "analytics", title: "Analytics", subtitle: "Indicadores e gráficos operacionais", keywords: "grafico desempenho dados painel tv", path: "/analytics", icon: BarChart3, audience: "admin" },
+  { id: "team", title: "Equipe", subtitle: "Gestão dos colaboradores operacionais", keywords: "colaborador matrícula setor funcionário", path: "/equipe", icon: Users, audience: "admin" },
+  { id: "risk", title: "Zona de Risco", subtitle: "Sinais de desempenho e pendências da equipe", keywords: "risco atenção desempenho", path: "/risco", icon: Target, audience: "admin" },
+  { id: "individual", title: "Análise Individual", subtitle: "Dossiê de desempenho do colaborador", keywords: "pessoa nota histórico evolução prova", path: "/individual", icon: UserRoundSearch, audience: "admin" },
+  { id: "schedule", title: "Cronograma", subtitle: "Planejamento e execução operacional", keywords: "agenda atividade treinamento planejamento", path: "/cronograma", icon: CalendarDays, audience: "admin" },
+  { id: "occurrences", title: "Ocorrências", subtitle: "Registros, evidências e acompanhamento", keywords: "incidente foto pessoa envolvida registro", path: "/ocorrencias", icon: ShieldAlert, audience: "admin" },
+  { id: "practical-admin", title: "Avaliação Prática", subtitle: "Gestão das avaliações práticas", keywords: "pratico checklist desempenho", path: "/avaliacao-pratica", icon: Target, audience: "admin" },
+  { id: "reports", title: "Central de Relatórios", subtitle: "Visão executiva e fechamento mensal", keywords: "relatório mensal csv imprimir setor", path: "/relatorios", icon: FileSpreadsheet, audience: "admin" },
+  { id: "knowledge-admin", title: "IA Base", subtitle: "Pesquisa de procedimentos e conhecimento operacional", keywords: "procedimento documento conteúdo pesquisa", path: "/ia-base", icon: BookOpen, audience: "admin" },
+  { id: "exams", title: "Provas", subtitle: "Avaliações cadastradas", keywords: "teste avaliação questões", path: "/provas", icon: Target, audience: "admin" },
+  { id: "question-bank", title: "Banco de Questões", subtitle: "Questões para avaliações", keywords: "pergunta resposta prova", path: "/banco-questoes", icon: BookOpen, audience: "admin" },
+  { id: "access", title: "Acessos", subtitle: "Gestão operacional de acesso", keywords: "conta ativação usuário", path: "/acessos", icon: Users, audience: "admin" },
+  { id: "audit", title: "Auditoria", subtitle: "Rastreabilidade das ações do sistema", keywords: "log histórico segurança", path: "/auditoria", icon: ShieldAlert, audience: "admin" },
+  { id: "operator-home", title: "Início", subtitle: "Painel pessoal", keywords: "dashboard painel", path: "/painel", icon: LayoutDashboard, audience: "operator" },
+  { id: "operator-pending", title: "Pendências", subtitle: "Atividades e ações pendentes", keywords: "atividade vencimento atenção", path: "/pendencias", icon: BellRing, audience: "operator" },
+  { id: "operator-progress", title: "Progresso", subtitle: "Evolução pessoal", keywords: "nota desempenho evolução", path: "/progresso", icon: BarChart3, audience: "operator" },
+  { id: "academy", title: "Academia SEGEMPAT", subtitle: "Capacitação, prática e desenvolvimento", keywords: "treinamento simulador desafio teste rápido stress", path: "/treinamentos", icon: GraduationCap, audience: "all" },
+  { id: "operator-certificates", title: "Certificados", subtitle: "Aprovações e documentos pessoais", keywords: "certificado prova aprovação", path: "/certificados", icon: FileSpreadsheet, audience: "operator" },
+  { id: "operator-knowledge", title: "Base de Conhecimento", subtitle: "Procedimentos e referências operacionais", keywords: "conteúdo procedimento documento", path: "/conteudos", icon: BookOpen, audience: "operator" },
+  { id: "operator-practical", title: "Avaliação Prática", subtitle: "Minhas avaliações práticas", keywords: "prático checklist", path: "/pratico", icon: Target, audience: "operator" },
+  { id: "operator-occurrences", title: "Minhas Ocorrências", subtitle: "Registros vinculados ao seu perfil", keywords: "incidente ocorrência", path: "/minhas-ocorrencias", icon: AlertTriangle, audience: "operator" },
 ];
 
 function normalize(value: unknown) {
@@ -151,9 +151,11 @@ export function GlobalSearch() {
   });
 
   const term = normalize(query.trim());
+  const sector = normalize(user?.setor);
   const results = useMemo<SearchResult[]>(() => {
+    const audience = isAdmin ? "admin" : "operator";
     const navigation = staticResults
-      .filter((item) => isAdmin ? item.adminOnly !== false || ["academy"].includes(item.id) : !item.adminOnly)
+      .filter((item) => item.audience === "all" || item.audience === audience)
       .filter((item) => matches(term, item.title, item.subtitle, item.keywords))
       .slice(0, term ? 8 : 6)
       .map((item) => ({ id: `nav-${item.id}`, group: "Navegação" as const, title: item.title, subtitle: item.subtitle, path: item.path, icon: item.icon }));
@@ -181,7 +183,6 @@ export function GlobalSearch() {
         }))
       : [];
 
-    const sector = normalize(user?.setor);
     const knowledgeRows = term
       ? (knowledge.data ?? [])
           .filter((item) => item.active || isAdmin)
@@ -199,10 +200,10 @@ export function GlobalSearch() {
       : [];
 
     return [...navigation, ...people, ...occurrenceRows, ...knowledgeRows];
-  }, [employees.data, isAdmin, knowledge.data, occurrences.data, sector, term, user?.setor]);
+  }, [employees.data, isAdmin, knowledge.data, occurrences.data, sector, term]);
 
   const groups = ["Navegação", "Colaboradores", "Ocorrências", "Conhecimento"] as const;
-  const partialFailure = employees.isError || occurrences.isError || knowledge.isError;
+  const partialFailure = (isAdmin && employees.isError) || occurrences.isError || knowledge.isError;
 
   const openResult = (path: SearchPath) => {
     setOpen(false);
