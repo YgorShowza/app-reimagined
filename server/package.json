@@ -13,6 +13,7 @@
     "preflight": "node scripts/preflight.js",
     "migrate": "node scripts/migrate.js",
     "bootstrap-admin": "node scripts/bootstrap-admin.js",
+    "manage-inspector-access": "node scripts/manage-inspector-access.js",
     "smoke": "node scripts/smoke.js && node scripts/check-critical-index-definitions.js && node scripts/check-fk-orphans.js && node scripts/check-practical-generation-integrity.js",
     "cutover:audit": "node scripts/check-critical-index-definitions.js && node scripts/check-fk-orphans.js && node scripts/check-practical-generation-integrity.js && node scripts/cutover-audit.js"
   },
