@@ -31,7 +31,7 @@ function dateLabel(value?: string | null) {
   });
 }
 
-export function MonthlyReportWorkspace() {
+export function MonthlyReportWorkspace({ embedded = false }: { embedded?: boolean }) {
   const { data: user, isLoading: userLoading } = useCurrentUser();
   const [month, setMonth] = useState(currentMonth());
   const [search, setSearch] = useState("");
@@ -103,28 +103,27 @@ export function MonthlyReportWorkspace() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-5 pb-10">
-      <header className="rounded-[1.5rem] p-5 md:p-6" style={{ background: "linear-gradient(135deg,#171118,#2b0b13 50%,#111216)", border: "1px solid rgba(200,16,46,.26)" }}>
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <div className={`${embedded ? "w-full" : "mx-auto w-full max-w-6xl"} space-y-5 pb-10`}>
+      {!embedded ? (
+        <header className="rounded-[1.5rem] p-5 md:p-6" style={{ background: "linear-gradient(135deg,#171118,#2b0b13 50%,#111216)", border: "1px solid rgba(200,16,46,.26)" }}>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[.2em] text-white/40"><CalendarDays className="h-4 w-4" /> Fechamento mensal</div>
+              <h1 className="mt-2 text-2xl font-black text-white md:text-3xl">Relatório Mensal</h1>
+              <p className="mt-1 text-sm text-white/50">Performance individual, avaliações e execução do cronograma.</p>
+            </div>
+            <MonthlyControls month={month} onMonthChange={setMonth} dark />
+          </div>
+        </header>
+      ) : (
+        <section className="flex flex-col gap-4 rounded-2xl p-4 lg:flex-row lg:items-center lg:justify-between" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", boxShadow: "var(--shadow-card)" }}>
           <div>
-            <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[.2em] text-white/40"><CalendarDays className="h-4 w-4" /> Fechamento mensal</div>
-            <h1 className="mt-2 text-2xl font-black text-white md:text-3xl">Relatório Mensal</h1>
-            <p className="mt-1 text-sm text-white/50">Performance individual, avaliações e execução do cronograma.</p>
+            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[.16em]" style={{ color: "var(--accent)" }}><CalendarDays className="h-4 w-4" /> Fechamento mensal</div>
+            <p className="mt-1 text-sm font-bold" style={{ color: "var(--text-1)" }}>Performance individual, avaliações e execução do cronograma · {monthLabel(month)}</p>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <input
-              type="month"
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
-              className="h-10 rounded-xl px-3 text-sm outline-none"
-              style={{ background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.14)", color: "#fff" }}
-            />
-            <Button onClick={() => window.print()} variant="outline" className="gap-2 border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white print:hidden">
-              <Printer className="h-4 w-4" /> Imprimir visão atual
-            </Button>
-          </div>
-        </div>
-      </header>
+          <MonthlyControls month={month} onMonthChange={setMonth} />
+        </section>
+      )}
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Metric label="Colaboradores" value={totals.employees} icon={UserRound} />
@@ -222,6 +221,25 @@ export function MonthlyReportWorkspace() {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function MonthlyControls({ month, onMonthChange, dark = false }: { month: string; onMonthChange: (value: string) => void; dark?: boolean }) {
+  return (
+    <div className="flex flex-col gap-2 sm:flex-row print:hidden">
+      <input
+        type="month"
+        value={month}
+        onChange={(event) => onMonthChange(event.target.value)}
+        className="h-10 rounded-xl px-3 text-sm outline-none"
+        style={dark
+          ? { background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.14)", color: "#fff" }
+          : { background: "var(--bg-surface-2)", border: "1px solid var(--border)", color: "var(--text-1)" }}
+      />
+      <Button onClick={() => window.print()} variant="outline" className={dark ? "gap-2 border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white" : "gap-2"}>
+        <Printer className="h-4 w-4" /> Imprimir visão atual
+      </Button>
     </div>
   );
 }
