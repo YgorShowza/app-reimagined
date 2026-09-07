@@ -47,8 +47,9 @@ jobs:
           grep -F 'ADD COLUMN session_epoch BIGINT UNSIGNED NOT NULL DEFAULT 0' database/mysql/006_governance_audit_session_hardening.sql >/dev/null
           grep -F 'ROLE_ADMIN_INDEVIDA' server/scripts/report-privileged-access.js >/dev/null
           grep -F 'export const PERFIS = ["Operacional"]' src/lib/employees.ts >/dev/null
-          grep -F 'Inspetor · TI' src/routes/_authenticated/equipe.tsx >/dev/null
-          grep -F 'disabled={editingPrivileged}' src/routes/_authenticated/equipe.tsx >/dev/null
+          grep -F 'component: TeamManagementWorkspace' src/routes/_authenticated/equipe.tsx >/dev/null
+          grep -F 'Inspetor · TI' src/components/team/TeamManagementWorkspace.tsx >/dev/null
+          grep -F 'disabled={editingPrivileged}' src/components/team/TeamManagementWorkspace.tsx >/dev/null
           grep -F 'LGPD_GOVERNANCE.md' MYSQL_TI_INPUTS.md >/dev/null
           grep -F 'TI_GRANT_INSPECTOR' LGPD_GOVERNANCE.md >/dev/null
           node --check server/src/routes/employees.js
