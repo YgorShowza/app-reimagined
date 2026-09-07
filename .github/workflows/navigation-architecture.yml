@@ -1,0 +1,37 @@
+name: SEGEMPAT Navigation Architecture
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: segempat-navigation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  navigation-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate inspector navigation groups
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE=src/components/AppLayout.tsx
+          grep -F 'section: "Comando Operacional"' "$FILE" >/dev/null
+          grep -F 'section: "Equipe & Desempenho"' "$FILE" >/dev/null
+          grep -F 'section: "Operação"' "$FILE" >/dev/null
+          grep -F 'section: "Capacitação"' "$FILE" >/dev/null
+          grep -F 'section: "Relatórios & Inteligência"' "$FILE" >/dev/null
+          grep -F 'section: "Governança"' "$FILE" >/dev/null
+          for route in /admin /atencao /analytics /equipe /risco /individual /cronograma /ocorrencias /avaliacao-pratica /provas-criar /provas /banco-questoes /modulos-treinamento /ciclos-treinamento /conteudos /assinaturas-provas /validar-certificados /relatorios /relatorio-mensal /ia-base /acessos /auditoria /documento-seguranca; do
+            grep -F "path: \"$route\"" "$FILE" >/dev/null || { echo "Rota ausente do menu do Inspetor: $route"; exit 1; }
+          done
+          grep -F 'function AdminNavItems' "$FILE" >/dev/null
+          grep -F 'aria-expanded={isOpen}' "$FILE" >/dev/null
+          echo "Arquitetura de navegação do Inspetor validada."
