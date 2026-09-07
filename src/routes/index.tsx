@@ -5,6 +5,7 @@ import { Lock, User, Eye, EyeOff, ChevronRight, KeyRound, Loader2 } from "lucide
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { activateWithCode, loginWithMatricula } from "@/lib/backend/auth-gateway";
 import { getCurrentSessionUser } from "@/lib/backend/current-user-gateway";
+import { useApiReadiness } from "@/lib/useApiReadiness";
 import { loginPasswordSchema, matriculaSchema, passwordSchema } from "@/lib/matricula";
 import type { SessionUser } from "@/lib/backend/contracts";
 
@@ -61,6 +62,7 @@ function navigateHome(navigate: Navigate, user: SessionUser) {
 
 function AuthScreen() {
   const navigate = useNavigate();
+  const apiReadiness = useApiReadiness();
   const [matricula, setMatricula] = useState("");
   const [activationCode, setActivationCode] = useState("");
   const [password, setPassword] = useState("");
@@ -68,6 +70,11 @@ function AuthScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [step, setStep] = useState<Step>("matricula");
   const [loading, setLoading] = useState(false);
+
+  const apiUnavailable = apiReadiness === "unavailable";
+  const apiChecking = apiReadiness === "checking";
+  const apiStatusLabel = apiUnavailable ? "Sistema indisponível" : apiChecking ? "Verificando sistema" : "Sistema online";
+  const apiStatusColor = apiUnavailable ? "#ef4444" : apiChecking ? "#f59e0b" : "#22c55e";
 
   useEffect(() => {
     let active = true;
@@ -180,10 +187,10 @@ function AuthScreen() {
           >
             Gestão • Operações • Desempenho
           </p>
-          <div className="mt-3 flex items-center justify-center gap-1.5">
-            <span className="pulse-dot h-2 w-2 rounded-full bg-green-500" />
+          <div className="mt-3 flex items-center justify-center gap-1.5" title={apiUnavailable ? "A API corporativa não passou no readiness" : undefined}>
+            <span className="pulse-dot h-2 w-2 rounded-full" style={{ background: apiStatusColor }} />
             <span className="text-xs font-semibold" style={{ color: "var(--text-4)" }}>
-              Sistema online
+              {apiStatusLabel}
             </span>
           </div>
         </div>
