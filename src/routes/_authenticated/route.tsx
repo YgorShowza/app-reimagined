@@ -5,6 +5,7 @@ import { getCurrentSessionUser } from "@/lib/backend/current-user-gateway";
 
 const ADMIN_ONLY_PATHS = new Set([
   "/admin",
+  "/atencao",
   "/equipe",
   "/acessos",
   "/analytics",
