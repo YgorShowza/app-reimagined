@@ -11,7 +11,7 @@ const OCCURRENCE_STATUS = ["Aberta", "Em análise", "Concluída"];
 const PRACTICAL_STATUS = ["Planejada", "Em andamento", "Concluída"];
 const TEMPLATE_STATUS = ["Ativo", "Inativo"];
 const RECURRENCES = ["once", "monthly", "bimonthly", "quarterly"];
-const TARGET_SECTORS = ["Todos", "CFTV", "Vigilância", "Portaria", "Ronda", "Administrativo"];
+const TARGET_SECTORS = ["Todos", "CFTV", "Vigilância", "Portaria", "Ronda", "Administrativo", "Operações"];
 
 const jsonValue = (value, fallback = []) => parseJson(value, fallback);
 const boolRow = (row) => ({ ...row, active: asBool(row.active) });
