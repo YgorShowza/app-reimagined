@@ -1,4 +1,5 @@
 import { apiRequest, buildSegempatApiUrl } from "@/lib/backend/api-client";
+import { isDemoModeEnabled } from "@/lib/demo-mode";
 import { operationalDate, operationalMonth } from "@/lib/operational-time";
 
 export type QuestionType = "Múltipla escolha" | "Discursiva";
@@ -135,6 +136,13 @@ export const emptyExamForm = (): ExamForm => ({
   questions: [emptyQuestion()],
 });
 
+function normalizeDemoScale<T extends { score: number }>(record: T): T {
+  if (!isDemoModeEnabled()) return record;
+  const score = Number(record.score || 0);
+  if (!Number.isFinite(score) || score <= 10) return record;
+  return { ...record, score: Math.round(score) / 10 };
+}
+
 export function listExams(): Promise<Exam[]> {
   return apiRequest<Exam[]>("/api/exams");
 }
@@ -163,20 +171,24 @@ export async function deleteExam(id: string) {
   await apiRequest<void>(`/api/exams/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
-export function listMyAttempts(): Promise<ExamAttempt[]> {
-  return apiRequest<ExamAttempt[]>("/api/me/exam-attempts");
+export async function listMyAttempts(): Promise<ExamAttempt[]> {
+  const attempts = await apiRequest<ExamAttempt[]>("/api/me/exam-attempts");
+  return attempts.map(normalizeDemoScale);
 }
 
-export function listAttemptsByYear(year: number): Promise<ExamAttempt[]> {
-  return apiRequest<ExamAttempt[]>(`/api/me/exam-attempts/year/${year}`);
+export async function listAttemptsByYear(year: number): Promise<ExamAttempt[]> {
+  const attempts = await apiRequest<ExamAttempt[]>(`/api/me/exam-attempts/year/${year}`);
+  return attempts.map(normalizeDemoScale);
 }
 
-export function listExamSignatureEvidence(): Promise<ExamSignatureEvidence[]> {
-  return apiRequest<ExamSignatureEvidence[]>("/api/admin/exam-attempts");
+export async function listExamSignatureEvidence(): Promise<ExamSignatureEvidence[]> {
+  const evidence = await apiRequest<ExamSignatureEvidence[]>("/api/admin/exam-attempts");
+  return evidence.map(normalizeDemoScale);
 }
 
-export function getAdminExamAttemptEvidence(attemptId: string): Promise<ExamAttemptEvidence> {
-  return apiRequest<ExamAttemptEvidence>(`/api/admin/exam-attempts/${encodeURIComponent(attemptId)}/evidence`);
+export async function getAdminExamAttemptEvidence(attemptId: string): Promise<ExamAttemptEvidence> {
+  const evidence = await apiRequest<ExamAttemptEvidence>(`/api/admin/exam-attempts/${encodeURIComponent(attemptId)}/evidence`);
+  return normalizeDemoScale(evidence);
 }
 
 type SaveAttemptInput = {
