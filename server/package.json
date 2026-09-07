@@ -11,7 +11,7 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "preflight": "node scripts/preflight.js",
-    "migrate": "node scripts/migrate.js",
+    "migrate": "node scripts/migrate-with-ti-credentials.js",
     "bootstrap-admin": "node scripts/bootstrap-admin.js",
     "manage-inspector-access": "node scripts/manage-inspector-access.js",
     "report-privileged-access": "node scripts/report-privileged-access.js",
