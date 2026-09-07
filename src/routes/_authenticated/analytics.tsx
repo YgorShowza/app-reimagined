@@ -28,7 +28,7 @@ function AnalyticsPage() {
   const sectors = sectorMetrics(query.data);
   const months = monthlyExecution(query.data, year);
 
-  return <div className="mx-auto max-w-7xl space-y-5 pb-10">
+  return <div className="segempat-analytical-analytics mx-auto max-w-7xl space-y-5 pb-10">
     <div className="rounded-[1.5rem] p-5 md:p-6" style={{ background: "linear-gradient(135deg,#171118,#2b0b13 50%,#111216)", border: "1px solid rgba(200,16,46,.26)" }}>
       <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
         <div><div className="flex items-center gap-2 text-[11px] uppercase tracking-[.2em] font-black text-white/40"><BarChart3 className="w-4 h-4" /> Inteligência operacional</div><h1 className="mt-2 text-2xl md:text-3xl font-black text-white">Analytics</h1><p className="mt-1 text-sm text-white/50">Indicadores reais de equipe, provas e cronograma · {year}.</p></div>
