@@ -35,6 +35,12 @@ function validateIndex(rows, indexName, expectedColumns, { unique }) {
   }
 }
 
+async function assertZero(sql, message) {
+  const row = await queryOne(sql);
+  const total = Number(row?.total ?? 0);
+  if (total > 0) throw new Error(`${message}: ${total}`);
+}
+
 async function main() {
   try {
     const columns = await query(
@@ -130,49 +136,41 @@ async function main() {
       throw new Error("practical_evaluations_guard_delete: regra de vínculo formalizado divergente da migration 005");
     }
 
-    const inconsistentPair = await queryOne(
+    await assertZero(
       `SELECT COUNT(*) AS total
          FROM practical_evaluations
         WHERE (template_id IS NULL AND template_slot IS NOT NULL)
            OR (template_id IS NOT NULL AND template_slot IS NULL)`,
+      "Avaliações com vínculo de modelo incompleto",
     );
-    if (Number(inconsistentPair?.total ?? 0) > 0) {
-      throw new Error(`Avaliações com vínculo de modelo incompleto: ${inconsistentPair.total}`);
-    }
 
-    const invalidThreshold = await queryOne(
+    await assertZero(
       `SELECT COUNT(*) AS total
          FROM practical_evaluations
         WHERE min_approval_score < 0 OR min_approval_score > 10`,
+      "Avaliações com nota mínima fora de 0..10",
     );
-    if (Number(invalidThreshold?.total ?? 0) > 0) {
-      throw new Error(`Avaliações com nota mínima fora de 0..10: ${invalidThreshold.total}`);
-    }
 
-    const invalidSlots = await queryOne(
+    await assertZero(
       `SELECT COUNT(*) AS total
          FROM practical_evaluations
         WHERE template_id IS NOT NULL
           AND template_slot <> 'once'
           AND template_slot NOT REGEXP '^[0-9]{4}-(0[1-9]|1[0-2]):[0-9]{2}$'`,
+      "Avaliações recorrentes com template_slot inválido",
     );
-    if (Number(invalidSlots?.total ?? 0) > 0) {
-      throw new Error(`Avaliações recorrentes com template_slot inválido: ${invalidSlots.total}`);
-    }
 
-    const wrongMonth = await queryOne(
+    await assertZero(
       `SELECT COUNT(*) AS total
          FROM practical_evaluations
         WHERE template_id IS NOT NULL
           AND template_slot <> 'once'
           AND evaluation_date IS NOT NULL
           AND DATE_FORMAT(evaluation_date, '%Y-%m') <> LEFT(template_slot, 7)`,
+      "Avaliações recorrentes com data fora do mês do slot",
     );
-    if (Number(wrongMonth?.total ?? 0) > 0) {
-      throw new Error(`Avaliações recorrentes com data fora do mês do slot: ${wrongMonth.total}`);
-    }
 
-    const duplicateSlots = await queryOne(
+    await assertZero(
       `SELECT COUNT(*) AS total
          FROM (
            SELECT employee_id, template_id, template_slot
@@ -181,13 +179,67 @@ async function main() {
             GROUP BY employee_id, template_id, template_slot
            HAVING COUNT(*) > 1
          ) AS duplicated`,
+      "Slots recorrentes duplicados encontrados",
     );
-    if (Number(duplicateSlots?.total ?? 0) > 0) {
-      throw new Error(`Slots recorrentes duplicados encontrados: ${duplicateSlots.total}`);
-    }
+
+    // Registros gerados por modelo precisam manter vínculo 1:1 com o Cronograma.
+    // Isso é o caminho que alimenta Dashboard, Analytics e Relatórios pela fonte canônica.
+    await assertZero(
+      `SELECT COUNT(*) AS total
+         FROM practical_evaluations pe
+        WHERE pe.template_id IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1
+              FROM cronograma_entries ce
+             WHERE ce.employee_id = pe.employee_id
+               AND ce.notes LIKE CONCAT('%[PRACTICAL:', pe.id, ']%')
+          )`,
+      "Avaliações recorrentes sem lançamento vinculado no Cronograma",
+    );
+
+    await assertZero(
+      `SELECT COUNT(*) AS total
+         FROM (
+           SELECT pe.id
+             FROM practical_evaluations pe
+             JOIN cronograma_entries ce
+               ON ce.employee_id = pe.employee_id
+              AND ce.notes LIKE CONCAT('%[PRACTICAL:', pe.id, ']%')
+            WHERE pe.template_id IS NOT NULL
+            GROUP BY pe.id
+           HAVING COUNT(*) <> 1
+         ) AS invalid_links`,
+      "Avaliações recorrentes com quantidade de vínculos diferente de 1",
+    );
+
+    await assertZero(
+      `SELECT COUNT(*) AS total
+         FROM practical_evaluations pe
+         JOIN cronograma_entries ce
+           ON ce.notes LIKE CONCAT('%[PRACTICAL:', pe.id, ']%')
+        WHERE pe.template_id IS NOT NULL
+          AND (
+            ce.employee_id <> pe.employee_id
+            OR LOWER(TRIM(ce.theme)) <> LOWER(TRIM(pe.title))
+            OR (pe.evaluation_date IS NOT NULL AND ce.planned_date <> pe.evaluation_date)
+          )`,
+      "Vínculos recorrentes com identidade, tema ou data divergentes do Cronograma",
+    );
+
+    await assertZero(
+      `SELECT COUNT(*) AS total
+         FROM cronograma_entries ce
+        WHERE ce.notes LIKE '%[PRACTICAL:%'
+          AND NOT EXISTS (
+            SELECT 1
+              FROM practical_evaluations pe
+             WHERE ce.notes LIKE CONCAT('%[PRACTICAL:', pe.id, ']%')
+          )`,
+      "Marcadores PRACTICAL órfãos no Cronograma",
+    );
 
     console.log(
-      "[segempat-api] geração recorrente de Avaliação Prática OK; migrations 003/004/005, colunas, índices, FK, trigger de histórico, slots, período e nota mínima auditados",
+      "[segempat-api] geração recorrente de Avaliação Prática OK; migrations 003/004/005, colunas, índices, FK, trigger de histórico, slots, período, nota mínima e vínculo 1:1 com Cronograma auditados",
     );
   } finally {
     await pool.end();
