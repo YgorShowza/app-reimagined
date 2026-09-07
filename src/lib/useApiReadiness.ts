@@ -1,13 +1,22 @@
 import { useEffect, useState } from "react";
 import { checkSegempatApiReadiness, isSegempatApiConfigured } from "@/lib/backend/api-client";
+import { isDemoModeEnabled } from "@/lib/demo-mode";
 
-export type ApiReadinessStatus = "checking" | "ready" | "unavailable";
+export type ApiReadinessStatus = "demo" | "checking" | "ready" | "unavailable";
 
 export function useApiReadiness() {
+  const demo = isDemoModeEnabled();
   const configured = isSegempatApiConfigured();
-  const [status, setStatus] = useState<ApiReadinessStatus>(() => (configured ? "checking" : "unavailable"));
+  const [status, setStatus] = useState<ApiReadinessStatus>(() =>
+    demo ? "demo" : configured ? "checking" : "unavailable",
+  );
 
   useEffect(() => {
+    if (demo) {
+      setStatus("demo");
+      return undefined;
+    }
+
     if (!configured) {
       setStatus("unavailable");
       return undefined;
@@ -37,7 +46,7 @@ export function useApiReadiness() {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, [configured]);
+  }, [configured, demo]);
 
   return status;
 }
