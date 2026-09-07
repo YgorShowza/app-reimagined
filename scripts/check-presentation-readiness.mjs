@@ -20,6 +20,10 @@ function requireText(content, needle, label) {
   if (!content.includes(needle)) throw new Error(`${label}: contrato ausente (${needle})`);
 }
 
+function requireAbsent(content, needle, label) {
+  if (content.includes(needle)) throw new Error(`${label}: conteúdo indevido encontrado (${needle})`);
+}
+
 function requireOrdered(content, needles, label) {
   let cursor = -1;
   for (const needle of needles) {
@@ -149,13 +153,18 @@ const wrangler = requireFile("wrangler.jsonc");
 requireText(wrangler, '"name": "app-reimagined"', "Identidade do Worker Cloudflare");
 requireText(wrangler, '"main": "@tanstack/react-start/server-entry"', "Entrypoint Cloudflare");
 
+const originalLogo = "https://media.base44.com/images/public/6a1117d573bbf85981b1abee/8271ac857_IMG_9226.png";
+const loginRoute = requireFile("src/routes/index.tsx");
+requireText(loginRoute, originalLogo, "Logo original EMPAT no login");
+requireText(appLayout, originalLogo, "Logo original EMPAT no layout autenticado");
+
 const vite = requireFile("vite.config.ts");
-requireText(vite, "segempat-local-brand-asset", "Asset local da marca EMPAT");
-requireText(vite, '"/empat-logo.svg"', "Destino local da marca EMPAT");
-if (!exists("public/empat-logo.svg")) throw new Error("Asset local public/empat-logo.svg ausente");
+requireAbsent(vite, "segempat-local-brand-asset", "Substituição raster de baixa resolução da marca EMPAT");
+requireAbsent(vite, '"/empat-logo.svg"', "Redirecionamento para logo local de baixa resolução");
+if (exists("public/empat-logo.svg")) throw new Error("Asset de baixa resolução public/empat-logo.svg não deve voltar ao runtime");
 
 console.log("SEGEMPAT presentation readiness contract OK");
 console.log(`- ${adminRoutes.length} rotas do Inspetor protegidas`);
 console.log(`- ${operatorRoutes.length} rotas do Operador protegidas`);
 console.log("- demo Inspetor/Operador, notas 0–10 e evolução 5.8 → 6.6 → 7.6 → 8.8 protegidos");
-console.log("- Worker app-reimagined e branding local protegidos");
+console.log("- Worker app-reimagined e logo EMPAT original protegidos");
