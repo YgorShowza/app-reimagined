@@ -1,3 +1,4 @@
+import { isDemoModeAllowed } from "@/lib/demo-mode";
 import { apiRequest } from "./api-client";
 
 export interface GeneratedAccess {
@@ -17,7 +18,14 @@ export interface ActivationCodeStatus {
   used_at: string | null;
   created_at: string | null;
   has_account: boolean;
+  account_active?: boolean;
   expired: boolean;
+  reset_expires_at?: string | null;
+  reset_used_at?: string | null;
+  reset_created_at?: string | null;
+  reset_locked_at?: string | null;
+  reset_failed_attempts?: number;
+  reset_expired?: boolean;
 }
 
 export function listActivationCodes(): Promise<ActivationCodeStatus[]> {
@@ -32,6 +40,24 @@ export function generateActivationCode(employeeId: string): Promise<GeneratedAcc
 
 export async function revokeActivationCode(employeeId: string): Promise<void> {
   await apiRequest<void>(`/api/access/activation-codes/${encodeURIComponent(employeeId)}`, {
+    method: "DELETE",
+  });
+}
+
+export function generatePasswordResetCode(employeeId: string): Promise<GeneratedAccess> {
+  if (isDemoModeAllowed()) {
+    return Promise.reject(new Error("A recuperação segura de senha fica disponível no ambiente corporativo conectado à API SEGEMPAT."));
+  }
+  return apiRequest<GeneratedAccess>(`/api/access/password-resets/${encodeURIComponent(employeeId)}`, {
+    method: "POST",
+  });
+}
+
+export async function revokePasswordResetCode(employeeId: string): Promise<void> {
+  if (isDemoModeAllowed()) {
+    throw new Error("A recuperação segura de senha fica disponível no ambiente corporativo conectado à API SEGEMPAT.");
+  }
+  await apiRequest<void>(`/api/access/password-resets/${encodeURIComponent(employeeId)}`, {
     method: "DELETE",
   });
 }
