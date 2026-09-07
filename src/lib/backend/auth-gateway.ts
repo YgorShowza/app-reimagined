@@ -49,6 +49,24 @@ export async function activateWithCode(input: {
   });
 }
 
+export async function resetPasswordWithCode(input: {
+  matricula: string;
+  resetCode: string;
+  newPassword: string;
+}): Promise<void> {
+  if (isDemoModeAllowed()) {
+    throw new Error("A recuperação segura de senha fica disponível no ambiente corporativo conectado à API SEGEMPAT.");
+  }
+  await apiRequest<void>("/api/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({
+      matricula: normalizeMatricula(input.matricula),
+      resetCode: input.resetCode,
+      newPassword: input.newPassword,
+    }),
+  });
+}
+
 export async function logoutSession() {
   await apiRequest<void>("/api/auth/logout", { method: "POST" });
 }
