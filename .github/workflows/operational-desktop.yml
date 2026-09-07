@@ -29,4 +29,6 @@ jobs:
           grep -F 'max-width: 1536px' src/operational-desktop.css >/dev/null
           grep -F 'grid-template-columns: repeat(2, minmax(0, 1fr))' src/operational-desktop.css >/dev/null
           grep -F '@media (min-width: 1536px)' src/operational-desktop.css >/dev/null
-          echo "Experiência operacional desktop do SEGEMPAT validada."
+          grep -F 'operationalDesktopCss from "../operational-desktop.css?url"' src/routes/__root.tsx >/dev/null
+          grep -F '{ rel: "stylesheet", href: operationalDesktopCss }' src/routes/__root.tsx >/dev/null
+          echo "Experiência operacional desktop do SEGEMPAT validada e carregada globalmente."
