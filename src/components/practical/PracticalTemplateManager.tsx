@@ -83,11 +83,11 @@ export function PracticalTemplateManager({ open, onOpenChange }: { open: boolean
       <DialogContent className="sm:max-w-4xl max-h-[92vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Modelos de Avaliação Prática</DialogTitle></DialogHeader>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><p className="text-sm font-semibold" style={{ color: "var(--text-2)" }}>{rows.length} modelo(s) · {rows.filter((row) => row.status === "Ativo").length} ativo(s)</p><p className="mt-1 text-xs" style={{ color: "var(--text-4)" }}>Os modelos ativos alimentam a geração recorrente do Cronograma.</p></div>
+          <div><p className="text-sm font-semibold" style={{ color: "var(--text-2)" }}>{rows.length} modelo(s) · {rows.filter((row) => row.status === "Ativo").length} ativo(s)</p><p className="mt-1 text-xs" style={{ color: "var(--text-4)" }}>Os modelos ativos podem ser aplicados ao planejar uma avaliação, reutilizando procedimentos e a nota mínima cadastrada.</p></div>
           <Button onClick={openNew} className="bg-[#C8102E] text-white hover:bg-[#A00D24]"><Plus className="mr-2 h-4 w-4" /> Novo Modelo</Button>
         </div>
         <div className="mt-3 space-y-3">
-          {query.isLoading ? <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-[#C8102E]" /></div> : rows.length === 0 ? <div className="rounded-2xl p-8 text-center" style={{ background: "var(--bg-surface-2)", border: "1px solid var(--border)" }}><p className="font-bold" style={{ color: "var(--text-1)" }}>Nenhum modelo cadastrado.</p><p className="mt-1 text-xs" style={{ color: "var(--text-4)" }}>Crie o primeiro modelo para habilitar avaliações recorrentes no Cronograma.</p></div> : rows.map((template) => {
+          {query.isLoading ? <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-[#C8102E]" /></div> : rows.length === 0 ? <div className="rounded-2xl p-8 text-center" style={{ background: "var(--bg-surface-2)", border: "1px solid var(--border)" }}><p className="font-bold" style={{ color: "var(--text-1)" }}>Nenhum modelo cadastrado.</p><p className="mt-1 text-xs" style={{ color: "var(--text-4)" }}>Crie o primeiro modelo para padronizar procedimentos e reutilizá-los no planejamento das avaliações.</p></div> : rows.map((template) => {
             const tasks = normalizeTasks(template.tasks);
             const isExpanded = !!expanded[template.id];
             return <div key={template.id} className="overflow-hidden rounded-2xl" style={{ background: "var(--bg-surface-2)", border: "1px solid var(--border)" }}>
