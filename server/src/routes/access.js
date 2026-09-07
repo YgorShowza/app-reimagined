@@ -20,17 +20,18 @@ accessRouter.get(
   "/activation-codes",
   requireAdmin,
   asyncHandler(async (_req, res) => {
-    // Nunca retorna o código puro — somente estado do convite.
-    // A expiração é calculada pelo próprio MySQL em UTC, evitando divergência
-    // entre relógio/timezone do processo Node e a sessão do banco corporativo.
+    // Retorna todos os colaboradores ativos para que a tela administrativa
+    // diferencie conta criada, código ativo, código expirado e ausência de código.
+    // Nunca retorna o código puro — somente o estado do convite.
     const rows = await query(
-      `SELECT r.employee_id, e.full_name, e.matricula, e.sector,
+      `SELECT e.id AS employee_id, e.full_name, e.matricula, e.sector,
               r.expires_at, r.used_at, r.created_at,
-              (r.used_at IS NULL AND r.expires_at < UTC_TIMESTAMP(3)) AS expired,
+              (r.used_at IS NULL AND r.expires_at IS NOT NULL AND r.expires_at < UTC_TIMESTAMP(3)) AS expired,
               (SELECT COUNT(*) FROM app_users u WHERE LOWER(TRIM(u.matricula)) = LOWER(TRIM(e.matricula))) AS has_account
-         FROM registration_activation_codes r
-         JOIN employees e ON e.id = r.employee_id
-        ORDER BY r.created_at DESC`,
+         FROM employees e
+         LEFT JOIN registration_activation_codes r ON r.employee_id = e.id
+        WHERE e.status = 'Ativo'
+        ORDER BY e.full_name ASC`,
     );
     res.json(
       rows.map((row) => ({
@@ -38,9 +39,9 @@ accessRouter.get(
         employee_name: row.full_name,
         matricula: row.matricula,
         sector: row.sector,
-        expires_at: row.expires_at,
-        used_at: row.used_at,
-        created_at: row.created_at,
+        expires_at: row.expires_at ?? null,
+        used_at: row.used_at ?? null,
+        created_at: row.created_at ?? null,
         has_account: Number(row.has_account) > 0,
         expired: Number(row.expired) > 0,
       })),
