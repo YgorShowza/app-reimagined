@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Pencil, UserCheck, UserX, Trash2, Users, KeyRound, ShieldCheck, Radio, Eye, UserRoundCog } from "lucide-react";
+import { Plus, Search, Pencil, UserX, Trash2, Users, KeyRound, ShieldCheck, Radio, Eye, UserRoundCog, LockKeyhole } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,13 +70,23 @@ function EquipePage() {
     queryFn: listEmployees,
   });
 
+  const editingEmployee = editingId ? employees.find((employee) => employee.id === editingId) ?? null : null;
+  const editingPrivileged = editingEmployee?.access_profile === "Inspetor";
+
   const invalidate = () => invalidateEmployeeFlow(qc);
 
   const save = useMutation({
     mutationFn: async () => {
       if (!form.full_name.trim() || !form.matricula.trim()) throw new Error("Preencha nome e matrícula");
-      if (editingId) await updateEmployee(editingId, form);
-      else await createEmployee({ ...form, matricula: form.matricula.trim() });
+      if (editingId) {
+        if (editingPrivileged) {
+          await updateEmployee(editingId, { full_name: form.full_name, sector: form.sector });
+        } else {
+          await updateEmployee(editingId, form);
+        }
+      } else {
+        await createEmployee({ ...form, matricula: form.matricula.trim() });
+      }
     },
     onSuccess: () => {
       toast.success(editingId ? "Funcionário atualizado" : "Funcionário cadastrado");
@@ -175,7 +185,8 @@ function EquipePage() {
         <div className="grid gap-3">
           {filtered.map((emp) => {
             const active = emp.status === "Ativo";
-            const accent = emp.access_profile === "Inspetor" ? "#e11d48" : emp.sector === "CFTV" ? "#3b82f6" : "#f59e0b";
+            const privileged = emp.access_profile === "Inspetor";
+            const accent = privileged ? "#e11d48" : emp.sector === "CFTV" ? "#3b82f6" : "#f59e0b";
             return (
               <div key={emp.id} className="relative flex flex-col gap-3 overflow-hidden rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", boxShadow: "var(--shadow-card, var(--shadow-md))" }}>
                 <div className="absolute bottom-0 left-0 top-0 w-[3px]" style={{ background: active ? accent : "var(--text-4)" }} />
@@ -191,13 +202,13 @@ function EquipePage() {
                 </div>
                 <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end">
                   <div className="flex min-w-0 items-center gap-2">
-                    <Badge variant="outline" className="max-w-[130px] truncate text-xs font-bold" style={{ color: accent, borderColor: `${accent}40`, background: `${accent}12` }}>{emp.access_profile}</Badge>
+                    <Badge variant="outline" className="max-w-[160px] truncate text-xs font-bold" style={{ color: accent, borderColor: `${accent}40`, background: `${accent}12` }}>{privileged ? "Inspetor · TI" : emp.access_profile}</Badge>
                     <span className="hidden text-[10px] font-bold sm:inline" style={{ color: active ? "#10b981" : "var(--text-4)" }}>{active ? "ATIVO" : "INATIVO"}</span>
                   </div>
                   {isAdmin && (
                     <div className="flex shrink-0 items-center gap-1">
-                      <Button variant="ghost" size="icon" title="Editar" onClick={() => openEdit(emp)}><Pencil className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" title="Excluir" className="text-red-500 hover:text-red-600" onClick={() => setToDelete(emp)}><Trash2 className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" title={privileged ? "Editar dados não privilegiados" : "Editar"} onClick={() => openEdit(emp)}><Pencil className="h-4 w-4" /></Button>
+                      {!privileged && <Button variant="ghost" size="icon" title="Excluir" className="text-red-500 hover:text-red-600" onClick={() => setToDelete(emp)}><Trash2 className="h-4 w-4" /></Button>}
                     </div>
                   )}
                 </div>
@@ -211,13 +222,26 @@ function EquipePage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle style={{ fontFamily: "var(--font-heading)" }}>{editingId ? "Editar Funcionário" : "Novo Funcionário"}</DialogTitle></DialogHeader>
           <div className="space-y-4">
+            {editingPrivileged && (
+              <div className="flex items-start gap-2 rounded-xl p-3 text-xs" style={{ background: "rgba(225,29,72,.07)", border: "1px solid rgba(225,29,72,.18)", color: "var(--text-3)" }}>
+                <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+                <span>Identidade privilegiada. Perfil, matrícula e situação do Inspetor são gerenciados exclusivamente pela TI.</span>
+              </div>
+            )}
             <div className="space-y-1.5"><Label htmlFor="full_name">Nome completo</Label><Input id="full_name" value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} placeholder="Nome do funcionário" /></div>
-            <div className="space-y-1.5"><Label htmlFor="matricula">Matrícula</Label><Input id="matricula" value={form.matricula} inputMode="numeric" onChange={(e) => setForm({ ...form, matricula: e.target.value.replace(/\D/g, "") })} placeholder="Ex.: 970" /></div>
+            <div className="space-y-1.5"><Label htmlFor="matricula">Matrícula</Label><Input id="matricula" value={form.matricula} inputMode="numeric" disabled={editingPrivileged} onChange={(e) => setForm({ ...form, matricula: e.target.value.replace(/\D/g, "") })} placeholder="Ex.: 970" /></div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5"><Label>Setor</Label><Select value={form.sector} onValueChange={(v) => setForm({ ...form, sector: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{SETORES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-1.5"><Label>Perfil de acesso</Label><Select value={form.access_profile} onValueChange={(v) => setForm({ ...form, access_profile: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{PERFIS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-1.5">
+                <Label>Perfil de acesso</Label>
+                {editingPrivileged ? (
+                  <div className="flex h-9 items-center gap-2 rounded-md border px-3 text-sm" style={{ borderColor: "var(--border)", background: "var(--bg-surface-2)", color: "var(--text-3)" }}><LockKeyhole className="h-3.5 w-3.5 text-rose-500" /> Inspetor · TI</div>
+                ) : (
+                  <Select value={form.access_profile} onValueChange={(v) => setForm({ ...form, access_profile: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{PERFIS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select>
+                )}
+              </div>
             </div>
-            <div className="space-y-1.5"><Label>Situação</Label><Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{SITUACOES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-1.5"><Label>Situação</Label><Select value={form.status} disabled={editingPrivileged} onValueChange={(v) => setForm({ ...form, status: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{SITUACOES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button><Button onClick={() => save.mutate()} disabled={save.isPending} className="bg-[#C8102E] font-bold text-white hover:bg-[#A00D24]">{save.isPending ? "Salvando..." : "Salvar"}</Button></DialogFooter>
         </DialogContent>
