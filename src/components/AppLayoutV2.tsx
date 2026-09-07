@@ -90,6 +90,7 @@ const adminSections: MenuSection[] = [
 const operatorMenu: MenuItem[] = [
   { path: "/painel", label: "Início", icon: LayoutDashboard },
   { path: "/pendencias", label: "Pendências", icon: ClipboardList },
+  { path: "/provas", label: "Provas", icon: FileText },
   { path: "/progresso", label: "Progresso", icon: TrendingUp },
   { path: "/certificados", label: "Certificados", icon: Award },
   { path: "/treinamentos", label: "Academia SEGEMPAT", icon: GraduationCap },
