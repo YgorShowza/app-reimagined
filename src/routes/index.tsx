@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Lock, User, Eye, EyeOff, ChevronRight, KeyRound, Loader2 } from "lucide-react";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
-import { activateWithCode, loginWithMatricula } from "@/lib/backend/auth-gateway";
+import { activateWithCode, loginWithMatricula, resetPasswordWithCode } from "@/lib/backend/auth-gateway";
 import { getCurrentSessionUser } from "@/lib/backend/current-user-gateway";
 import { useApiReadiness } from "@/lib/useApiReadiness";
 import { loginPasswordSchema, matriculaSchema, passwordSchema } from "@/lib/matricula";
@@ -53,7 +53,7 @@ const primaryButtonStyle: React.CSSProperties = {
 
 const labelClass = "text-xs font-semibold uppercase tracking-wider";
 
-type Step = "matricula" | "password" | "signup";
+type Step = "matricula" | "password" | "signup" | "reset";
 type Navigate = ReturnType<typeof useNavigate>;
 
 function navigateHome(navigate: Navigate, user: SessionUser) {
@@ -65,6 +65,7 @@ function AuthScreen() {
   const apiReadiness = useApiReadiness();
   const [matricula, setMatricula] = useState("");
   const [activationCode, setActivationCode] = useState("");
+  const [resetCode, setResetCode] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -93,6 +94,13 @@ function AuthScreen() {
   };
   const blurBorder = (e: React.FocusEvent<HTMLInputElement>) => {
     e.currentTarget.style.borderColor = "var(--border)";
+  };
+
+  const clearCredentialFields = () => {
+    setPassword("");
+    setConfirmPassword("");
+    setActivationCode("");
+    setResetCode("");
   };
 
   const handleCheckMatricula = () => {
@@ -154,6 +162,42 @@ function AuthScreen() {
       setLoading(false);
     }
   };
+
+  const handleResetPassword = async () => {
+    if (!/^\d{8}$/.test(resetCode)) {
+      toast.error("Informe o código de recuperação de 8 dígitos");
+      return;
+    }
+    const pwd = passwordSchema.safeParse(password);
+    if (!pwd.success) {
+      toast.error(pwd.error.issues[0]?.message ?? "Senha inválida");
+      return;
+    }
+    if (password !== confirmPassword) {
+      toast.error("As senhas não coincidem");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await resetPasswordWithCode({ matricula, resetCode, newPassword: password });
+      toast.success("Senha redefinida. Entre com sua nova senha.");
+      clearCredentialFields();
+      setStep("password");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível redefinir a senha");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitCurrentStep = () => {
+    if (step === "signup") return handleSignup();
+    if (step === "reset") return handleResetPassword();
+    return handleLogin();
+  };
+
+  const creatingCredential = step === "signup" || step === "reset";
 
   return (
     <div
@@ -296,9 +340,37 @@ function AuthScreen() {
                   </div>
                 )}
 
+                {step === "reset" && (
+                  <div className="space-y-1.5">
+                    <label className={labelClass} style={{ color: "var(--text-3)" }}>
+                      Código de recuperação
+                    </label>
+                    <div className="relative">
+                      <KeyRound
+                        className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2"
+                        style={{ color: "var(--text-4)" }}
+                      />
+                      <input
+                        value={resetCode}
+                        onChange={(e) => setResetCode(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                        inputMode="numeric"
+                        maxLength={8}
+                        autoComplete="one-time-code"
+                        placeholder="8 dígitos"
+                        style={{ ...inputStyle, paddingLeft: "2.5rem", letterSpacing: ".18em", fontWeight: 700 }}
+                        onFocus={focusAccent}
+                        onBlur={blurBorder}
+                      />
+                    </div>
+                    <p className="text-[11px]" style={{ color: "var(--text-4)" }}>
+                      Solicite à Inspetoria um código temporário de recuperação.
+                    </p>
+                  </div>
+                )}
+
                 <div className="space-y-1.5">
                   <label className={labelClass} style={{ color: "var(--text-3)" }}>
-                    {step === "signup" ? "Criar senha" : "Senha"}
+                    {creatingCredential ? (step === "reset" ? "Nova senha" : "Criar senha") : "Senha"}
                   </label>
                   <div className="relative">
                     <Lock
@@ -309,11 +381,9 @@ function AuthScreen() {
                       type={showPassword ? "text" : "password"}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      onKeyDown={(e) =>
-                        e.key === "Enter" && (step === "signup" ? handleSignup() : handleLogin())
-                      }
-                      placeholder={step === "signup" ? "Mínimo 8 caracteres" : "Sua senha"}
-                      autoComplete={step === "signup" ? "new-password" : "current-password"}
+                      onKeyDown={(e) => e.key === "Enter" && submitCurrentStep()}
+                      placeholder={creatingCredential ? "Mínimo 8 caracteres" : "Sua senha"}
+                      autoComplete={creatingCredential ? "new-password" : "current-password"}
                       style={{ ...inputStyle, paddingLeft: "2.5rem", paddingRight: "3rem" }}
                       onFocus={focusAccent}
                       onBlur={blurBorder}
@@ -330,7 +400,7 @@ function AuthScreen() {
                   </div>
                 </div>
 
-                {step === "signup" && (
+                {creatingCredential && (
                   <div className="space-y-1.5">
                     <label className={labelClass} style={{ color: "var(--text-3)" }}>
                       Confirmar senha
@@ -344,7 +414,7 @@ function AuthScreen() {
                         type={showPassword ? "text" : "password"}
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && handleSignup()}
+                        onKeyDown={(e) => e.key === "Enter" && submitCurrentStep()}
                         placeholder="Repita a senha"
                         autoComplete="new-password"
                         style={{ ...inputStyle, paddingLeft: "2.5rem" }}
@@ -356,7 +426,7 @@ function AuthScreen() {
                 )}
 
                 <button
-                  onClick={step === "signup" ? handleSignup : handleLogin}
+                  onClick={submitCurrentStep}
                   disabled={loading}
                   className="flex h-12 w-full items-center justify-center gap-2 rounded-xl font-semibold transition-all active:scale-95 disabled:opacity-70"
                   style={primaryButtonStyle}
@@ -365,32 +435,44 @@ function AuthScreen() {
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <>
-                      <span>{step === "signup" ? "Criar acesso" : "Entrar"}</span>
+                      <span>{step === "signup" ? "Criar acesso" : step === "reset" ? "Redefinir senha" : "Entrar"}</span>
                       <ChevronRight className="h-4 w-4" />
                     </>
                   )}
                 </button>
 
+                {step === "password" && (
+                  <button
+                    onClick={() => {
+                      clearCredentialFields();
+                      setStep("reset");
+                    }}
+                    className="w-full text-center text-sm font-semibold"
+                    style={{ color: "var(--accent)" }}
+                  >
+                    Esqueci minha senha
+                  </button>
+                )}
+
                 <button
                   onClick={() => {
-                    const next = step === "signup" ? "password" : "signup";
-                    setStep(next);
-                    setPassword("");
-                    setConfirmPassword("");
-                    setActivationCode("");
+                    if (step === "reset") {
+                      setStep("password");
+                    } else {
+                      setStep(step === "signup" ? "password" : "signup");
+                    }
+                    clearCredentialFields();
                   }}
                   className="w-full text-center text-sm font-semibold"
                   style={{ color: "var(--accent)" }}
                 >
-                  {step === "signup" ? "Já tenho senha" : "Primeiro acesso? Criar senha"}
+                  {step === "signup" ? "Já tenho senha" : step === "reset" ? "Voltar para entrar" : "Primeiro acesso? Criar senha"}
                 </button>
 
                 <button
                   onClick={() => {
                     setStep("matricula");
-                    setPassword("");
-                    setConfirmPassword("");
-                    setActivationCode("");
+                    clearCredentialFields();
                   }}
                   className="w-full text-center text-sm transition-colors"
                   style={{ color: "var(--text-4)" }}
