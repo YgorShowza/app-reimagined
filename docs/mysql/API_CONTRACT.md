@@ -173,14 +173,33 @@ Administração:
 - `POST /api/operations/practical-evaluations`
 - `PATCH /api/operations/practical-evaluations/:id`
 - `DELETE /api/operations/practical-evaluations/:id`
+- `POST /api/operations/practical-evaluations/generate-month`
 - `GET /api/operations/practical-templates`
 - `POST /api/operations/practical-templates`
 - `PATCH /api/operations/practical-templates/:id`
 - `DELETE /api/operations/practical-templates/:id`
 
+A geração mensal recebe `month` no formato `YYYY-MM` e, opcionalmente, `template_id`. Ela executa em uma única transação, considera apenas modelos ativos e colaboradores operacionais ativos, respeita setor e suspensões do Cronograma, distribui as datas dentro do mês e cria o vínculo 1:1 entre cada avaliação e seu lançamento no Cronograma. `template_slot` + índice UNIQUE tornam a operação idempotente: repetir a mesma geração não cria o mesmo slot novamente.
+
+Exemplo:
+
+```json
+{ "month": "2026-09", "template_id": "uuid-opcional" }
+```
+
+Resposta:
+
+```json
+{ "month": "2026-09", "created": 12, "skipped": 4, "suspended": 0, "due_templates": 2 }
+```
+
+A exclusão de avaliação prática também é protegida na camada MySQL: registros em andamento/concluídos e avaliações cujo lançamento vinculado no Cronograma já tenha sido formalizado não podem romper o histórico operacional.
+
 Consulta pessoal:
 
 - `GET /api/me/practical-evaluations`
+
+A rota pessoal usa exclusivamente o `employeeId` da sessão atual, inclusive quando a conta autenticada também possui privilégios administrativos.
 
 ### Auditoria operacional
 
