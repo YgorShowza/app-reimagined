@@ -12,13 +12,33 @@ Preencher/confirmar:
 - Host/IP do servidor MySQL:
 - Porta TCP (padrão 3306):
 - Nome do database destinado ao SEGEMPAT:
-- Usuário de aplicação com privilégio mínimo:
+- Usuário de aplicação/runtime com privilégio mínimo:
+- Usuário separado de migration, controlado pela TI:
 - TLS disponível e habilitado para a conexão da API: `sim` (obrigatório com `NODE_ENV=production`):
 - CA corporativa própria? `sim/não`:
 - Se houver CA, caminho absoluto onde ela ficará no host da API:
 - Origem de rede/IP que deve ser liberada no firewall/allowlist para a API:
 
-A senha do usuário MySQL **não deve ser escrita neste documento**.
+As senhas MySQL **não devem ser escritas neste documento**.
+
+### Separação obrigatória em produção
+
+`MYSQL_USER` é a identidade de runtime da API e deve possuir apenas os grants necessários à operação normal do SEGEMPAT. Essa conta não deve receber privilégios de DDL/administrativos como `CREATE`, `ALTER`, `DROP`, `TRIGGER`, `INDEX` ou `GRANT OPTION`.
+
+As migrations usam uma segunda identidade, fornecida somente durante a execução pela TI:
+
+```text
+MYSQL_MIGRATION_USER=<USUARIO_MIGRATION_TI>
+MYSQL_MIGRATION_PASSWORD=<SECRET_INJETADO_POR_CANAL_SEGURO>
+```
+
+Em `NODE_ENV=production`, `npm run migrate` recusa:
+
+- ausência da credencial de migration;
+- apenas uma das duas variáveis preenchida;
+- `MYSQL_MIGRATION_USER` igual a `MYSQL_USER`.
+
+A senha de migration não deve permanecer no `.env` do serviço da API depois da atualização de schema. Preferir secret temporário, cofre corporativo ou mecanismo equivalente da TI.
 
 Se o MySQL corporativo não oferecer TLS para o host da API, a homologação em modo `production` deve parar até a TI definir uma solução compatível; não desabilitar o controle apenas para fazer o gate passar.
 
@@ -48,11 +68,11 @@ VITE_SEGEMPAT_REQUIRE_API=true
 
 `VITE_SEGEMPAT_REQUIRE_API=true` é o controle de corte que impede funcionamento corporativo sem a API própria configurada. O modo demonstração não fica disponível quando a API corporativa está configurada/obrigatória.
 
-## 4. Configuração a ser aplicada no servidor
+## 4. Configuração persistente da API
 
 Usar `server/.env.example` como modelo. Os valores reais devem existir somente no servidor/secrets manager.
 
-Variáveis obrigatórias ou relevantes:
+Variáveis persistentes de runtime:
 
 ```text
 NODE_ENV=production
@@ -60,8 +80,8 @@ PORT=8787
 MYSQL_HOST=<HOST>
 MYSQL_PORT=<PORTA>
 MYSQL_DATABASE=<DATABASE>
-MYSQL_USER=<USUARIO>
-MYSQL_PASSWORD=<SEGREDO>
+MYSQL_USER=<USUARIO_RUNTIME>
+MYSQL_PASSWORD=<SEGREDO_RUNTIME>
 MYSQL_SSL=true
 MYSQL_SSL_CA_PATH=<CAMINHO_ABSOLUTO_SE_EXIGIDO>
 MYSQL_POOL_SIZE=10
@@ -76,14 +96,26 @@ SEGEMPAT_STORAGE_PATH=<CAMINHO_ABSOLUTO_PERSISTENTE>
 SEGEMPAT_TIMEZONE=America/Maceio
 ```
 
+`MYSQL_MIGRATION_USER` e `MYSQL_MIGRATION_PASSWORD` não fazem parte do segredo permanente da API; são injetados somente no processo controlado de migration.
+
 ## 5. Ordem oficial de execução da homologação
 
-Com os dados acima configurados no ambiente real, executar na pasta `server/`:
+Com os dados de runtime configurados no ambiente real, executar na pasta `server/`:
 
 ```bash
 npm ci
 npm run preflight
+```
+
+Depois, com `MYSQL_MIGRATION_USER` e `MYSQL_MIGRATION_PASSWORD` injetados de forma segura pela TI:
+
+```bash
 npm run migrate
+```
+
+Remover/encerrar a exposição do secret de migration e voltar à identidade de runtime. Então:
+
+```bash
 npm run smoke
 ```
 
@@ -92,10 +124,11 @@ Somente se todos os gates acima passarem:
 1. realizar a carga/migração dos dados e evidências;
 2. executar `npm run cutover:audit`;
 3. executar `npm run bootstrap-admin` apenas se for necessário preparar o primeiro Inspetor;
-4. iniciar a API com `npm start` ou pelo runtime corporativo definido;
-5. confirmar `GET /health` e `GET /health/ready`;
-6. publicar o frontend corporativo com `VITE_SEGEMPAT_API_URL=<HTTPS DA API>` e `VITE_SEGEMPAT_REQUIRE_API=true`;
-7. executar os testes ponta a ponta.
+4. executar `npm run report-privileged-access` e revisar qualquer divergência;
+5. iniciar a API com `npm start` ou pelo runtime corporativo definido;
+6. confirmar `GET /health` e `GET /health/ready`;
+7. publicar o frontend corporativo com `VITE_SEGEMPAT_API_URL=<HTTPS DA API>` e `VITE_SEGEMPAT_REQUIRE_API=true`;
+8. executar os testes ponta a ponta.
 
 Então validar:
 
@@ -138,15 +171,34 @@ TI_OPERATOR="<RESPONSAVEL_TI>" \
 npm run manage-inspector-access
 ```
 
-A execução é transacional, não recebe senha e registra a alteração em `audit_logs` como `TI_GRANT_INSPECTOR` ou `TI_REVOKE_INSPECTOR`. O acesso ao host capaz de executar esse comando deve ser limitado aos administradores técnicos autorizados.
+A execução é transacional, não recebe senha, invalida sessões anteriores da conta vinculada e registra a alteração em `audit_logs` como `TI_GRANT_INSPECTOR` ou `TI_REVOKE_INSPECTOR`. A revogação do último Inspetor ativo com acesso administrativo é bloqueada.
+
+Para revisão periódica:
+
+```bash
+npm run report-privileged-access
+```
+
+O acesso ao host capaz de executar esses comandos deve ser limitado aos administradores técnicos autorizados.
 
 A matriz completa de responsabilidades está em `LGPD_GOVERNANCE.md`.
 
-## 7. Regra de parada
+## 7. Auditoria e governança MySQL
+
+A migration `006_governance_audit_session_hardening.sql` acrescenta:
+
+- `app_users.session_epoch` para revogação imediata de sessões após mudança de privilégio/status;
+- trigger que bloqueia `UPDATE` de `audit_logs`;
+- trigger que bloqueia `DELETE` de `audit_logs`;
+- preservação do vínculo do ator por foreign key `RESTRICT`.
+
+`npm run smoke` e `npm run cutover:audit` executam `check-governance-integrity.js` no banco real.
+
+## 8. Regra de parada
 
 Se `preflight`, `migrate`, `smoke`, `cutover:audit` ou `/health/ready` falharem, **não considerar o ambiente homologado e não mascarar a divergência**. Corrigir a configuração, schema, dados ou infraestrutura e repetir o gate.
 
-## 8. Critério de conclusão
+## 9. Critério de conclusão
 
 Antes dos testes no ambiente real, o status correto permanece:
 
