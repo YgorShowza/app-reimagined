@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -115,13 +115,10 @@ function AttentionCenterPage() {
   const failedSources = data.sourceStatus.filter((source) => !source.ok);
   const operationalState = critical.length > 0 ? "Crítico" : attention.length > 0 ? "Atenção" : monitor.length > 0 ? "Acompanhamento" : "Normal";
   const stateColor = critical.length > 0 ? "#ef4444" : attention.length > 0 ? "#f59e0b" : monitor.length > 0 ? "#3b82f6" : "#10b981";
-  const categories = useMemo(
-    () => Array.from(new Set(data.items.map((item) => item.category))).sort((a, b) => a.localeCompare(b, "pt-BR")),
-    [data.items],
-  );
-  const filtered = useMemo(
-    () => data.items.filter((item) => (priorityFilter === "all" || item.priority === priorityFilter) && (categoryFilter === "all" || item.category === categoryFilter)),
-    [data.items, priorityFilter, categoryFilter],
+  const categories = Array.from(new Set(data.items.map((item) => item.category))).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const filtered = data.items.filter((item) =>
+    (priorityFilter === "all" || item.priority === priorityFilter) &&
+    (categoryFilter === "all" || item.category === categoryFilter),
   );
   const generated = new Date(data.generatedAt).toLocaleTimeString("pt-BR", {
     timeZone: "America/Maceio",
