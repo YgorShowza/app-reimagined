@@ -1,13 +1,10 @@
-import { supabase } from "@/integrations/supabase/client";
-import { apiRequest, isSegempatApiConfigured } from "@/lib/backend/api-client";
+import { apiRequest } from "@/lib/backend/api-client";
 import { getCurrentSessionUser } from "@/lib/backend/current-user-gateway";
 
 export interface KnowledgeItem { id: string; title: string; category: string; content: string; target_sector: string; active: boolean; created_by: string | null; created_at: string; updated_at: string; }
 export interface Occurrence { id: string; employee_id: string | null; employee_name: string | null; employee_matricula: string | null; title: string; category: string; severity: "Baixa"|"Média"|"Alta"|"Crítica"; description: string; location: string | null; status: "Aberta"|"Em análise"|"Concluída"; occurred_at: string; resolution_notes: string | null; resolved_at: string | null; created_by: string | null; created_by_name: string | null; created_at: string; updated_at: string; }
 export interface PracticalEvaluation { id: string; employee_id: string; employee_name: string; employee_matricula: string; employee_sector: string; title: string; evaluator_id: string | null; evaluator_name: string | null; status: "Planejada"|"Em andamento"|"Concluída"; score: number; max_score: number; min_approval_score: number; checklist: Array<{ id: string; label: string; done: boolean }>; notes: string | null; evaluation_date: string | null; completed_at: string | null; created_at: string; updated_at: string; }
 export interface AuditLog { id: string; actor_id: string | null; action: string; entity: string; entity_id: string | null; details: Record<string, unknown>; created_at: string; }
-
-async function authId() { const { data } = await supabase.auth.getUser(); return data.user?.id ?? null; }
 
 function normalizePracticalEvaluation(row: any): PracticalEvaluation {
   return {
@@ -52,29 +49,57 @@ function practicalApiPatchPayload(patch: Partial<PracticalEvaluation>) {
   return Object.fromEntries(allowed.filter((key) => Object.prototype.hasOwnProperty.call(patch, key)).map((key) => [key, patch[key]]));
 }
 
-export async function listKnowledgeItems(): Promise<KnowledgeItem[]> { if (isSegempatApiConfigured()) return apiRequest<KnowledgeItem[]>("/api/operations/knowledge"); const { data, error } = await (supabase as any).from("knowledge_items").select("*").order("category").order("title"); if (error) throw error; return (data ?? []) as KnowledgeItem[]; }
-export async function createKnowledgeItem(input: Pick<KnowledgeItem,"title"|"category"|"content"|"target_sector">) { if (isSegempatApiConfigured()) { await apiRequest("/api/operations/knowledge", { method:"POST", body:JSON.stringify(input) }); return; } const { error } = await (supabase as any).from("knowledge_items").insert({ ...input, created_by: await authId(), active: true }); if (error) throw error; }
-export async function updateKnowledgeItem(id: string, patch: Partial<Pick<KnowledgeItem,"title"|"category"|"content"|"target_sector"|"active">>) { if (isSegempatApiConfigured()) { await apiRequest(`/api/operations/knowledge/${encodeURIComponent(id)}`, { method:"PATCH", body:JSON.stringify(patch) }); return; } const { error } = await (supabase as any).from("knowledge_items").update(patch).eq("id", id); if (error) throw error; }
-export async function deleteKnowledgeItem(id: string) { if (isSegempatApiConfigured()) { await apiRequest(`/api/operations/knowledge/${encodeURIComponent(id)}`, { method:"DELETE" }); return; } const { error } = await (supabase as any).from("knowledge_items").delete().eq("id", id); if (error) throw error; }
+export function listKnowledgeItems(): Promise<KnowledgeItem[]> {
+  return apiRequest<KnowledgeItem[]>("/api/operations/knowledge");
+}
 
-export async function listOccurrences(): Promise<Occurrence[]> { if (isSegempatApiConfigured()) return apiRequest<Occurrence[]>("/api/operations/occurrences"); const { data, error } = await (supabase as any).from("occurrences").select("*").order("occurred_at", { ascending: false }); if (error) throw error; return (data ?? []) as Occurrence[]; }
-export async function createOccurrence(input: { employee_id?: string | null; employee_name?: string | null; employee_matricula?: string | null; title: string; category: string; severity: string; description: string; location?: string | null; occurred_at?: string; created_by_name?: string | null; }) { if (isSegempatApiConfigured()) { await apiRequest("/api/operations/occurrences", { method:"POST", body:JSON.stringify(occurrenceApiCreatePayload(input)) }); return; } const { error } = await (supabase as any).from("occurrences").insert({ ...input, created_by: await authId(), occurred_at: input.occurred_at || new Date().toISOString() }); if (error) throw error; }
-export async function updateOccurrence(id: string, patch: Partial<Occurrence>) { if (isSegempatApiConfigured()) { await apiRequest(`/api/operations/occurrences/${encodeURIComponent(id)}`, { method:"PATCH", body:JSON.stringify(occurrenceApiPatchPayload(patch)) }); return; } const normalized: any = { ...patch }; delete normalized.id; delete normalized.created_at; delete normalized.updated_at; const { error } = await (supabase as any).from("occurrences").update(normalized).eq("id", id); if (error) throw error; }
-export async function deleteOccurrence(id: string) { if (isSegempatApiConfigured()) { await apiRequest(`/api/operations/occurrences/${encodeURIComponent(id)}`, { method:"DELETE" }); return; } const { error } = await (supabase as any).from("occurrences").delete().eq("id", id); if (error) throw error; }
+export async function createKnowledgeItem(input: Pick<KnowledgeItem,"title"|"category"|"content"|"target_sector">) {
+  await apiRequest("/api/operations/knowledge", { method:"POST", body:JSON.stringify(input) });
+}
+
+export async function updateKnowledgeItem(id: string, patch: Partial<Pick<KnowledgeItem,"title"|"category"|"content"|"target_sector"|"active">>) {
+  await apiRequest(`/api/operations/knowledge/${encodeURIComponent(id)}`, { method:"PATCH", body:JSON.stringify(patch) });
+}
+
+export async function deleteKnowledgeItem(id: string) {
+  await apiRequest(`/api/operations/knowledge/${encodeURIComponent(id)}`, { method:"DELETE" });
+}
+
+export function listOccurrences(): Promise<Occurrence[]> {
+  return apiRequest<Occurrence[]>("/api/operations/occurrences");
+}
+
+export async function createOccurrence(input: { employee_id?: string | null; employee_name?: string | null; employee_matricula?: string | null; title: string; category: string; severity: string; description: string; location?: string | null; occurred_at?: string; created_by_name?: string | null; }) {
+  await apiRequest("/api/operations/occurrences", { method:"POST", body:JSON.stringify(occurrenceApiCreatePayload(input)) });
+}
+
+export async function updateOccurrence(id: string, patch: Partial<Occurrence>) {
+  await apiRequest(`/api/operations/occurrences/${encodeURIComponent(id)}`, { method:"PATCH", body:JSON.stringify(occurrenceApiPatchPayload(patch)) });
+}
+
+export async function deleteOccurrence(id: string) {
+  await apiRequest(`/api/operations/occurrences/${encodeURIComponent(id)}`, { method:"DELETE" });
+}
 
 export async function listPracticalEvaluations(): Promise<PracticalEvaluation[]> {
-  if (isSegempatApiConfigured()) {
-    const currentUser = await getCurrentSessionUser();
-    if (!currentUser) return [];
-    const endpoint = currentUser.isAdmin ? "/api/operations/practical-evaluations" : "/api/me/practical-evaluations";
-    return (await apiRequest<PracticalEvaluation[]>(endpoint)).map(normalizePracticalEvaluation);
-  }
-  const { data, error } = await (supabase as any).from("practical_evaluations").select("*").order("evaluation_date", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false });
-  if (error) throw error;
-  return (data ?? []).map(normalizePracticalEvaluation);
+  const currentUser = await getCurrentSessionUser();
+  if (!currentUser) return [];
+  const endpoint = currentUser.isAdmin ? "/api/operations/practical-evaluations" : "/api/me/practical-evaluations";
+  return (await apiRequest<PracticalEvaluation[]>(endpoint)).map(normalizePracticalEvaluation);
 }
-export async function createPracticalEvaluation(input: { employee_id: string; employee_name: string; employee_matricula: string; employee_sector: string; title: string; evaluator_name?: string | null; evaluation_date?: string | null; min_approval_score?: number; checklist?: Array<{id:string;label:string;done:boolean}>; notes?: string | null; }) { if (isSegempatApiConfigured()) { await apiRequest("/api/operations/practical-evaluations", { method:"POST", body:JSON.stringify(practicalApiCreatePayload(input)) }); return; } const { error } = await (supabase as any).from("practical_evaluations").insert({ ...input, evaluator_id: await authId(), status: "Planejada", score: 0, max_score: 10, min_approval_score: input.min_approval_score ?? 7, checklist: input.checklist ?? [] }); if (error) throw error; }
-export async function updatePracticalEvaluation(id: string, patch: Partial<PracticalEvaluation>) { if (isSegempatApiConfigured()) { await apiRequest(`/api/operations/practical-evaluations/${encodeURIComponent(id)}`, { method:"PATCH", body:JSON.stringify(practicalApiPatchPayload(patch)) }); return; } const normalized: any = { ...patch }; delete normalized.id; delete normalized.created_at; delete normalized.updated_at; const { error } = await (supabase as any).from("practical_evaluations").update(normalized).eq("id", id); if (error) throw error; }
-export async function deletePracticalEvaluation(id: string) { if (isSegempatApiConfigured()) { await apiRequest(`/api/operations/practical-evaluations/${encodeURIComponent(id)}`, { method:"DELETE" }); return; } const { error } = await (supabase as any).from("practical_evaluations").delete().eq("id", id); if (error) throw error; }
 
-export async function listAuditLogs(limit = 200): Promise<AuditLog[]> { if (isSegempatApiConfigured()) return apiRequest<AuditLog[]>(`/api/operations/audit?limit=${limit}`); const { data, error } = await (supabase as any).from("audit_logs").select("*").order("created_at", { ascending: false }).limit(limit); if (error) throw error; return (data ?? []) as AuditLog[]; }
+export async function createPracticalEvaluation(input: { employee_id: string; employee_name: string; employee_matricula: string; employee_sector: string; title: string; evaluator_name?: string | null; evaluation_date?: string | null; min_approval_score?: number; checklist?: Array<{id:string;label:string;done:boolean}>; notes?: string | null; }) {
+  await apiRequest("/api/operations/practical-evaluations", { method:"POST", body:JSON.stringify(practicalApiCreatePayload(input)) });
+}
+
+export async function updatePracticalEvaluation(id: string, patch: Partial<PracticalEvaluation>) {
+  await apiRequest(`/api/operations/practical-evaluations/${encodeURIComponent(id)}`, { method:"PATCH", body:JSON.stringify(practicalApiPatchPayload(patch)) });
+}
+
+export async function deletePracticalEvaluation(id: string) {
+  await apiRequest(`/api/operations/practical-evaluations/${encodeURIComponent(id)}`, { method:"DELETE" });
+}
+
+export function listAuditLogs(limit = 200): Promise<AuditLog[]> {
+  return apiRequest<AuditLog[]>(`/api/operations/audit?limit=${limit}`);
+}

@@ -1,5 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
-import { apiRequest, isSegempatApiConfigured } from "@/lib/backend/api-client";
+import { apiRequest } from "@/lib/backend/api-client";
 
 export type PracticalRecurrence = "once" | "monthly" | "bimonthly" | "quarterly";
 export type PracticalTemplateStatus = "Ativo" | "Inativo";
@@ -28,30 +27,19 @@ function normalize(row: any): PracticalEvalTemplate {
 }
 
 export async function listPracticalEvalTemplates(): Promise<PracticalEvalTemplate[]> {
-  if (isSegempatApiConfigured()) return (await apiRequest<PracticalEvalTemplate[]>("/api/operations/practical-templates")).map(normalize);
-  const { data, error } = await (supabase as any).from("practical_eval_templates").select("*").order("title", { ascending: true });
-  if (error) throw error;
-  return (data ?? []).map(normalize);
+  return (await apiRequest<PracticalEvalTemplate[]>("/api/operations/practical-templates")).map(normalize);
 }
 
 export async function createPracticalEvalTemplate(input: PracticalEvalTemplateInput) {
-  if (isSegempatApiConfigured()) return normalize(await apiRequest<PracticalEvalTemplate>("/api/operations/practical-templates", { method:"POST", body:JSON.stringify(input) }));
-  const { data, error } = await (supabase as any).from("practical_eval_templates").insert(input).select("*").single();
-  if (error) throw error;
-  return normalize(data);
+  return normalize(await apiRequest<PracticalEvalTemplate>("/api/operations/practical-templates", { method:"POST", body:JSON.stringify(input) }));
 }
 
 export async function updatePracticalEvalTemplate(id: string, patch: Partial<PracticalEvalTemplateInput>) {
-  if (isSegempatApiConfigured()) return normalize(await apiRequest<PracticalEvalTemplate>(`/api/operations/practical-templates/${encodeURIComponent(id)}`, { method:"PATCH", body:JSON.stringify(patch) }));
-  const { data, error } = await (supabase as any).from("practical_eval_templates").update(patch).eq("id", id).select("*").single();
-  if (error) throw error;
-  return normalize(data);
+  return normalize(await apiRequest<PracticalEvalTemplate>(`/api/operations/practical-templates/${encodeURIComponent(id)}`, { method:"PATCH", body:JSON.stringify(patch) }));
 }
 
 export async function deletePracticalEvalTemplate(id: string) {
-  if (isSegempatApiConfigured()) { await apiRequest(`/api/operations/practical-templates/${encodeURIComponent(id)}`, { method:"DELETE" }); return; }
-  const { error } = await (supabase as any).from("practical_eval_templates").delete().eq("id", id);
-  if (error) throw error;
+  await apiRequest(`/api/operations/practical-templates/${encodeURIComponent(id)}`, { method:"DELETE" });
 }
 
 export function practicalDueMonths(recurrence: PracticalRecurrence) {

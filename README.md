@@ -6,14 +6,14 @@ O SEGEMPAT reúne gestão operacional, desenvolvimento profissional, avaliaçõe
 
 ## Status do projeto
 
-**PARTE DO MYSQL NO CÓDIGO CONCLUÍDA — PRONTO PARA CONECTAR AO BANCO DA EMPRESA.**
+**FRONTEND API-ONLY + API SEGEMPAT + MYSQL PRONTOS NO CÓDIGO — PREPARADO PARA CLOUDFLARE E HOMOLOGAÇÃO NO BANCO DA EMPRESA.**
 
-A arquitetura para MySQL corporativo, API própria, autenticação, autorização, migrations, storage, validações e principais fluxos operacionais está preparada no código. O sistema ainda não deve ser considerado homologado em produção: a homologação final depende da conexão com o MySQL real da empresa, migração dos dados e testes ponta a ponta no ambiente corporativo.
+O frontend não possui mais fallback de backend. Supabase e Lovable não fazem parte do runtime, autenticação, persistência, build ou hospedagem-alvo do SEGEMPAT. A homologação final continua dependendo da conexão com o MySQL real da empresa e dos testes ponta a ponta no ambiente corporativo.
 
-## Arquitetura alvo
+## Arquitetura definitiva
 
 ```text
-Navegador / SEGEMPAT
+Cloudflare Workers / SEGEMPAT
         |
         | HTTPS / JSON
         v
@@ -24,20 +24,20 @@ API SEGEMPAT — Node.js / Express
         +--> autenticação e regras de negócio
 ```
 
-O navegador **nunca acessa o MySQL diretamente** e não recebe host, usuário ou senha do banco.
+O navegador nunca acessa o MySQL diretamente e não recebe host, usuário ou senha do banco.
 
-Durante a transição existe código legado do Supabase para compatibilidade de preview quando `VITE_SEGEMPAT_API_URL` não está configurada. No build corporativo devem ser configuradas **as duas variáveis** abaixo:
+O frontend usa obrigatoriamente:
 
 ```text
 VITE_SEGEMPAT_API_URL=https://api.segempat.empresa.local
 VITE_SEGEMPAT_REQUIRE_API=true
 ```
 
-Com `VITE_SEGEMPAT_REQUIRE_API=true`, a aplicação falha explicitamente se a URL da API corporativa estiver ausente, evitando fallback silencioso para o backend legado.
+Se a API estiver ausente ou indisponível, a aplicação apresenta a indisponibilidade em vez de trocar de backend.
 
 ## Stack principal
 
-### Frontend
+### Frontend / hospedagem
 
 - React 19
 - TypeScript
@@ -45,6 +45,7 @@ Com `VITE_SEGEMPAT_REQUIRE_API=true`, a aplicação falha explicitamente se a UR
 - TanStack Start / Vite
 - Tailwind CSS
 - Bun
+- Cloudflare Workers (`@cloudflare/vite-plugin` + Wrangler)
 
 ### Backend corporativo
 
@@ -63,7 +64,7 @@ Com `VITE_SEGEMPAT_REQUIRE_API=true`, a aplicação falha explicitamente se a UR
 
 Perfil administrativo com acesso às funções de gestão, incluindo Dashboard, Analytics, Equipe, Cronograma, Provas, Banco de Questões, Treinamentos, Avaliações Práticas, Ocorrências, Certificados, evidências e Auditoria.
 
-O backend considera administrador somente quem possui role administrativa e perfil funcional atual de **Inspetor**.
+O backend considera administrador somente quem possui role administrativa e perfil funcional atual de Inspetor.
 
 ### Operador
 
@@ -90,7 +91,7 @@ Perfil operacional com acesso limitado por identidade, matrícula, setor e regra
 - Meu Perfil
 - Auditoria administrativa
 
-## Segurança no modo MySQL/API
+## Segurança no modo API/MySQL
 
 Os principais controles implementados incluem:
 
@@ -110,7 +111,7 @@ Os principais controles implementados incluem:
 - cookies seguros exigidos em produção;
 - suporte a TLS/CA corporativa para MySQL;
 - auditoria de operações críticas;
-- modo corporativo do frontend com API obrigatória e HTTPS;
+- frontend com API obrigatória e HTTPS;
 - readiness que revalida o histórico completo e os checksums das migrations do banco contra o deploy.
 
 ## MySQL e migrations
@@ -146,9 +147,27 @@ npm run bootstrap-admin   # somente se a carga não trouxer um Inspetor válido
 npm start
 ```
 
-O `preflight` valida o ambiente antes da migration. O `smoke` valida o schema depois da migration. O `cutover:audit` valida integridade funcional depois da carga dos dados. O bootstrap administrativo é excepcional e só deve ocorrer depois de schema e dados estarem coerentes.
+Após iniciar a API, `GET /health/ready` precisa permanecer saudável. O readiness compara todo o histórico de `schema_migrations`, incluindo versão, nome e checksum, com os arquivos de migration presentes no deploy.
 
-Após iniciar a API, `GET /health/ready` precisa permanecer saudável. O readiness compara **todo o histórico de `schema_migrations`**, incluindo versão, nome e checksum, com os arquivos de migration presentes no deploy.
+## Cloudflare
+
+A configuração do Worker está em `wrangler.jsonc` e o Vite usa o plugin oficial do Cloudflare.
+
+Com a URL HTTPS da API configurada:
+
+```bash
+bun install --frozen-lockfile
+bun run build
+bun run preview
+```
+
+Para publicar após autenticar a conta Cloudflare no ambiente autorizado:
+
+```bash
+bun run deploy
+```
+
+A autenticação do Cloudflare deve ser feita pelo proprietário/administrador da conta via Wrangler, dashboard ou pipeline corporativo. Tokens de API não devem ser colocados no repositório ou enviados em chat.
 
 ## Backend
 
@@ -161,25 +180,18 @@ Secrets reais nunca devem ser versionados.
 
 ## Documentação de migração e homologação
 
-- [`MYSQL_TI_INPUTS.md`](MYSQL_TI_INPUTS.md) — dados que a TI precisa fornecer/configurar antes da conexão real;
+- [`MYSQL_TI_INPUTS.md`](MYSQL_TI_INPUTS.md) — dados necessários antes da conexão real;
 - [`MYSQL_MIGRATION_PLAN.md`](MYSQL_MIGRATION_PLAN.md) — plano técnico da migração para MySQL;
-- [`MYSQL_CORPORATE_HANDOFF.md`](MYSQL_CORPORATE_HANDOFF.md) — roteiro operacional para a TI executar a conexão e os gates no ambiente real;
-- [`CORPORATE_HOMOLOGATION_CHECKLIST.md`](CORPORATE_HOMOLOGATION_CHECKLIST.md) — checklist para TI e gestão durante a homologação;
-- [`HOMOLOGATION_EVIDENCE_TEMPLATE.md`](HOMOLOGATION_EVIDENCE_TEMPLATE.md) — registro único das evidências e do aceite técnico/funcional final;
+- [`MYSQL_CORPORATE_HANDOFF.md`](MYSQL_CORPORATE_HANDOFF.md) — roteiro operacional para a TI;
+- [`CORPORATE_HOMOLOGATION_CHECKLIST.md`](CORPORATE_HOMOLOGATION_CHECKLIST.md) — checklist de homologação;
+- [`HOMOLOGATION_EVIDENCE_TEMPLATE.md`](HOMOLOGATION_EVIDENCE_TEMPLATE.md) — evidências e aceite final;
 - [`PRODUCTION_CHECKLIST.md`](PRODUCTION_CHECKLIST.md) — checklist geral de publicação;
-- [`SECURITY_AUDIT.md`](SECURITY_AUDIT.md) — auditoria da arquitetura MySQL/API atual;
-- [`HOMOLOGATION_STATUS.md`](HOMOLOGATION_STATUS.md) — registro histórico da etapa anterior baseada em Supabase; **não é evidência de homologação MySQL**.
+- [`SECURITY_AUDIT.md`](SECURITY_AUDIT.md) — auditoria da arquitetura API/MySQL.
 
-## Desenvolvimento do frontend
+## Desenvolvimento e validações
 
 ```bash
 bun install --frozen-lockfile
-bun run dev
-```
-
-Validações locais:
-
-```bash
 bun run typecheck
 bun run lint
 bun run build
@@ -187,13 +199,13 @@ bun run build
 
 ## CI
 
-O workflow `.github/workflows/ci.yml` valida continuamente o projeto no GitHub Actions. Entre os controles estão sintaxe do backend, configuração segura de produção, migrations, contrato do frontend API-only, imagem Docker, manifesto de implantação, Nginx/systemd, typecheck, lint e build do frontend.
+O workflow `.github/workflows/ci.yml` valida continuamente o projeto no GitHub Actions. Além dos gates MySQL, segurança, Docker, Nginx/systemd, typecheck, lint e build, o CI impede a reintrodução de dependências ativas das plataformas legadas e valida o runtime Cloudflare.
 
 O GitHub é a fonte versionada oficial do código e da documentação técnica do SEGEMPAT.
 
 ## Critério de conclusão
 
-O marco de código para conexão com o MySQL corporativo está atendido.
+O código está preparado para frontend Cloudflare + API própria + MySQL corporativo.
 
 O status **SEGEMPAT HOMOLOGADO NO MYSQL DA EMPRESA** só poderá ser declarado após:
 
