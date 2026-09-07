@@ -36,6 +36,10 @@ jobs:
           grep -F 'credential-version:${passwordHash}:epoch:' server/src/session.js >/dev/null
           grep -F '"manage-inspector-access"' server/package.json >/dev/null
           grep -F '"report-privileged-access"' server/package.json >/dev/null
+          grep -F '"migrate": "node scripts/migrate-with-ti-credentials.js"' server/package.json >/dev/null
+          grep -F 'MYSQL_MIGRATION_USER' server/scripts/migrate-with-ti-credentials.js >/dev/null
+          grep -F 'deve ser diferente de MYSQL_USER em produção' server/scripts/migrate-with-ti-credentials.js >/dev/null
+          grep -F 'MYSQL_MIGRATION_PASSWORD' server/.env.example >/dev/null
           grep -F 'check-governance-integrity.js' server/package.json >/dev/null
           grep -F 'audit_logs_block_update' database/mysql/006_governance_audit_session_hardening.sql >/dev/null
           grep -F 'audit_logs_block_delete' database/mysql/006_governance_audit_session_hardening.sql >/dev/null
@@ -51,4 +55,18 @@ jobs:
           node --check server/scripts/manage-inspector-access.js
           node --check server/scripts/report-privileged-access.js
           node --check server/scripts/check-governance-integrity.js
-          echo "Segregação TI x Inspetoria e hardening de governança validados."
+          node --check server/scripts/migrate-with-ti-credentials.js
+
+          if NODE_ENV=production MYSQL_USER=segempat_app MYSQL_PASSWORD=runtime node server/scripts/migrate-with-ti-credentials.js >/tmp/migrate-gate.log 2>&1; then
+            echo "::error::Migration de produção foi aceita sem credencial separada da TI"
+            exit 1
+          fi
+          grep -F 'produção exige credencial de migration controlada pela TI' /tmp/migrate-gate.log >/dev/null
+
+          if NODE_ENV=production MYSQL_USER=segempat_app MYSQL_PASSWORD=runtime MYSQL_MIGRATION_USER=segempat_app MYSQL_MIGRATION_PASSWORD=migration node server/scripts/migrate-with-ti-credentials.js >/tmp/migrate-same-user.log 2>&1; then
+            echo "::error::Migration de produção aceitou o mesmo usuário da API"
+            exit 1
+          fi
+          grep -F 'deve ser diferente de MYSQL_USER em produção' /tmp/migrate-same-user.log >/dev/null
+
+          echo "Segregação TI x Inspetoria, auditoria e credenciais de migration validadas."
