@@ -1,6 +1,7 @@
 import type { ApiErrorBody } from "./contracts";
-import { isDemoModeEnabled } from "@/lib/demo-mode";
+import { getDemoRole, isDemoModeEnabled } from "@/lib/demo-mode";
 import { demoApiRequest } from "@/lib/demo-api";
+import { operatorDemoApiRequest } from "@/lib/operator-demo-api";
 
 const TRUE_VALUES = new Set(["1", "true", "yes", "on"]);
 
@@ -93,7 +94,11 @@ export async function apiRequest<T>(
   path: string,
   init: RequestInit = {},
 ): Promise<T> {
-  if (isDemoModeEnabled()) return demoApiRequest<T>(path, init);
+  if (isDemoModeEnabled()) {
+    return getDemoRole() === "operator"
+      ? operatorDemoApiRequest<T>(path, init)
+      : demoApiRequest<T>(path, init);
+  }
 
   const headers = new Headers(init.headers);
   if (init.body && !(init.body instanceof FormData) && !headers.has("content-type")) {

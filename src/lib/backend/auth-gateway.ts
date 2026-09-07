@@ -1,8 +1,33 @@
 import { normalizeMatricula } from "@/lib/matricula";
+import {
+  DEMO_INSPECTOR_USER,
+  DEMO_OPERATOR_USER,
+  enableDemoMode,
+  isDemoModeAllowed,
+} from "@/lib/demo-mode";
 import { apiRequest } from "./api-client";
 import type { SessionUser } from "./contracts";
 
+const DEMO_PASSWORD = "demo";
+
+function demoUserForCredentials(matricula: string, password: string): SessionUser | null {
+  if (!isDemoModeAllowed() || password !== DEMO_PASSWORD) return null;
+  const normalized = normalizeMatricula(matricula);
+  if (normalized === normalizeMatricula(DEMO_INSPECTOR_USER.matricula)) {
+    enableDemoMode("inspector");
+    return DEMO_INSPECTOR_USER;
+  }
+  if (normalized === normalizeMatricula(DEMO_OPERATOR_USER.matricula)) {
+    enableDemoMode("operator");
+    return DEMO_OPERATOR_USER;
+  }
+  return null;
+}
+
 export async function loginWithMatricula(matricula: string, password: string): Promise<SessionUser> {
+  const demoUser = demoUserForCredentials(matricula, password);
+  if (demoUser) return demoUser;
+
   return apiRequest<SessionUser>("/api/auth/login", {
     method: "POST",
     body: JSON.stringify({ matricula: normalizeMatricula(matricula), password }),
