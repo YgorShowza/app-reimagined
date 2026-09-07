@@ -33,6 +33,23 @@ const ADMIN_ONLY_PATHS = new Set([
   "/foco",
 ]);
 
+const OPERATOR_DESKTOP_PATHS = new Set([
+  "/painel",
+  "/pendencias",
+  "/progresso",
+  "/certificados",
+  "/treinamentos",
+  "/conteudos",
+  "/meu-perfil",
+  "/pratico",
+  "/minhas-ocorrencias",
+  "/prova-realizar",
+  "/teste-rapido",
+  "/simulador",
+  "/stress-test",
+  "/desafio-diario",
+]);
+
 function isAdminOnlyPath(pathname: string) {
   return ADMIN_ONLY_PATHS.has(pathname) || pathname.startsWith("/certificado/");
 }
@@ -40,10 +57,17 @@ function isAdminOnlyPath(pathname: string) {
 function AuthenticatedShell() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   if (pathname === "/tv") return <Outlet />;
+  const operatorDesktopRoute = OPERATOR_DESKTOP_PATHS.has(pathname) ? pathname : null;
   return (
     <AppLayoutV2>
       <DemoModeBadge />
-      <Outlet />
+      {operatorDesktopRoute ? (
+        <div className="segempat-operator-desktop min-w-0 w-full" data-operator-route={operatorDesktopRoute}>
+          <Outlet />
+        </div>
+      ) : (
+        <Outlet />
+      )}
     </AppLayoutV2>
   );
 }
