@@ -29,12 +29,23 @@ jobs:
           grep -F 'TI_OPERATOR' server/scripts/manage-inspector-access.js >/dev/null
           grep -F 'TI_GRANT_INSPECTOR' server/scripts/manage-inspector-access.js >/dev/null
           grep -F 'TI_REVOKE_INSPECTOR' server/scripts/manage-inspector-access.js >/dev/null
+          grep -F 'último Inspetor ativo com acesso administrativo' server/scripts/manage-inspector-access.js >/dev/null
+          grep -F 'session_epoch = session_epoch + 1' server/scripts/manage-inspector-access.js >/dev/null
+          grep -F 'session_epoch = session_epoch + 1' server/src/routes/employees.js >/dev/null
+          grep -F 'u.session_epoch' server/src/session.js >/dev/null
+          grep -F 'credential-version:${passwordHash}:epoch:' server/src/session.js >/dev/null
           grep -F '"manage-inspector-access"' server/package.json >/dev/null
+          grep -F 'check-governance-integrity.js' server/package.json >/dev/null
+          grep -F 'audit_logs_block_update' database/mysql/006_governance_audit_session_hardening.sql >/dev/null
+          grep -F 'audit_logs_block_delete' database/mysql/006_governance_audit_session_hardening.sql >/dev/null
+          grep -F 'ADD COLUMN session_epoch BIGINT UNSIGNED NOT NULL DEFAULT 0' database/mysql/006_governance_audit_session_hardening.sql >/dev/null
           grep -F 'export const PERFIS = ["Operacional"]' src/lib/employees.ts >/dev/null
           grep -F 'Inspetor · TI' src/routes/_authenticated/equipe.tsx >/dev/null
           grep -F 'disabled={editingPrivileged}' src/routes/_authenticated/equipe.tsx >/dev/null
           grep -F 'LGPD_GOVERNANCE.md' MYSQL_TI_INPUTS.md >/dev/null
           grep -F 'TI_GRANT_INSPECTOR' LGPD_GOVERNANCE.md >/dev/null
           node --check server/src/routes/employees.js
+          node --check server/src/session.js
           node --check server/scripts/manage-inspector-access.js
-          echo "Segregação TI x Inspetoria validada no backend, frontend e governança."
+          node --check server/scripts/check-governance-integrity.js
+          echo "Segregação TI x Inspetoria e hardening de governança validados."
