@@ -8,7 +8,7 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import helmet from "helmet";
 import { config } from "./config.js";
-import { healthcheck, queryOne } from "./db.js";
+import { healthcheck, query, queryOne } from "./db.js";
 import { attachUser } from "./session.js";
 import { authRouter } from "./routes/auth.js";
 import { employeesRouter } from "./routes/employees.js";
@@ -55,16 +55,16 @@ const READINESS_TABLES = [
 ];
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
-let expectedMigrationPromise = null;
+let expectedMigrationsPromise = null;
 
 function migrationVersion(fileName) {
   const match = /^(\d{3,})_.+\.sql$/i.exec(fileName);
   return match ? match[1] : null;
 }
 
-async function expectedLatestMigration() {
-  if (!expectedMigrationPromise) {
-    expectedMigrationPromise = (async () => {
+async function expectedMigrations() {
+  if (!expectedMigrationsPromise) {
+    expectedMigrationsPromise = (async () => {
       const migrations = (await fs.readdir(migrationsDir))
         .map((fileName) => ({ fileName, version: migrationVersion(fileName) }))
         .filter((entry) => entry.version)
@@ -74,18 +74,67 @@ async function expectedLatestMigration() {
           return left < right ? -1 : left > right ? 1 : a.fileName.localeCompare(b.fileName, "en");
         });
       if (migrations.length === 0) throw new Error("Nenhuma migration MySQL versionada encontrada no deploy");
-      const latest = migrations.at(-1);
-      const sql = await fs.readFile(path.join(migrationsDir, latest.fileName), "utf8");
-      return {
-        ...latest,
-        checksum: createHash("sha256").update(sql, "utf8").digest("hex"),
-      };
+
+      return Promise.all(
+        migrations.map(async (migration) => {
+          const sql = await fs.readFile(path.join(migrationsDir, migration.fileName), "utf8");
+          return {
+            ...migration,
+            checksum: createHash("sha256").update(sql, "utf8").digest("hex"),
+          };
+        }),
+      );
     })().catch((error) => {
-      expectedMigrationPromise = null;
+      expectedMigrationsPromise = null;
       throw error;
     });
   }
-  return expectedMigrationPromise;
+  return expectedMigrationsPromise;
+}
+
+async function verifyMigrationReadiness() {
+  const expected = await expectedMigrations();
+  const applied = await query(
+    `SELECT version, file_name, checksum_sha256, applied_at
+       FROM schema_migrations
+      ORDER BY CAST(version AS UNSIGNED) ASC, version ASC`,
+  );
+
+  if (applied.length !== expected.length) {
+    return {
+      ready: false,
+      reason: "history-length-mismatch",
+      expectedCount: expected.length,
+      appliedCount: applied.length,
+    };
+  }
+
+  for (let index = 0; index < expected.length; index += 1) {
+    const code = expected[index];
+    const database = applied[index];
+    if (
+      String(database?.version) !== String(code.version) ||
+      String(database?.file_name) !== code.fileName ||
+      String(database?.checksum_sha256) !== code.checksum
+    ) {
+      return {
+        ready: false,
+        reason: "history-mismatch",
+        expected: `${code.version}:${code.fileName}`,
+        applied: database ? `${database.version}:${database.file_name}` : null,
+      };
+    }
+  }
+
+  const latest = applied.at(-1);
+  return {
+    ready: true,
+    latest: {
+      version: String(latest.version),
+      file_name: latest.file_name,
+      applied_at: latest.applied_at,
+    },
+  };
 }
 
 async function verifyStorageReadiness() {
@@ -154,29 +203,18 @@ export function createApp() {
       }
 
       phase = "migrations";
-      const migration = await queryOne(
-        `SELECT version, file_name, checksum_sha256, applied_at
-           FROM schema_migrations
-          ORDER BY CAST(version AS UNSIGNED) DESC, version DESC
-          LIMIT 1`,
-      );
-      if (!migration) {
-        return res.status(503).json({ ok: false, service: "segempat-api", database: "connected", migrations: "not-applied" });
-      }
-
-      const expectedMigration = await expectedLatestMigration();
-      if (
-        String(migration.version) !== String(expectedMigration.version) ||
-        String(migration.file_name) !== expectedMigration.fileName ||
-        String(migration.checksum_sha256) !== expectedMigration.checksum
-      ) {
+      const migrationStatus = await verifyMigrationReadiness();
+      if (!migrationStatus.ready) {
         return res.status(503).json({
           ok: false,
           service: "segempat-api",
           database: "connected",
           migrations: "out-of-date",
-          expected: `${expectedMigration.version}:${expectedMigration.fileName}`,
-          applied: `${migration.version}:${migration.file_name}`,
+          reason: migrationStatus.reason,
+          expected: migrationStatus.expected ?? null,
+          applied: migrationStatus.applied ?? null,
+          expected_count: migrationStatus.expectedCount ?? null,
+          applied_count: migrationStatus.appliedCount ?? null,
         });
       }
 
@@ -204,7 +242,7 @@ export function createApp() {
         tls: sslCipher ? "ready" : "off",
         schema: "ready",
         storage: "ready",
-        migration: { version: String(migration.version), file_name: migration.file_name, applied_at: migration.applied_at },
+        migration: migrationStatus.latest,
       });
     } catch (error) {
       console.error(`[segempat-api] readiness falhou em ${phase}`, error?.message || error);
