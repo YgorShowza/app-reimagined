@@ -6,7 +6,8 @@
 @media (min-width: 1280px) {
   .segempat-analytical-analytics,
   .segempat-analytical-reports,
-  .segempat-analytical-individual > div {
+  .segempat-analytical-individual > div,
+  .segempat-analytical-monthly-report > div {
     max-width: 1536px !important;
   }
 }

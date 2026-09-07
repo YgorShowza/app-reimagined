@@ -4,7 +4,8 @@
  */
 
 @media (min-width: 1280px) {
-  .segempat-operational-cronograma > div {
+  .segempat-operational-cronograma > div,
+  .segempat-operational-cronograma-management > div {
     max-width: 1536px !important;
   }
 

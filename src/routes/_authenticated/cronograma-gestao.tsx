@@ -32,9 +32,11 @@ function CronogramaGestaoPage() {
   }, [queryClient]);
 
   return (
-    <CronogramaWorkspace
-      autoOpenNew={Boolean(novo)}
-      onAutoOpenHandled={() => navigate({ to: "/cronograma-gestao", search: {}, replace: true })}
-    />
+    <div className="segempat-operational-cronograma-management min-w-0 w-full">
+      <CronogramaWorkspace
+        autoOpenNew={Boolean(novo)}
+        onAutoOpenHandled={() => navigate({ to: "/cronograma-gestao", search: {}, replace: true })}
+      />
+    </div>
   );
 }
