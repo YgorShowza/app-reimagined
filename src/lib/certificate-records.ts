@@ -1,5 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
-import { apiRequest, isSegempatApiConfigured } from "@/lib/backend/api-client";
+import { apiRequest } from "@/lib/backend/api-client";
 
 export type CertificateRecord = {
   id: string;
@@ -34,90 +33,10 @@ export type MyCertificateState = {
   revoked_reason: string | null;
 };
 
-function normalizedMatricula(value: unknown) {
-  return String(value ?? "").trim().toLowerCase();
+export function listMyCertificateStates(): Promise<MyCertificateState[]> {
+  return apiRequest<MyCertificateState[]>("/api/me/certificate-states");
 }
 
-export async function listMyCertificateStates(): Promise<MyCertificateState[]> {
-  if (isSegempatApiConfigured()) {
-    return apiRequest<MyCertificateState[]>("/api/me/certificate-states");
-  }
-
-  const { data, error } = await (supabase as any)
-    .from("certificates")
-    .select("attempt_id, verification_code, issued_at, revoked, revoked_at, revoked_reason")
-    .order("issued_at", { ascending: false });
-  if (error) throw error;
-  return (data ?? []).map((row: any) => ({
-    attempt_id: String(row.attempt_id),
-    verification_code: String(row.verification_code ?? ""),
-    issued_at: String(row.issued_at ?? ""),
-    revoked: Boolean(row.revoked),
-    revoked_at: row.revoked_at ?? null,
-    revoked_reason: row.revoked_reason ?? null,
-  }));
-}
-
-export async function listCertificateRecords(): Promise<CertificateRecord[]> {
-  if (isSegempatApiConfigured()) {
-    return apiRequest<CertificateRecord[]>("/api/admin/exam-attempts");
-  }
-
-  const client = supabase as any;
-  const [
-    { data: attempts, error: attemptsError },
-    { data: exams, error: examsError },
-    { data: employees, error: employeesError },
-    { data: certificates, error: certificatesError },
-  ] = await Promise.all([
-    client
-      .from("exam_attempts")
-      .select("id, exam_id, user_id, matricula, score, passed, certificate_code, signature_path, signature_name, signature_agreed, signed_at, finished_at, created_at")
-      .eq("passed", true)
-      .not("certificate_code", "is", null)
-      .order("finished_at", { ascending: false }),
-    client.from("exams").select("id, title, exam_type"),
-    client.from("employees").select("id, full_name, matricula, sector"),
-    client.from("certificates").select("attempt_id, verification_code, revoked, revoked_at, revoked_reason"),
-  ]);
-
-  if (attemptsError) throw attemptsError;
-  if (examsError) throw examsError;
-  if (employeesError) throw employeesError;
-  if (certificatesError) throw certificatesError;
-
-  const examMap = new Map((exams ?? []).map((row: any) => [row.id, row]));
-  const employeeByMatricula = new Map((employees ?? []).map((row: any) => [normalizedMatricula(row.matricula), row]));
-  const certificateByAttempt = new Map((certificates ?? []).map((row: any) => [row.attempt_id, row]));
-
-  return (attempts ?? []).map((attempt: any) => {
-    const exam: any = examMap.get(attempt.exam_id);
-    const employee: any = employeeByMatricula.get(normalizedMatricula(attempt.matricula));
-    const certificate: any = certificateByAttempt.get(attempt.id);
-    const certificateRevoked = Boolean(certificate?.revoked);
-    const formallyIssued = Boolean(
-      attempt.passed &&
-      attempt.certificate_code &&
-      attempt.signature_agreed &&
-      attempt.signature_path &&
-      attempt.signed_at &&
-      certificate &&
-      certificate.verification_code === attempt.certificate_code &&
-      !certificateRevoked,
-    );
-    return {
-      ...attempt,
-      score: Number(attempt.score ?? 0),
-      passed: Boolean(attempt.passed),
-      signature_agreed: Boolean(attempt.signature_agreed),
-      exam_title: exam?.title ?? "Avaliação",
-      exam_type: exam?.exam_type ?? "—",
-      employee_name: employee?.full_name ?? attempt.signature_name ?? attempt.matricula ?? "Colaborador",
-      employee_sector: employee?.sector ?? "—",
-      certificate_revoked: certificateRevoked,
-      revoked_at: certificate?.revoked_at ?? null,
-      revoked_reason: certificate?.revoked_reason ?? null,
-      formally_issued: formallyIssued,
-    } as CertificateRecord;
-  });
+export function listCertificateRecords(): Promise<CertificateRecord[]> {
+  return apiRequest<CertificateRecord[]>("/api/admin/exam-attempts");
 }
