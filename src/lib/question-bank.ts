@@ -1,5 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
-import { apiRequest, isSegempatApiConfigured } from "@/lib/backend/api-client";
+import { apiRequest } from "@/lib/backend/api-client";
 
 export interface QuestionBankItem {
   id: string;
@@ -41,63 +40,24 @@ export interface QuestionBankInput {
   active: boolean;
 }
 
-function normalize(row: any): QuestionBankItem {
-  return { ...row, options: Array.isArray(row.options) ? row.options : [] } as QuestionBankItem;
+export function listQuestionBank(): Promise<QuestionBankItem[]> {
+  return apiRequest<QuestionBankItem[]>("/api/question-bank");
 }
 
-function normalizeOperational(row: any): OperationalQuestionBankItem {
-  return {
-    id: String(row.id),
-    bank_type: String(row.bank_type || ""),
-    question_text: String(row.question_text || ""),
-    options: Array.isArray(row.options) ? row.options : [],
-    target_sector: String(row.target_sector || "Todos"),
-    difficulty: String(row.difficulty || "Básico"),
-    theme: String(row.theme || ""),
-    active: Boolean(row.active),
-    created_at: String(row.created_at || ""),
-  };
-}
-
-export async function listQuestionBank(): Promise<QuestionBankItem[]> {
-  if (isSegempatApiConfigured()) return apiRequest<QuestionBankItem[]>("/api/question-bank");
-  const { data, error } = await (supabase as any).rpc("list_question_bank_admin");
-  if (error) throw error;
-  return (data ?? []).map(normalize);
-}
-
-export async function listActiveQuestionBank(): Promise<OperationalQuestionBankItem[]> {
-  if (isSegempatApiConfigured()) return apiRequest<OperationalQuestionBankItem[]>("/api/question-bank/operational");
-  const { data, error } = await (supabase as any).rpc("list_operational_questions");
-  if (error) throw error;
-  return (data ?? []).map(normalizeOperational);
+export function listActiveQuestionBank(): Promise<OperationalQuestionBankItem[]> {
+  return apiRequest<OperationalQuestionBankItem[]>("/api/question-bank/operational");
 }
 
 export async function createQuestionBankItem(input: QuestionBankInput) {
-  if (isSegempatApiConfigured()) {
-    await apiRequest<{ id: string }>("/api/question-bank", { method: "POST", body: JSON.stringify(input) });
-    return;
-  }
-  const { error } = await (supabase as any).rpc("create_question_bank_admin", { p_input: input });
-  if (error) throw error;
+  await apiRequest<{ id: string }>("/api/question-bank", { method: "POST", body: JSON.stringify(input) });
 }
 
 export async function updateQuestionBankItem(id: string, input: Partial<QuestionBankInput>) {
-  if (isSegempatApiConfigured()) {
-    await apiRequest<void>(`/api/question-bank/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) });
-    return;
-  }
-  const { error } = await (supabase as any).rpc("update_question_bank_admin", { p_id: id, p_patch: input });
-  if (error) throw error;
+  await apiRequest<void>(`/api/question-bank/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) });
 }
 
 export async function deleteQuestionBankItem(id: string) {
-  if (isSegempatApiConfigured()) {
-    await apiRequest<void>(`/api/question-bank/${encodeURIComponent(id)}`, { method: "DELETE" });
-    return;
-  }
-  const { error } = await (supabase as any).rpc("delete_question_bank_admin", { p_id: id });
-  if (error) throw error;
+  await apiRequest<void>(`/api/question-bank/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 export function questionThemeLabel(item: Pick<QuestionBankItem, "theme" | "bank_type"> | Pick<OperationalQuestionBankItem, "theme" | "bank_type">) {
