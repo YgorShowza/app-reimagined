@@ -12,6 +12,7 @@
 - [x] container roda como usuário não-root;
 - [x] Docker healthcheck usa `/health/ready`;
 - [x] Nginx e systemd de referência possuem hardening validado pelo CI;
+- [x] `smoke` e `cutover:audit` incluem auditoria dedicada da geração recorrente de Avaliação Prática, slots, FK, histórico e vínculo 1:1 com o Cronograma;
 - [ ] HEAD final do deploy registrado pela TI.
 
 ## 2. MySQL corporativo
@@ -24,8 +25,8 @@
 - [ ] CA corporativa instalada quando aplicável;
 - [ ] `npm run preflight` aprovado;
 - [ ] `npm run migrate` aprovado;
-- [ ] `npm run smoke` aprovado;
-- [ ] histórico/checksums das migrations coerentes;
+- [ ] migrations `001` a `005` registradas com histórico/checksums coerentes;
+- [ ] `npm run smoke` aprovado, incluindo auditoria de Avaliação Prática/Cronograma;
 - [ ] `FOREIGN_KEY_CHECKS=1`, UTC, modo SQL estrito, InnoDB e `utf8mb4` confirmados.
 
 ## 3. Migração/carga de dados
@@ -38,6 +39,7 @@
 - [ ] assinaturas/evidências copiadas para storage corporativo;
 - [ ] contagens antes/depois registradas por entidade crítica;
 - [ ] amostras históricas conferidas;
+- [ ] não existem slots recorrentes duplicados nem marcadores `[PRACTICAL:*]` órfãos no Cronograma;
 - [ ] `npm run cutover:audit` aprovado sem inconsistência crítica.
 
 ## 4. Sessão, autenticação e autorização
@@ -77,7 +79,7 @@ VITE_SEGEMPAT_REQUIRE_API=true
 
 - [ ] API executando no host corporativo;
 - [ ] `/health` responde;
-- [ ] `/health/ready` permanece verde;
+- [ ] `/health/ready` permanece verde e reconhece a migration MySQL mais recente;
 - [ ] proxy reverso HTTPS configurado;
 - [ ] HTTP redireciona para HTTPS;
 - [ ] TLS 1.2/1.3 conforme política corporativa;
@@ -107,7 +109,13 @@ VITE_SEGEMPAT_REQUIRE_API=true
 - [ ] Banco de Questões;
 - [ ] criação/publicação de Provas;
 - [ ] Treinamentos;
-- [ ] Avaliação Prática;
+- [ ] Avaliação Prática manual;
+- [ ] geração recorrente de Avaliação Prática cria os slots esperados no mês;
+- [ ] repetir a geração recorrente não duplica os mesmos slots;
+- [ ] mês suspenso impede geração e ausência do operador desloca/impede a data conforme disponibilidade no mesmo mês;
+- [ ] cada avaliação recorrente mantém exatamente um lançamento próprio no Cronograma;
+- [ ] conclusão da Avaliação Prática transforma o lançamento vinculado em `Realizado` e preserva o histórico;
+- [ ] resultado do Cronograma sincronizado aparece em Dashboard, Analytics, Relatórios, Relatório Mensal e Análise Individual conforme os filtros aplicáveis;
 - [ ] Ocorrências;
 - [ ] Certificados/validação;
 - [ ] Auditoria administrativa.
@@ -125,7 +133,9 @@ VITE_SEGEMPAT_REQUIRE_API=true
 - [ ] Simulador;
 - [ ] Stress Test;
 - [ ] Desafio Diário;
-- [ ] Meu Perfil/progresso.
+- [ ] Meu Perfil/progresso;
+- [ ] Avaliação Prática mostra somente registros do próprio colaborador autenticado;
+- [ ] lançamento sincronizado da própria Avaliação Prática aparece no Cronograma/pendências do Operador quando aplicável.
 
 ## 9. Navegadores, dispositivos e impressão
 
