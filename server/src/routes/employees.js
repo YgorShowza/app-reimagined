@@ -153,6 +153,7 @@ employeesRouter.patch(
         [...fields.map((field) => input[field]), lockedEmployee.id],
       );
 
+      let sessionsRevoked = false;
       if (input.access_profile || input.status) {
         const [accounts] = await connection.execute(
           `SELECT id FROM app_users WHERE LOWER(TRIM(matricula)) = LOWER(TRIM(?)) LIMIT 1 FOR UPDATE`,
@@ -162,15 +163,33 @@ employeesRouter.patch(
         if (account) {
           const profile = input.access_profile ?? lockedEmployee.access_profile;
           const status = input.status ?? lockedEmployee.status;
+          const statusChanged = Object.prototype.hasOwnProperty.call(input, "status") && status !== lockedEmployee.status;
+
           if (profile === "Inspetor" && status === "Ativo") {
             await connection.execute(`INSERT IGNORE INTO user_roles (id, user_id, role) VALUES (?, ?, 'admin')`, [uuid(), account.id]);
           } else {
             await connection.execute(`DELETE FROM user_roles WHERE user_id = ? AND role = 'admin'`, [account.id]);
           }
+
+          if (statusChanged) {
+            await connection.execute(
+              `UPDATE app_users
+                  SET session_epoch = session_epoch + 1, updated_at = UTC_TIMESTAMP(3)
+                WHERE id = ?`,
+              [account.id],
+            );
+            sessionsRevoked = true;
+          }
         }
       }
 
-      await audit(req.user.id, "UPDATE", "employees", lockedEmployee.id, { old: lockedEmployee, new: input, role_sync_atomic: true, privilege_boundary: "operational" }, connection);
+      await audit(req.user.id, "UPDATE", "employees", lockedEmployee.id, {
+        old: lockedEmployee,
+        new: input,
+        role_sync_atomic: true,
+        privilege_boundary: "operational",
+        sessions_revoked: sessionsRevoked,
+      }, connection);
     });
     res.status(204).end();
   }),
