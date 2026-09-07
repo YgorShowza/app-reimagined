@@ -1,0 +1,49 @@
+name: SEGEMPAT Theme Navigation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: segempat-theme-navigation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  theme-navigation-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate theme-aware sidebar and desktop navigation
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          grep -F 'segempat-sidebar-sheet' src/components/AppLayout.tsx >/dev/null
+          grep -F 'w-[86vw] max-w-[340px]' src/components/AppLayout.tsx >/dev/null
+          grep -F 'hidden w-72 flex-col lg:flex' src/components/AppLayout.tsx >/dev/null
+          grep -F 'lg:ml-72' src/components/AppLayout.tsx >/dev/null
+          grep -F 'background: "var(--header-bg)"' src/components/AppLayout.tsx >/dev/null
+          grep -F 'color: isActive ? "#fff" : "var(--text-2)"' src/components/AppLayout.tsx >/dev/null
+          grep -F 'color: isActive ? "#fff" : "var(--text-3)"' src/components/AppLayout.tsx >/dev/null
+          grep -F 'Tema da interface' src/components/AppLayout.tsx >/dev/null
+
+          grep -F '.segempat-sidebar-sheet[role="dialog"]' src/theme-contrast-fixes.css >/dev/null
+          grep -F 'background: var(--header-bg) !important' src/theme-contrast-fixes.css >/dev/null
+          grep -F 'color: var(--text-1) !important' src/theme-contrast-fixes.css >/dev/null
+
+          if grep -F '[class*="w-[280px]"]' src/theme-contrast-fixes.css >/dev/null; then
+            echo 'ERRO: proteção de tema não pode depender da largura histórica do drawer.' >&2
+            exit 1
+          fi
+
+          if grep -F 'rgba(255,255,255,0.62)' src/components/AppLayout.tsx >/dev/null; then
+            echo 'ERRO: link inativo da sidebar voltou a depender de texto branco fixo.' >&2
+            exit 1
+          fi
+
+          echo 'Tema claro/escuro e navegação desktop/mobile protegidos.'
