@@ -198,6 +198,7 @@ practicalIntegrityRouter.post(
     const title = requireText(req.body?.title, "Título").slice(0, 255);
     const evaluationDate = mysqlDateOrNull(req.body?.evaluation_date, "Data da avaliação");
     if (!evaluationDate) throw badRequest("Informe a data da avaliação para sincronizar com o Cronograma");
+    const minApprovalScore = finiteNumber(req.body?.min_approval_score ?? 7, "Nota mínima", { min: 0, max: 10 });
     const checklist = normalizeChecklist(req.body?.checklist ?? []);
     const id = uuid();
 
@@ -216,16 +217,17 @@ practicalIntegrityRouter.post(
 
       await connection.execute(
         `INSERT INTO practical_evaluations
-         (id,employee_id,employee_name,employee_matricula,employee_sector,title,evaluator_id,evaluator_name,status,score,max_score,checklist,notes,evaluation_date,completed_at,created_at,updated_at)
-         VALUES (?,?,?,?,?,?,?,?, 'Planejada',0,10,?,?,?,NULL,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))`,
+         (id,employee_id,employee_name,employee_matricula,employee_sector,title,evaluator_id,evaluator_name,status,score,max_score,min_approval_score,checklist,notes,evaluation_date,completed_at,created_at,updated_at)
+         VALUES (?,?,?,?,?,?,?,?, 'Planejada',0,10,?,?,?,?,NULL,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))`,
         [id,employee.id,employee.full_name,employee.matricula,employee.sector,title,req.user.id,req.user.nome,
-          JSON.stringify(checklist),trimOrNull(req.body?.notes),evaluationDate],
+          minApprovalScore,JSON.stringify(checklist),trimOrNull(req.body?.notes),evaluationDate],
       );
 
       const cronograma = await ensureCronogramaPlan(connection, evaluation, req.user.id);
       await audit(req.user.id, "INSERT", "practical_evaluations", id, {
         employee_id: employee.id,
         title,
+        min_approval_score: minApprovalScore,
         identity_derived_server_side: true,
         cronograma_synchronized: cronograma.action,
         cronograma_entry_id: cronograma.entryId,
@@ -256,6 +258,7 @@ practicalIntegrityRouter.patch(
       if (has("status")) patch.status = requireOneOf(req.body.status, PRACTICAL_STATUS, "Situação");
       if (has("score")) patch.score = finiteNumber(req.body.score, "Nota", { min: 0, max: 100 });
       if (has("max_score")) patch.max_score = finiteNumber(req.body.max_score, "Nota máxima", { min: 0.01, max: 100 });
+      if (has("min_approval_score")) patch.min_approval_score = finiteNumber(req.body.min_approval_score, "Nota mínima", { min: 0, max: 10 });
       if (has("checklist")) patch.checklist = JSON.stringify(normalizeChecklist(req.body.checklist));
       if (has("notes")) patch.notes = trimOrNull(req.body.notes);
       if (has("evaluation_date")) {
