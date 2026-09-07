@@ -36,6 +36,7 @@ const ADMIN_ONLY_PATHS = new Set([
 const OPERATOR_DESKTOP_PATHS = new Set([
   "/painel",
   "/pendencias",
+  "/provas",
   "/progresso",
   "/certificados",
   "/treinamentos",
