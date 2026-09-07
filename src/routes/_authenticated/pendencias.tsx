@@ -4,7 +4,7 @@ import { Clock3, CalendarDays, BookOpen, CheckCircle2, AlertTriangle, CalendarCl
 import { Button } from "@/components/ui/button";
 import { listCronogramaEntriesByYear, formatDate } from "@/lib/cronograma";
 import { listAvailableExams } from "@/lib/exams";
-import { operationalDate, operationalYear } from "@/lib/operational-time";
+import { addOperationalDays, operationalDate, operationalYear } from "@/lib/operational-time";
 
 export const Route = createFileRoute("/_authenticated/pendencias")({ head: () => ({ meta: [{ title: "Pendências · SEGEMPAT" }] }), component: PendingPage });
 
@@ -23,9 +23,7 @@ function PendingPage() {
   const availableExamIds = new Set((exams.data ?? []).map((exam) => exam.id));
   const pending = data.filter((e) => e.status === "Pendente").sort((a,b) => (a.planned_date || "9999-12-31").localeCompare(b.planned_date || "9999-12-31"));
   const today = operationalDate();
-  const nextSevenDate = new Date(`${today}T12:00:00`);
-  nextSevenDate.setDate(nextSevenDate.getDate() + 7);
-  const nextSeven = operationalDate(nextSevenDate);
+  const nextSeven = addOperationalDays(today, 7);
   const overdue=pending.filter(e=>Boolean(e.planned_date && e.planned_date < today)).length;
   const upcoming=pending.filter(e=>Boolean(e.planned_date && e.planned_date >= today && e.planned_date <= nextSeven)).length;
   const completed=data.filter(e=>e.status==="Realizado").length;
