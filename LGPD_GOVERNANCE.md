@@ -21,7 +21,8 @@ Responsável por:
 - implantação e atualização do backend corporativo;
 - concessão e revogação do privilégio funcional de Inspetor;
 - bootstrap do primeiro Inspetor quando necessário;
-- preservação de evidências técnicas de mudanças privilegiadas.
+- preservação de evidências técnicas de mudanças privilegiadas;
+- revisão periódica das identidades privilegiadas.
 
 A TI não necessita de acesso rotineiro ao conteúdo operacional de avaliações, ocorrências, notas ou análises individuais para executar essas funções.
 
@@ -99,9 +100,33 @@ O comando:
 - opera dentro de transação;
 - sincroniza perfil funcional e role administrativa;
 - registra `TI_GRANT_INSPECTOR` ou `TI_REVOKE_INSPECTOR` em `audit_logs`;
+- invalida sessões previamente emitidas da conta vinculada;
+- bloqueia a revogação do último Inspetor ativo com acesso administrativo;
 - não recebe nem manipula senha do usuário.
 
-## 3. Dados pessoais tratados pelo SEGEMPAT
+Alterações de status de colaboradores operacionais com conta vinculada também incrementam a versão de sessão, evitando reuso de cookies anteriores após inativação/reativação.
+
+## 3. Revisão periódica de privilégios
+
+A TI deve executar periodicamente:
+
+```bash
+npm run report-privileged-access
+```
+
+O relatório é somente leitura e lista:
+
+- identidade funcional privilegiada;
+- situação do colaborador;
+- situação da conta;
+- presença da role administrativa;
+- última concessão/revogação registrada;
+- responsável de TI registrado na última ação privilegiada;
+- divergências como `SEM_ROLE_ADMIN` ou `ROLE_ADMIN_INDEVIDA`.
+
+A periodicidade deve ser definida pela política interna da empresa. O sistema não impõe sozinho um intervalo jurídico ou corporativo.
+
+## 4. Dados pessoais tratados pelo SEGEMPAT
 
 O sistema pode armazenar, conforme os módulos utilizados:
 
@@ -119,23 +144,24 @@ O sistema pode armazenar, conforme os módulos utilizados:
 
 A empresa deve documentar a finalidade e o prazo de retenção de cada categoria. O código não deve definir sozinho prazos jurídicos de retenção sem aprovação institucional.
 
-## 4. Minimização e acesso
+## 5. Minimização e acesso
 
 - credenciais do MySQL nunca são entregues ao navegador;
 - secrets permanecem no servidor/secrets manager;
 - Operadores recebem somente escopo pessoal ou funcional autorizado;
 - Inspetores recebem escopo operacional necessário à atividade;
 - TI administra infraestrutura e privilégios sem necessidade de consulta rotineira ao conteúdo operacional;
+- acesso excepcional da TI a conteúdo operacional deve possuir finalidade técnica justificada e ficar registrado conforme procedimento interno;
 - relatórios e exportações devem ser usados apenas para finalidade institucional autorizada;
 - compartilhamentos fora do ambiente corporativo devem obedecer política interna do controlador.
 
-## 5. Análises de desempenho
+## 6. Análises de desempenho
 
 Recursos como `Evolução de Desempenho`, `Precisa Melhorar`, indicadores de risco e análises individuais devem funcionar como apoio ao trabalho do Inspetor.
 
 O SEGEMPAT não deve ser tratado como mecanismo autônomo de punição, promoção, afastamento ou outra decisão trabalhista exclusivamente automatizada. Decisões com impacto relevante devem possuir análise humana e possibilidade de revisão conforme a política da empresa e a legislação aplicável.
 
-## 6. Segurança e rastreabilidade
+## 7. Segurança e rastreabilidade
 
 O ambiente corporativo deve manter:
 
@@ -151,7 +177,16 @@ O ambiente corporativo deve manter:
 - inativação imediata de contas quando perderem autorização;
 - monitoramento e processo de resposta a incidentes.
 
-## 7. Retenção e descarte
+A migration `006_governance_audit_session_hardening.sql` torna `audit_logs` append-only no MySQL:
+
+- `UPDATE` é bloqueado por trigger;
+- `DELETE` é bloqueado por trigger;
+- a referência ao ator usa `RESTRICT`, evitando que a exclusão de uma conta reescreva silenciosamente a autoria do histórico;
+- `app_users.session_epoch` permite revogação imediata de cookies quando privilégio/status muda.
+
+Os gates `smoke` e `cutover:audit` executam `check-governance-integrity.js` para confirmar esses controles no banco real.
+
+## 8. Retenção e descarte
 
 Antes da produção, o controlador deve preencher uma matriz de retenção contendo, no mínimo:
 
@@ -167,13 +202,15 @@ Antes da produção, o controlador deve preencher uma matriz de retenção conte
 
 Nenhum prazo deve ser inventado pelo aplicativo sem aprovação do controlador.
 
-## 8. Direitos dos titulares
+Como `audit_logs` é tecnicamente imutável para proteger a rastreabilidade, eventual descarte de auditoria aprovado pela política corporativa não deve ser feito pela aplicação operacional. Deve existir procedimento excepcional da TI/DBA, previamente autorizado, documentado e com preservação da evidência da execução (por exemplo, arquivamento controlado seguido de mudança administrativa aprovada no banco).
+
+## 9. Direitos dos titulares
 
 A empresa deve definir canal e procedimento para solicitações relacionadas a dados pessoais. Quando uma solicitação exigir correção, bloqueio, exportação ou outra providência no SEGEMPAT, a execução deve preservar integridade, histórico obrigatório e evidência de quem realizou a ação.
 
 Solicitações de exclusão não devem apagar automaticamente histórico cuja manutenção seja necessária por obrigação legal, regulatória, contratual ou para exercício regular de direitos; essa decisão pertence ao controlador, com orientação jurídica/DPO quando necessário.
 
-## 9. Incidentes
+## 10. Incidentes
 
 A TI deve possuir procedimento para:
 
@@ -184,7 +221,13 @@ A TI deve possuir procedimento para:
 5. executar o procedimento corporativo de notificação quando aplicável;
 6. documentar causa, impacto, correção e medidas preventivas.
 
-## 10. Critério de aceite LGPD
+## 11. Recuperação de acesso privilegiado
+
+O SEGEMPAT não deve possuir senha mestra ou usuário oculto de emergência dentro do frontend.
+
+Se a organização perder todos os acessos privilegiados, a recuperação deve ocorrer por procedimento técnico controlado da TI no servidor, utilizando o bootstrap/comando administrativo previsto, com identificação do responsável, registro da ocorrência e revisão posterior. O procedimento deve ser incorporado ao plano de continuidade da empresa.
+
+## 12. Critério de aceite LGPD
 
 O SEGEMPAT só deve ser descrito institucionalmente como adequado à governança de proteção de dados após, no mínimo:
 
@@ -193,6 +236,7 @@ O SEGEMPAT só deve ser descrito institucionalmente como adequado à governança
 - finalidades e bases legais documentadas;
 - responsável/controlador e Encarregado/canal definidos;
 - política de acesso privilegiado aprovada;
+- revisão periódica de privilégios definida;
 - backup/restauração testados;
 - resposta a incidentes definida;
 - ambiente corporativo homologado;
