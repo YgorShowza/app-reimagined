@@ -3,5 +3,13 @@ import { IndividualAnalysisV2 } from "@/components/individual-analysis/Individua
 
 export const Route = createFileRoute("/_authenticated/individual")({
   head: () => ({ meta: [{ title: "Análise Individual · SEGEMPAT" }] }),
-  component: IndividualAnalysisV2,
+  component: IndividualAnalysisPage,
 });
+
+function IndividualAnalysisPage() {
+  return (
+    <div className="segempat-analytical-individual w-full">
+      <IndividualAnalysisV2 />
+    </div>
+  );
+}
