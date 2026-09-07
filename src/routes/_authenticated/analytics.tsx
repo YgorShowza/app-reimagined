@@ -1,6 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, BarChart3, CheckCircle2, ClipboardList, RefreshCw, Target, TrendingUp, Users } from "lucide-react";
+import { AlertTriangle, BarChart3, CheckCircle2, ClipboardList, Maximize2, Monitor, RefreshCw, Target, TrendingUp, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getOperationalSnapshot, monthlyExecution, sectorMetrics, snapshotMetrics } from "@/lib/insights";
 import { operationalYear } from "@/lib/operational-time";
@@ -29,7 +29,12 @@ function AnalyticsPage() {
   const months = monthlyExecution(query.data, year);
 
   return <div className="mx-auto max-w-7xl space-y-5 pb-10">
-    <div className="rounded-[1.5rem] p-5 md:p-6" style={{ background: "linear-gradient(135deg,#171118,#2b0b13 50%,#111216)", border: "1px solid rgba(200,16,46,.26)" }}><div className="flex items-center gap-2 text-[11px] uppercase tracking-[.2em] font-black text-white/40"><BarChart3 className="w-4 h-4" /> Inteligência operacional</div><h1 className="mt-2 text-2xl md:text-3xl font-black text-white">Analytics</h1><p className="mt-1 text-sm text-white/50">Indicadores reais de equipe, provas e cronograma · {year}.</p></div>
+    <div className="rounded-[1.5rem] p-5 md:p-6" style={{ background: "linear-gradient(135deg,#171118,#2b0b13 50%,#111216)", border: "1px solid rgba(200,16,46,.26)" }}>
+      <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+        <div><div className="flex items-center gap-2 text-[11px] uppercase tracking-[.2em] font-black text-white/40"><BarChart3 className="w-4 h-4" /> Inteligência operacional</div><h1 className="mt-2 text-2xl md:text-3xl font-black text-white">Analytics</h1><p className="mt-1 text-sm text-white/50">Indicadores reais de equipe, provas e cronograma · {year}.</p></div>
+        <Link to="/tv" className="group inline-flex h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-black text-white transition-transform hover:-translate-y-0.5" style={{ background:"linear-gradient(135deg,#e31837,#a90b28)",boxShadow:"0 12px 28px rgba(200,16,46,.24)" }}><Monitor className="h-4 w-4"/><span>Abrir Painel TV</span><Maximize2 className="h-3.5 w-3.5 opacity-60 transition group-hover:opacity-100"/></Link>
+      </div>
+    </div>
 
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-5"><KPI label="Equipe ativa" value={metrics.activeEmployees} icon={Users} /><KPI label="Execução anual" value={`${metrics.executionRate}%`} icon={Target} /><KPI label="Aprovação" value={`${metrics.approvalRate}%`} icon={CheckCircle2} /><KPI label="Tentativas" value={metrics.attempts} icon={ClipboardList} /><KPI label="Média" value={metrics.averageScore} icon={TrendingUp} /></div>
 
