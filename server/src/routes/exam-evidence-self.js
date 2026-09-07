@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { queryOne } from "../db.js";
+import { query, queryOne } from "../db.js";
 import { requireAuth } from "../session.js";
 import { asBool, asyncHandler, notFound, parseJson } from "../util.js";
 
@@ -38,6 +38,28 @@ function buildQuestionEvidence(questions, answers) {
     return { id, order: index + 1, type, statement, answer: answerText, correct };
   });
 }
+
+myExamEvidenceRouter.get(
+  "/certificate-states",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const rows = await query(
+      `SELECT c.attempt_id, c.verification_code, c.issued_at, c.revoked, c.revoked_at, c.revoked_reason
+         FROM certificates c
+        WHERE c.user_id = ?
+        ORDER BY c.issued_at DESC`,
+      [req.user.id],
+    );
+    res.json(rows.map((row) => ({
+      attempt_id: row.attempt_id,
+      verification_code: row.verification_code,
+      issued_at: row.issued_at,
+      revoked: asBool(row.revoked),
+      revoked_at: row.revoked_at,
+      revoked_reason: row.revoked_reason,
+    })));
+  }),
+);
 
 myExamEvidenceRouter.get(
   "/exam-attempts/:attemptId/evidence",
