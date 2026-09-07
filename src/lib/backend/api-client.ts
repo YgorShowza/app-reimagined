@@ -1,4 +1,6 @@
 import type { ApiErrorBody } from "./contracts";
+import { isDemoModeEnabled } from "@/lib/demo-mode";
+import { demoApiRequest } from "@/lib/demo-api";
 
 const TRUE_VALUES = new Set(["1", "true", "yes", "on"]);
 
@@ -91,6 +93,8 @@ export async function apiRequest<T>(
   path: string,
   init: RequestInit = {},
 ): Promise<T> {
+  if (isDemoModeEnabled()) return demoApiRequest<T>(path, init);
+
   const headers = new Headers(init.headers);
   if (init.body && !(init.body instanceof FormData) && !headers.has("content-type")) {
     headers.set("content-type", "application/json");
