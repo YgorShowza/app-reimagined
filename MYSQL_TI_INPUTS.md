@@ -46,7 +46,7 @@ VITE_SEGEMPAT_API_URL=<URL HTTPS DA API>
 VITE_SEGEMPAT_REQUIRE_API=true
 ```
 
-`VITE_SEGEMPAT_REQUIRE_API=true` é o controle de corte que impede fallback silencioso para o backend legado quando a API corporativa estiver ausente ou mal configurada.
+`VITE_SEGEMPAT_REQUIRE_API=true` é o controle de corte que impede funcionamento corporativo sem a API própria configurada. O modo demonstração não fica disponível quando a API corporativa está configurada/obrigatória.
 
 ## 4. Configuração a ser aplicada no servidor
 
@@ -114,11 +114,39 @@ Então validar:
 - demais módulos funcionais;
 - CORS, cookies, HTTPS, firewall, backup e rollback.
 
-## 6. Regra de parada
+## 6. Controle de privilégio de Inspetor pela TI
+
+A Gestão de Equipe do aplicativo é operacional e **não pode conceder, revogar ou alterar identidade privilegiada de Inspetor**. Essas ações ficam sob responsabilidade da TI no servidor da API.
+
+Depois do bootstrap do primeiro Inspetor, conceder privilégio a outro colaborador somente com:
+
+```bash
+CONFIRM_PRIVILEGED_ACCESS=SIM \
+ACTION=GRANT \
+MATRICULA=<MATRICULA> \
+TI_OPERATOR="<RESPONSAVEL_TI>" \
+npm run manage-inspector-access
+```
+
+Para revogar:
+
+```bash
+CONFIRM_PRIVILEGED_ACCESS=SIM \
+ACTION=REVOKE \
+MATRICULA=<MATRICULA> \
+TI_OPERATOR="<RESPONSAVEL_TI>" \
+npm run manage-inspector-access
+```
+
+A execução é transacional, não recebe senha e registra a alteração em `audit_logs` como `TI_GRANT_INSPECTOR` ou `TI_REVOKE_INSPECTOR`. O acesso ao host capaz de executar esse comando deve ser limitado aos administradores técnicos autorizados.
+
+A matriz completa de responsabilidades está em `LGPD_GOVERNANCE.md`.
+
+## 7. Regra de parada
 
 Se `preflight`, `migrate`, `smoke`, `cutover:audit` ou `/health/ready` falharem, **não considerar o ambiente homologado e não mascarar a divergência**. Corrigir a configuração, schema, dados ou infraestrutura e repetir o gate.
 
-## 7. Critério de conclusão
+## 8. Critério de conclusão
 
 Antes dos testes no ambiente real, o status correto permanece:
 
