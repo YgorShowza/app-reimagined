@@ -8,7 +8,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import contrastCss from "../theme-contrast-fixes.css?url";
@@ -16,6 +16,19 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { Toaster } from "@/components/ui/sonner";
 
 const THEME_BOOTSTRAP = `(function(){try{var mode=localStorage.getItem('empat_theme')||'light';var resolved=mode==='auto'?(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):mode;if(resolved!=='dark'&&resolved!=='light')resolved='light';var root=document.documentElement;root.setAttribute('data-theme',resolved);root.classList.toggle('dark',resolved==='dark');root.style.colorScheme=resolved;}catch(e){}})();`;
+const CHUNK_RECOVERY_KEY = "segempat_chunk_recovery_at";
+
+function isStaleDeploymentChunk(error: Error) {
+  const text = `${error?.name || ""} ${error?.message || ""}`.toLowerCase();
+  return [
+    "failed to fetch dynamically imported module",
+    "error loading dynamically imported module",
+    "importing a module script failed",
+    "failed to load module script",
+    "chunkloaderror",
+    "loading chunk",
+  ].some((token) => text.includes(token));
+}
 
 function RecoveryShell({
   code,
@@ -86,21 +99,42 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
+  const staleDeploymentChunk = isStaleDeploymentChunk(error);
+
+  useEffect(() => {
+    if (!staleDeploymentChunk || typeof window === "undefined") return;
+    try {
+      const now = Date.now();
+      const lastRecovery = Number(window.sessionStorage.getItem(CHUNK_RECOVERY_KEY) || 0);
+      if (!Number.isFinite(lastRecovery) || now - lastRecovery > 30_000) {
+        window.sessionStorage.setItem(CHUNK_RECOVERY_KEY, String(now));
+        window.location.reload();
+      }
+    } catch {
+      window.location.reload();
+    }
+  }, [staleDeploymentChunk]);
 
   return (
     <RecoveryShell
-      title="Não foi possível carregar esta página"
-      description="O SEGEMPAT encontrou uma falha inesperada ao abrir esta área. Seus dados não foram apagados. Tente recarregar o módulo."
+      title={staleDeploymentChunk ? "Atualizando o SEGEMPAT" : "Não foi possível carregar esta página"}
+      description={staleDeploymentChunk
+        ? "Uma nova versão do sistema foi detectada. O SEGEMPAT está recarregando os arquivos atualizados automaticamente."
+        : "O SEGEMPAT encontrou uma falha inesperada ao abrir esta área. Seus dados não foram apagados. Tente recarregar o módulo."}
     >
       <button
         onClick={() => {
+          if (staleDeploymentChunk) {
+            window.location.reload();
+            return;
+          }
           router.invalidate();
           reset();
         }}
         className="inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-bold text-white"
         style={{ background: "var(--accent)" }}
       >
-        Tentar novamente
+        {staleDeploymentChunk ? "Recarregar agora" : "Tentar novamente"}
       </button>
       <a
         href="/"
