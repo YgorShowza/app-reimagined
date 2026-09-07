@@ -37,6 +37,7 @@ jobs:
           grep -F '"manage-inspector-access"' server/package.json >/dev/null
           grep -F '"report-privileged-access"' server/package.json >/dev/null
           grep -F '"migrate": "node scripts/migrate-with-ti-credentials.js"' server/package.json >/dev/null
+          grep -F 'check-runtime-grants.js' server/package.json >/dev/null
           grep -F 'MYSQL_MIGRATION_USER' server/scripts/migrate-with-ti-credentials.js >/dev/null
           grep -F 'deve ser diferente de MYSQL_USER em produção' server/scripts/migrate-with-ti-credentials.js >/dev/null
           grep -F 'MYSQL_MIGRATION_PASSWORD' server/.env.example >/dev/null
@@ -52,9 +53,11 @@ jobs:
           grep -F 'TI_GRANT_INSPECTOR' LGPD_GOVERNANCE.md >/dev/null
           node --check server/src/routes/employees.js
           node --check server/src/session.js
+          node --check server/src/runtime-grants.js
           node --check server/scripts/manage-inspector-access.js
           node --check server/scripts/report-privileged-access.js
           node --check server/scripts/check-governance-integrity.js
+          node --check server/scripts/check-runtime-grants.js
           node --check server/scripts/migrate-with-ti-credentials.js
 
           if NODE_ENV=production MYSQL_USER=segempat_app MYSQL_PASSWORD=runtime node server/scripts/migrate-with-ti-credentials.js >/tmp/migrate-gate.log 2>&1; then
@@ -69,4 +72,28 @@ jobs:
           fi
           grep -F 'deve ser diferente de MYSQL_USER em produção' /tmp/migrate-same-user.log >/dev/null
 
-          echo "Segregação TI x Inspetoria, auditoria e credenciais de migration validadas."
+          node --input-type=module <<'NODE'
+          const { validateRuntimeGrantStatements } = await import('./server/src/runtime-grants.js');
+          const safe = [
+            "GRANT USAGE ON *.* TO `segempat_app`@`%`",
+            "GRANT SELECT, INSERT, UPDATE, DELETE ON `segempat`.* TO `segempat_app`@`%`",
+          ];
+          if (validateRuntimeGrantStatements(safe, 'segempat').length !== 0) {
+            throw new Error('Política rejeitou grants mínimos válidos');
+          }
+          const unsafeSets = [
+            ["GRANT ALL PRIVILEGES ON `segempat`.* TO `segempat_app`@`%`"],
+            ["GRANT CREATE, SELECT ON `segempat`.* TO `segempat_app`@`%`"],
+            ["GRANT SELECT ON *.* TO `segempat_app`@`%`"],
+            ["GRANT SELECT ON `outro_banco`.* TO `segempat_app`@`%`"],
+            ["GRANT SELECT ON `segempat`.* TO `segempat_app`@`%` WITH GRANT OPTION"],
+          ];
+          for (const grants of unsafeSets) {
+            if (validateRuntimeGrantStatements(grants, 'segempat').length === 0) {
+              throw new Error(`Política aceitou grant inseguro: ${grants[0]}`);
+            }
+          }
+          console.log('Política de grants mínimos validada.');
+          NODE
+
+          echo "Segregação TI x Inspetoria, auditoria, migrations e grants mínimos validados."
