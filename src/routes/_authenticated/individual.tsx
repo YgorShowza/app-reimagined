@@ -414,7 +414,6 @@ function IndividualPage() {
   const realized = cron.filter((entry) => entry.status === "Realizado").length;
   const pending = cron.filter((entry) => entry.status === "Pendente").length;
   const overdue = activeRow?.overdue ?? 0;
-  const failed = activeRow?.unresolvedFailed ?? 0;
   const avg = metricAverage(attempts);
   const approval = metricApproval(attempts);
   const passed = attempts.filter((attempt) => attempt.passed).length;
@@ -508,7 +507,7 @@ function IndividualPage() {
                   </button>
                 );
               })}
-              {!filteredRows.length && <Card className="p-5 text-center text-xs" style={{ color: "var(--text-4)" } as React.CSSProperties}>Nenhum colaborador encontrado.</Card>}
+              {!filteredRows.length && <Card className="p-5 text-center text-xs"><span style={{ color: "var(--text-4)" }}>Nenhum colaborador encontrado.</span></Card>}
             </div>
           </div>
         </aside>
