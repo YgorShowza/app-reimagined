@@ -27,9 +27,10 @@ import {
 } from "@/lib/attention-center";
 import { operationalYear } from "@/lib/operational-time";
 
-// O arquivo de rotas tipado é regenerado pelo plugin do TanStack durante o build.
-// O cast mantém o typecheck independente dessa geração sem alterar a rota final.
-export const Route = createFileRoute("/_authenticated/atencao" as any)({
+// O routeTree é regenerado pelo plugin TanStack durante o build. Até essa
+// geração ocorrer, o arquivo tipado versionado ainda não conhece esta rota.
+// @ts-expect-error rota file-based registrada pelo gerador TanStack no build
+export const Route = createFileRoute("/_authenticated/atencao")({
   head: () => ({ meta: [{ title: "Central de Atenção · SEGEMPAT" }] }),
   component: AttentionCenterPage,
 });
