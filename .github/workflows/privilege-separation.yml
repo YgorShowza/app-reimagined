@@ -1,0 +1,35 @@
+name: SEGEMPAT Privilege Separation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: segempat-privilege-separation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  privilege-boundary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate TI and Inspector boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'Perfil Inspetor é administrado exclusivamente pela TI' server/src/routes/employees.js >/dev/null
+          grep -F 'Privilégio de Inspetor, status e identidade privilegiada são administrados exclusivamente pela TI' server/src/routes/employees.js >/dev/null
+          grep -F 'Cadastro de Inspetor é administrado exclusivamente pela TI' server/src/routes/employees.js >/dev/null
+          grep -F 'CONFIRM_PRIVILEGED_ACCESS' server/scripts/manage-inspector-access.js >/dev/null
+          grep -F 'TI_OPERATOR' server/scripts/manage-inspector-access.js >/dev/null
+          grep -F 'TI_GRANT_INSPECTOR' server/scripts/manage-inspector-access.js >/dev/null
+          grep -F 'TI_REVOKE_INSPECTOR' server/scripts/manage-inspector-access.js >/dev/null
+          grep -F '"manage-inspector-access"' server/package.json >/dev/null
+          node --check server/src/routes/employees.js
+          node --check server/scripts/manage-inspector-access.js
+          echo "Segregação TI x Inspetoria validada."
