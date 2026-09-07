@@ -1,4 +1,5 @@
 import { demoApiRequest } from "@/lib/demo-api";
+import { listSharedDemoExams } from "@/lib/demo-exam-store";
 import { DEMO_OPERATOR_USER, disableDemoMode } from "@/lib/demo-mode";
 
 type DemoRow = Record<string, unknown>;
@@ -143,14 +144,14 @@ function writeAttempts(attempts: DemoAttempt[]) {
 }
 
 async function availableExams() {
-  const exams = await demoApiRequest<DemoExam[]>("/api/me/exams");
-  return exams.filter((exam) => exam.status === "Publicada" && sectorAllowed(exam));
+  const exams = await listSharedDemoExams();
+  return exams.filter((exam) => exam.status === "Publicada" && sectorAllowed(exam as DemoRow)) as DemoExam[];
 }
 
 async function submitAttempt(pathname: string, init: RequestInit) {
   const examId = decodeURIComponent(pathname.split("/")[4] || "");
-  const exams = await demoApiRequest<DemoExam[]>("/api/exams");
-  const exam = exams.find((item) => item.id === examId && item.status === "Publicada" && sectorAllowed(item));
+  const exams = await listSharedDemoExams();
+  const exam = exams.find((item) => item.id === examId && item.status === "Publicada" && sectorAllowed(item as DemoRow)) as DemoExam | undefined;
   if (!exam) throw new Error("Prova demonstrativa indisponível para este operador.");
 
   const body = bodyObject(init);
