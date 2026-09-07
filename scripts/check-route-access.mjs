@@ -2,6 +2,7 @@ import fs from "node:fs";
 
 const guardSource = fs.readFileSync("src/routes/_authenticated/route.tsx", "utf8");
 const layoutSource = fs.readFileSync("src/components/AppLayout.tsx", "utf8");
+const academySource = fs.readFileSync("src/components/training/TrainingLibrary.tsx", "utf8");
 
 const adminBlock = guardSource.match(/const ADMIN_ONLY_PATHS = new Set\(\[([\s\S]*?)\]\);/);
 if (!adminBlock) throw new Error("Não foi possível localizar ADMIN_ONLY_PATHS no guard autenticado");
@@ -26,27 +27,42 @@ if (collisions.length) {
   throw new Error(`Rota(s) do Operador também estão marcadas como Admin-only: ${collisions.join(", ")}`);
 }
 
-const requiredSelfServicePaths = [
+const requiredOperatorMenuPaths = [
   "/painel",
   "/pendencias",
   "/progresso",
   "/certificados",
   "/treinamentos",
   "/conteudos",
-  "/teste-rapido",
-  "/simulador",
-  "/stress-test",
-  "/desafio-diario",
   "/meu-perfil",
   "/pratico",
   "/minhas-ocorrencias",
 ];
 
-const missing = requiredSelfServicePaths.filter((path) => !operatorPaths.includes(path));
-if (missing.length) {
-  throw new Error(`Fluxo(s) de autosserviço ausente(s) do menu do Operador: ${missing.join(", ")}`);
+const missingFromMenu = requiredOperatorMenuPaths.filter((path) => !operatorPaths.includes(path));
+if (missingFromMenu.length) {
+  throw new Error(`Fluxo(s) principal(is) ausente(s) do menu do Operador: ${missingFromMenu.join(", ")}`);
+}
+
+const academySelfServicePaths = [
+  "/teste-rapido",
+  "/simulador",
+  "/stress-test",
+  "/desafio-diario",
+];
+
+const missingFromAcademy = academySelfServicePaths.filter(
+  (path) => !academySource.includes(`path=\"${path}\"`),
+);
+if (missingFromAcademy.length) {
+  throw new Error(`Fluxo(s) de prática ausente(s) da Academia SEGEMPAT: ${missingFromAcademy.join(", ")}`);
+}
+
+const academyAdminCollisions = academySelfServicePaths.filter((path) => adminOnly.has(path));
+if (academyAdminCollisions.length) {
+  throw new Error(`Fluxo(s) da Academia marcado(s) incorretamente como Admin-only: ${academyAdminCollisions.join(", ")}`);
 }
 
 console.log(
-  `Contrato de rotas do Operador validado: ${operatorPaths.length} rota(s), sem conflito com ${adminOnly.size} rota(s) Admin-only.`,
+  `Contrato de rotas do Operador validado: ${operatorPaths.length} rota(s) principais, ${academySelfServicePaths.length} fluxo(s) de prática na Academia e nenhum conflito com ${adminOnly.size} rota(s) Admin-only.`,
 );
