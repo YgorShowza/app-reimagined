@@ -6,7 +6,7 @@ const SECTIONS = [
   {
     icon: KeyRound,
     title: "Autenticação e sessão",
-    status: "Implementado",
+    status: "Implementado no código",
     tone: "ok",
     items: [
       "Autenticação centralizada pela API SEGEMPAT, com matrícula e senha validadas no backend.",
@@ -18,7 +18,7 @@ const SECTIONS = [
   {
     icon: UserCog,
     title: "Perfis e autorização",
-    status: "Implementado",
+    status: "Implementado no código",
     tone: "ok",
     items: [
       "Perfis administrativos e operacionais são resolvidos no backend a partir do cadastro interno.",
@@ -30,7 +30,7 @@ const SECTIONS = [
   {
     icon: Database,
     title: "Isolamento de dados no MySQL",
-    status: "Implementado",
+    status: "Implementado no código",
     tone: "ok",
     items: [
       "O frontend não se conecta diretamente ao MySQL; toda operação passa pela API SEGEMPAT.",
@@ -42,7 +42,7 @@ const SECTIONS = [
   {
     icon: FileCheck2,
     title: "Auditoria e rastreabilidade",
-    status: "Implementado",
+    status: "Implementado no código",
     tone: "ok",
     items: [
       "A aplicação mantém trilha de auditoria persistida em audit_logs no MySQL.",
@@ -53,19 +53,19 @@ const SECTIONS = [
   {
     icon: Award,
     title: "Certificados verificáveis",
-    status: "Implementado",
-    tone: "ok",
+    status: "Parcial / em homologação",
+    tone: "warn",
     items: [
-      "Cada aprovação pode receber certificate_code único persistido no MySQL.",
-      "A emissão formal exige aprovação e assinatura eletrônica registrada.",
-      "O código é exibido ao Operador e incluído no certificado impresso.",
-      "A Inspetoria possui consulta própria contra os registros mantidos pela API SEGEMPAT.",
+      "Cada aprovação pode receber certificate_code único persistido no banco.",
+      "A emissão formal exige aprovação, assinatura eletrônica e registro correspondente na tabela de certificados.",
+      "A validação administrativa diferencia certificado válido, pendente e revogado; certificado revogado não pode ser apresentado como vigente.",
+      "A visualização institucional de duas páginas está implementada, mas o salvamento/compartilhamento do PDF em iPhone continua em ajuste e não é considerado homologado.",
     ],
   },
   {
     icon: LockKeyhole,
     title: "Minimização e isolamento de dados",
-    status: "Implementado",
+    status: "Implementado no código",
     tone: "ok",
     items: [
       "O fluxo operacional trabalha principalmente com nome, matrícula, setor, perfil e dados de desempenho.",
@@ -90,9 +90,10 @@ const SECTIONS = [
     status: "Requer validação",
     tone: "warn",
     items: [
-      "Homologar login, primeiro acesso, logout e recuperação de sessão com Inspetor e Operador.",
+      "Homologar login, primeiro acesso, logout e recuperação de sessão com Inspetor e Operador em fluxo real.",
       "Validar a API publicada contra o MySQL da empresa antes do corte definitivo do fallback legado.",
       "Revisar retenção, backup, recuperação, logs e política de armazenamento das assinaturas com a TI.",
+      "Concluir e validar o fluxo de exportação/compartilhamento do certificado nos navegadores móveis utilizados pela operação.",
       "Definir requisitos corporativos adicionais, como VPN, IP permitido, SSO ou MFA, antes da publicação definitiva.",
     ],
   },
@@ -128,16 +129,16 @@ export function SecurityDocumentWorkspace() {
           </div>
         </div>
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Stat label="Controles ativos" value={String(implemented)} />
-          <Stat label="Pendências" value={String(pending)} warn />
+          <Stat label="Controles no código" value={String(implemented)} />
+          <Stat label="Itens de homologação" value={String(pending)} warn />
           <Stat label="Autenticação" value="API própria" />
-          <Stat label="Banco" value="MySQL" />
+          <Stat label="Banco alvo" value="MySQL" />
         </div>
       </header>
 
       <section className="rounded-2xl p-5" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}>
         <p className="text-sm leading-6" style={{ color: "var(--text-2)" }}>
-          Este documento acompanha a migração do SEGEMPAT para a arquitetura corporativa MySQL. O navegador se comunica com a API SEGEMPAT, e somente essa API acessa o banco interno. O fallback legado permanece apenas como mecanismo temporário de transição até a publicação e homologação da infraestrutura definitiva.
+          Este documento acompanha a migração do SEGEMPAT para a arquitetura corporativa MySQL. O navegador se comunica com a API SEGEMPAT, e somente essa API acessa o banco interno. O fallback legado permanece apenas como mecanismo temporário de transição. A indicação “implementado no código” descreve controles presentes no repositório e não substitui a homologação final no ambiente real da empresa.
         </p>
       </section>
 
@@ -168,7 +169,7 @@ export function SecurityDocumentWorkspace() {
       </div>
 
       <footer className="rounded-2xl p-4 text-xs" style={{ background: "var(--bg-surface-2)", border: "1px solid var(--border)", color: "var(--text-4)" }}>
-        Documento gerado a partir da arquitetura atual do projeto SEGEMPAT. Data de referência: {new Date().toLocaleDateString("pt-BR", { timeZone: "America/Maceio" })}.
+        Documento técnico gerado a partir da arquitetura atual do projeto SEGEMPAT. Data de referência: {new Date().toLocaleDateString("pt-BR", { timeZone: "America/Maceio" })}. A homologação corporativa depende do ambiente MySQL e da infraestrutura fornecida pela TI.
       </footer>
     </div>
   );
