@@ -17,19 +17,31 @@
 .text-blue-500 { color: #3b82f6 !important; }
 .text-blue-600 { color: #2563eb !important; }
 
-/* The mobile navigation is a Radix Sheet (role=dialog). The generic dialog
-   compatibility rule in styles.css paints dialogs with the page surface;
-   this specific operational sidebar must remain dark in both themes. */
-[role="dialog"][class*="w-[280px]"] {
-  background: var(--sidebar-bg) !important;
-  color: #ffffff !important;
+/* Operational navigation drawer.
+   Do not target it by width: the drawer width changes between breakpoints and
+   a generic dialog compatibility rule must never override its theme surface. */
+.segempat-sidebar-sheet[role="dialog"] {
+  background: var(--header-bg) !important;
+  color: var(--text-1) !important;
+  border-right: 1px solid var(--border) !important;
 }
 
-[role="dialog"][class*="w-[280px]"] > div {
-  background: var(--sidebar-bg);
+.segempat-sidebar-sheet[role="dialog"] > div {
+  background: var(--header-bg) !important;
 }
 
-[role="dialog"][class*="w-[280px]"] button[aria-label="Close"],
-[role="dialog"][class*="w-[280px]"] button > .lucide-x {
-  color: rgba(255, 255, 255, 0.72) !important;
+.segempat-sidebar-sheet[role="dialog"] button[aria-label="Close"],
+.segempat-sidebar-sheet[role="dialog"] button > .lucide-x {
+  color: var(--text-3) !important;
+}
+
+.segempat-sidebar-link[data-active="false"]:hover,
+.segempat-sidebar-section:hover {
+  background: var(--bg-surface-2) !important;
+}
+
+.segempat-sidebar-link[data-active="false"]:focus-visible,
+.segempat-sidebar-section:focus-visible {
+  outline: 2px solid rgba(200, 16, 46, 0.42);
+  outline-offset: 2px;
 }
