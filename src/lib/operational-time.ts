@@ -29,4 +29,21 @@ export function operationalMonth(date = new Date()) {
   return operationalDateParts(date).month;
 }
 
+/**
+ * Soma dias a uma data operacional YYYY-MM-DD sem depender do fuso do navegador.
+ * O cálculo usa UTC apenas como aritmética de calendário para a data já resolvida
+ * em America/Maceio; não representa um instante operacional persistido.
+ */
+export function addOperationalDays(date: string, days: number) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isInteger(days)) {
+    throw new Error("Data operacional inválida");
+  }
+  const value = new Date(`${date}T12:00:00Z`);
+  if (Number.isNaN(value.getTime()) || value.toISOString().slice(0, 10) !== date) {
+    throw new Error("Data operacional inválida");
+  }
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
 export { OPERATION_TIME_ZONE };
