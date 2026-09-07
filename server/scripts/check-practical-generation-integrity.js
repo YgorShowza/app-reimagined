@@ -155,6 +155,14 @@ async function main() {
       `SELECT COUNT(*) AS total
          FROM practical_evaluations
         WHERE template_id IS NOT NULL
+          AND evaluation_date IS NULL`,
+      "Avaliações geradas por modelo sem data operacional",
+    );
+
+    await assertZero(
+      `SELECT COUNT(*) AS total
+         FROM practical_evaluations
+        WHERE template_id IS NOT NULL
           AND template_slot <> 'once'
           AND template_slot NOT REGEXP '^[0-9]{4}-(0[1-9]|1[0-2]):[0-9]{2}$'`,
       "Avaliações recorrentes com template_slot inválido",
@@ -165,7 +173,6 @@ async function main() {
          FROM practical_evaluations
         WHERE template_id IS NOT NULL
           AND template_slot <> 'once'
-          AND evaluation_date IS NOT NULL
           AND DATE_FORMAT(evaluation_date, '%Y-%m') <> LEFT(template_slot, 7)`,
       "Avaliações recorrentes com data fora do mês do slot",
     );
@@ -219,9 +226,9 @@ async function main() {
            ON ce.notes LIKE CONCAT('%[PRACTICAL:', pe.id, ']%')
         WHERE pe.template_id IS NOT NULL
           AND (
-            ce.employee_id <> pe.employee_id
-            OR LOWER(TRIM(ce.theme)) <> LOWER(TRIM(pe.title))
-            OR (pe.evaluation_date IS NOT NULL AND ce.planned_date <> pe.evaluation_date)
+            NOT (ce.employee_id <=> pe.employee_id)
+            OR NOT (LOWER(TRIM(ce.theme)) <=> LOWER(TRIM(pe.title)))
+            OR NOT (ce.planned_date <=> pe.evaluation_date)
           )`,
       "Vínculos recorrentes com identidade, tema ou data divergentes do Cronograma",
     );
