@@ -1,8 +1,9 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ShieldCheck, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getAdminExamAttemptEvidence } from "@/lib/exams";
+import { listCertificateRecords } from "@/lib/certificate-records";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 
 const LOGO_URL = "https://media.base44.com/images/public/6a1117d573bbf85981b1abee/8271ac857_IMG_9226.png";
@@ -31,8 +32,14 @@ function CertificateAdminPage() {
     queryFn: () => getAdminExamAttemptEvidence(attemptId),
     enabled: Boolean(user?.isAdmin),
   });
+  const certificateRecords = useQuery({
+    queryKey: ["certificate-validation-records"],
+    queryFn: listCertificateRecords,
+    enabled: Boolean(user?.isAdmin),
+    staleTime: 30_000,
+  });
 
-  if (userLoading || evidence.isLoading) {
+  if (userLoading || evidence.isLoading || certificateRecords.isLoading) {
     return <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4" style={{ borderColor: "var(--border)", borderTopColor: "#C8102E" }} /></div>;
   }
 
@@ -40,12 +47,20 @@ function CertificateAdminPage() {
     return <div className="mx-auto max-w-xl rounded-2xl p-8 text-center" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}><ShieldCheck className="mx-auto h-10 w-10" style={{ color: "var(--accent)" }} /><h1 className="mt-3 text-lg font-black" style={{ color: "var(--text-1)" }}>Acesso restrito</h1><p className="mt-1 text-sm" style={{ color: "var(--text-4)" }}>A emissão do certificado é exclusiva da Inspetoria.</p></div>;
   }
 
-  if (evidence.isError || !evidence.data) {
-    return <div className="mx-auto max-w-xl rounded-2xl p-8 text-center" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}><p className="font-bold" style={{ color: "var(--text-1)" }}>Não foi possível carregar o certificado.</p><Button variant="outline" className="mt-4" onClick={() => evidence.refetch()}>Tentar novamente</Button></div>;
+  if (evidence.isError || certificateRecords.isError || !evidence.data) {
+    return <div className="mx-auto max-w-xl rounded-2xl p-8 text-center" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}><p className="font-bold" style={{ color: "var(--text-1)" }}>Não foi possível carregar o certificado.</p><Button variant="outline" className="mt-4" onClick={() => { evidence.refetch(); certificateRecords.refetch(); }}>Tentar novamente</Button></div>;
   }
 
   const ev = evidence.data;
-  const status = ev.passed ? "APTO" : "NÃO APTO";
+  const certificateRecord = (certificateRecords.data ?? []).find((row) => row.id === attemptId);
+  const certificateBlocked = !ev.passed || !certificateRecord?.formally_issued || certificateRecord.certificate_revoked;
+
+  if (certificateBlocked) {
+    const revoked = Boolean(certificateRecord?.certificate_revoked);
+    return <div className="mx-auto max-w-xl rounded-2xl p-8 text-center" style={{ background: "var(--bg-surface)", border: `1px solid ${revoked ? "rgba(239,68,68,.30)" : "var(--border)"}` }}><XCircle className={`mx-auto h-10 w-10 ${revoked ? "text-red-500" : "text-amber-500"}`} /><h1 className="mt-3 text-lg font-black" style={{ color: "var(--text-1)" }}>{revoked ? "Certificado revogado" : "Certificado ainda não disponível"}</h1><p className="mt-1 text-sm" style={{ color: "var(--text-4)" }}>{revoked ? `Este registro foi revogado${certificateRecord?.revoked_at ? ` em ${fmtDateTime(certificateRecord.revoked_at)}` : ""}${certificateRecord?.revoked_reason ? `. Motivo: ${certificateRecord.revoked_reason}` : ""}. A emissão está bloqueada e o registro permanece apenas para rastreabilidade.` : "A emissão exige avaliação aprovada, assinatura eletrônica e registro formal válido. Acesso direto à página não contorna essas regras."}</p><Button variant="outline" className="mt-5" onClick={() => navigate({ to: "/assinaturas-provas" })}><ArrowLeft className="mr-2 h-4 w-4" /> Voltar aos certificados</Button></div>;
+  }
+
+  const status = "APTO";
 
   return <div className="certificate-screen mx-auto max-w-[1180px] space-y-4 pb-10">
     <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 rounded-2xl p-3" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", boxShadow: "var(--shadow-card, var(--shadow-md))" }}>
