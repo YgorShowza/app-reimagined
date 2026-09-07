@@ -948,6 +948,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_delete_exam_signature: { Args: { p_name: string }; Returns: boolean }
       create_cronograma_entries_atomic: {
         Args: { p_rows: Json }
         Returns: Json
@@ -963,7 +964,15 @@ export type Database = {
         Returns: Json
       }
       get_exam_admin: { Args: { p_exam_id: string }; Returns: Json }
+      get_exam_attempt_evidence_admin: {
+        Args: { p_attempt_id: string }
+        Returns: Json
+      }
       get_exam_for_attempt: { Args: { p_exam_id: string }; Returns: Json }
+      get_my_exam_attempt_evidence: {
+        Args: { p_attempt_id: string }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1050,6 +1059,20 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      list_registration_access_status: {
+        Args: never
+        Returns: {
+          created_at: string
+          employee_id: string
+          employee_name: string
+          expired: boolean
+          expires_at: string
+          has_account: boolean
+          matricula: string
+          sector: string
+          used_at: string
+        }[]
       }
       make_certificate_code: { Args: never; Returns: string }
       revoke_registration_code: {

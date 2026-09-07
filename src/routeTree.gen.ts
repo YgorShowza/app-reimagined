@@ -52,6 +52,7 @@ import { Route as AuthenticatedTesteRapidoRouteImport } from './routes/_authenti
 import { Route as AuthenticatedTreinamentosRouteImport } from './routes/_authenticated/treinamentos'
 import { Route as AuthenticatedTvRouteImport } from './routes/_authenticated/tv'
 import { Route as AuthenticatedValidarCertificadosRouteImport } from './routes/_authenticated/validar-certificados'
+import { Route as AuthenticatedCertificadoAttemptIdRouteImport } from './routes/_authenticated/certificado.$attemptId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -286,6 +287,12 @@ const AuthenticatedValidarCertificadosRoute =
     path: '/validar-certificados',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedCertificadoAttemptIdRoute =
+  AuthenticatedCertificadoAttemptIdRouteImport.update({
+    id: '/certificado/$attemptId',
+    path: '/certificado/$attemptId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -330,6 +337,7 @@ export interface FileRoutesByFullPath {
   '/treinamentos': typeof AuthenticatedTreinamentosRoute
   '/tv': typeof AuthenticatedTvRoute
   '/validar-certificados': typeof AuthenticatedValidarCertificadosRoute
+  '/certificado/$attemptId': typeof AuthenticatedCertificadoAttemptIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -374,6 +382,7 @@ export interface FileRoutesByTo {
   '/treinamentos': typeof AuthenticatedTreinamentosRoute
   '/tv': typeof AuthenticatedTvRoute
   '/validar-certificados': typeof AuthenticatedValidarCertificadosRoute
+  '/certificado/$attemptId': typeof AuthenticatedCertificadoAttemptIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -420,6 +429,7 @@ export interface FileRoutesById {
   '/_authenticated/treinamentos': typeof AuthenticatedTreinamentosRoute
   '/_authenticated/tv': typeof AuthenticatedTvRoute
   '/_authenticated/validar-certificados': typeof AuthenticatedValidarCertificadosRoute
+  '/_authenticated/certificado/$attemptId': typeof AuthenticatedCertificadoAttemptIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -466,6 +476,7 @@ export interface FileRouteTypes {
     | '/treinamentos'
     | '/tv'
     | '/validar-certificados'
+    | '/certificado/$attemptId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -510,6 +521,7 @@ export interface FileRouteTypes {
     | '/treinamentos'
     | '/tv'
     | '/validar-certificados'
+    | '/certificado/$attemptId'
   id:
     | '__root__'
     | '/'
@@ -555,6 +567,7 @@ export interface FileRouteTypes {
     | '/_authenticated/treinamentos'
     | '/_authenticated/tv'
     | '/_authenticated/validar-certificados'
+    | '/_authenticated/certificado/$attemptId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -865,6 +878,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedValidarCertificadosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/certificado/$attemptId': {
+      id: '/_authenticated/certificado/$attemptId'
+      path: '/certificado/$attemptId'
+      fullPath: '/certificado/$attemptId'
+      preLoaderRoute: typeof AuthenticatedCertificadoAttemptIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
@@ -910,6 +930,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedTreinamentosRoute: typeof AuthenticatedTreinamentosRoute
   AuthenticatedTvRoute: typeof AuthenticatedTvRoute
   AuthenticatedValidarCertificadosRoute: typeof AuthenticatedValidarCertificadosRoute
+  AuthenticatedCertificadoAttemptIdRoute: typeof AuthenticatedCertificadoAttemptIdRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -954,6 +975,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedTreinamentosRoute: AuthenticatedTreinamentosRoute,
   AuthenticatedTvRoute: AuthenticatedTvRoute,
   AuthenticatedValidarCertificadosRoute: AuthenticatedValidarCertificadosRoute,
+  AuthenticatedCertificadoAttemptIdRoute:
+    AuthenticatedCertificadoAttemptIdRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
