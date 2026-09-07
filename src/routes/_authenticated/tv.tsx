@@ -1,7 +1,7 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { TvOperationalDashboard } from "@/components/tv/TvOperationalDashboard";
 
 export const Route = createFileRoute("/_authenticated/tv")({
-  beforeLoad: () => {
-    throw redirect({ to: "/painel" });
-  },
+  head: () => ({ meta: [{ title: "Sala Operacional · SEGEMPAT" }] }),
+  component: TvOperationalDashboard,
 });
