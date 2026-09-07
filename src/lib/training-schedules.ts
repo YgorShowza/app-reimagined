@@ -1,5 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
-import { apiRequest, isSegempatApiConfigured } from "@/lib/backend/api-client";
+import { apiRequest } from "@/lib/backend/api-client";
 import { operationalDate } from "@/lib/operational-time";
 
 export type TrainingCycleStatus = "Em dia" | "Próximo ao vencimento" | "Vencido";
@@ -64,52 +63,22 @@ function apiSchedulePayload(input: Partial<TrainingScheduleInput>) {
 }
 
 export async function listTrainingSchedules(): Promise<TrainingSchedule[]> {
-  if (isSegempatApiConfigured()) return (await apiRequest<TrainingSchedule[]>("/api/admin/training/schedules")).map(normalize);
-  const { data, error } = await (supabase as any).from("training_schedules").select("*").order("employee_name", { ascending: true });
-  if (error) throw error;
-  return (data ?? []).map(normalize);
+  return (await apiRequest<TrainingSchedule[]>("/api/admin/training/schedules")).map(normalize);
 }
 
 export async function createTrainingSchedule(input: TrainingScheduleInput) {
-  if (isSegempatApiConfigured()) {
-    await apiRequest<{ id: string }>("/api/admin/training/schedules", { method: "POST", body: JSON.stringify(apiSchedulePayload(input)) });
-    return;
-  }
-  const { error } = await (supabase as any).from("training_schedules").insert(input);
-  if (error) throw error;
+  await apiRequest<{ id: string }>("/api/admin/training/schedules", { method: "POST", body: JSON.stringify(apiSchedulePayload(input)) });
 }
 
 export async function updateTrainingSchedule(id: string, input: Partial<TrainingScheduleInput>) {
-  if (isSegempatApiConfigured()) {
-    await apiRequest<void>(`/api/admin/training/schedules/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(apiSchedulePayload(input)) });
-    return;
-  }
-  const { error } = await (supabase as any).from("training_schedules").update(input).eq("id", id);
-  if (error) throw error;
+  await apiRequest<void>(`/api/admin/training/schedules/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(apiSchedulePayload(input)) });
 }
 
 export async function deleteTrainingSchedule(id: string) {
-  if (isSegempatApiConfigured()) {
-    await apiRequest<void>(`/api/admin/training/schedules/${encodeURIComponent(id)}`, { method: "DELETE" });
-    return;
-  }
-  const { error } = await (supabase as any).from("training_schedules").delete().eq("id", id);
-  if (error) throw error;
+  await apiRequest<void>(`/api/admin/training/schedules/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 export async function getMyTrainingSchedule(): Promise<TrainingSchedule | null> {
-  if (isSegempatApiConfigured()) {
-    const row = await apiRequest<TrainingSchedule | null>("/api/me/training/schedule");
-    return row ? normalize(row) : null;
-  }
-  // No preview, o RLS da tabela restringe um operador ao próprio ciclo.
-  // O limite evita ambiguidades e mantém a leitura compatível com a rota /api/me.
-  const { data, error } = await (supabase as any)
-    .from("training_schedules")
-    .select("*")
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) throw error;
-  return data ? normalize(data as TrainingSchedule) : null;
+  const row = await apiRequest<TrainingSchedule | null>("/api/me/training/schedule");
+  return row ? normalize(row) : null;
 }
