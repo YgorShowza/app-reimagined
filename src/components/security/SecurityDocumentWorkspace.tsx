@@ -91,7 +91,7 @@ const SECTIONS = [
     tone: "warn",
     items: [
       "Homologar login, primeiro acesso, logout e recuperação de sessão com Inspetor e Operador em fluxo real.",
-      "Validar a API publicada contra o MySQL da empresa antes do corte definitivo do fallback legado.",
+      "Validar a API publicada contra o MySQL da empresa antes da implantação corporativa definitiva.",
       "Revisar retenção, backup, recuperação, logs e política de armazenamento das assinaturas com a TI.",
       "Concluir e validar o fluxo de exportação/compartilhamento do certificado nos navegadores móveis utilizados pela operação.",
       "Definir requisitos corporativos adicionais, como VPN, IP permitido, SSO ou MFA, antes da publicação definitiva.",
@@ -138,7 +138,7 @@ export function SecurityDocumentWorkspace() {
 
       <section className="rounded-2xl p-5" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}>
         <p className="text-sm leading-6" style={{ color: "var(--text-2)" }}>
-          Este documento acompanha a migração do SEGEMPAT para a arquitetura corporativa MySQL. O navegador se comunica com a API SEGEMPAT, e somente essa API acessa o banco interno. O fallback legado permanece apenas como mecanismo temporário de transição. A indicação “implementado no código” descreve controles presentes no repositório e não substitui a homologação final no ambiente real da empresa.
+          Este documento acompanha a implantação do SEGEMPAT na arquitetura corporativa MySQL. O navegador se comunica com a API SEGEMPAT, e somente essa API acessa o banco interno. O frontend atual não possui fallback de backend; o modo demonstração permanece isolado e é desabilitado quando a API corporativa é configurada ou exigida. A indicação “implementado no código” descreve controles presentes no repositório e não substitui a homologação final no ambiente real da empresa.
         </p>
       </section>
 
