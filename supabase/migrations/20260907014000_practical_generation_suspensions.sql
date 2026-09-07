@@ -46,7 +46,7 @@ BEGIN
     RAISE EXCEPTION 'O mês % está suspenso no Cronograma', p_month;
   END IF;
 
-  SELECT COALESCE(p.full_name, 'Inspetoria')
+  SELECT COALESCE(p.nome, 'Inspetoria')
     INTO v_evaluator_name
     FROM public.profiles p
    WHERE p.id = auth.uid()
