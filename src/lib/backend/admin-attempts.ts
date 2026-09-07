@@ -60,12 +60,19 @@ function demoPerformanceAttempts(): ExamAttempt[] {
   ];
 }
 
+function normalizeDemoScore(attempt: ExamAttempt): ExamAttempt {
+  const score = Number(attempt.score || 0);
+  if (!Number.isFinite(score) || score <= 10) return attempt;
+  return { ...attempt, score: Math.round(score) / 10 };
+}
+
 export async function listAdminAttemptsByYear(year: number): Promise<ExamAttempt[]> {
   const attempts = await apiRequest<ExamAttempt[]>(`/api/admin/exam-attempts?year=${encodeURIComponent(String(year))}`);
   if (!isDemoModeEnabled() || year !== new Date().getFullYear()) return attempts;
 
+  const normalized = attempts.map(normalizeDemoScore);
   return [
-    ...attempts.filter((attempt) => attempt.matricula !== "100101"),
+    ...normalized.filter((attempt) => attempt.matricula !== "100101"),
     ...demoPerformanceAttempts(),
   ];
 }
