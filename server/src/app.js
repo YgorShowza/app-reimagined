@@ -10,9 +10,11 @@ import helmet from "helmet";
 import { config } from "./config.js";
 import { healthcheck, query, queryOne } from "./db.js";
 import { attachUser } from "./session.js";
+import { enforceGranularApiPermissions } from "./authorization.js";
 import { authRouter } from "./routes/auth.js";
 import { employeesRouter } from "./routes/employees.js";
 import { accessRouter } from "./routes/access.js";
+import { authorizationRouter } from "./routes/authorization.js";
 import { examsRouter, myExamsRouter } from "./routes/exams.js";
 import { examEvidenceRouter } from "./routes/exam-evidence.js";
 import { myExamEvidenceRouter } from "./routes/exam-evidence-self.js";
@@ -38,6 +40,11 @@ const READINESS_TABLES = [
   "user_roles",
   "registration_activation_codes",
   "password_reset_codes",
+  "access_levels",
+  "access_permissions",
+  "access_level_permissions",
+  "user_access_levels",
+  "user_permission_overrides",
   "exams",
   "exam_attempts",
   "certificates",
@@ -252,10 +259,12 @@ export function createApp() {
   });
 
   app.use("/api", enforceTrustedWriteOrigin);
+  app.use("/api", enforceGranularApiPermissions);
 
   app.use("/api/auth", authRouter);
   app.use("/api/employees", employeesRouter);
   app.use("/api/access", accessRouter);
+  app.use("/api/authorization", authorizationRouter);
   app.use("/api/exams", examsRouter);
   app.use("/api/me", myExamsRouter);
   app.use("/api/me", myExamEvidenceRouter);
