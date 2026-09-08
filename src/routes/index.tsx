@@ -6,6 +6,7 @@ import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { activateWithCode, loginWithMatricula, resetPasswordWithCode } from "@/lib/backend/auth-gateway";
 import { getCurrentSessionUser } from "@/lib/backend/current-user-gateway";
 import { useApiReadiness } from "@/lib/useApiReadiness";
+import { isDemoModeAllowed } from "@/lib/demo-mode";
 import { loginPasswordSchema, matriculaSchema, passwordSchema } from "@/lib/matricula";
 import type { SessionUser } from "@/lib/backend/contracts";
 
@@ -63,6 +64,7 @@ function navigateHome(navigate: Navigate, user: SessionUser) {
 function AuthScreen() {
   const navigate = useNavigate();
   const apiReadiness = useApiReadiness();
+  const demoAvailable = isDemoModeAllowed();
   const [matricula, setMatricula] = useState("");
   const [activationCode, setActivationCode] = useState("");
   const [resetCode, setResetCode] = useState("");
@@ -72,10 +74,31 @@ function AuthScreen() {
   const [step, setStep] = useState<Step>("matricula");
   const [loading, setLoading] = useState(false);
 
-  const apiUnavailable = apiReadiness === "unavailable";
+  const demoStatus = demoAvailable && apiReadiness === "unavailable";
+  const apiUnavailable = apiReadiness === "unavailable" && !demoStatus;
   const apiChecking = apiReadiness === "checking";
-  const apiStatusLabel = apiUnavailable ? "Sistema indisponível" : apiChecking ? "Verificando sistema" : "Sistema online";
-  const apiStatusColor = apiUnavailable ? "#ef4444" : apiChecking ? "#f59e0b" : "#22c55e";
+  const apiStatusLabel =
+    demoStatus || apiReadiness === "demo"
+      ? "Modo demonstração"
+      : apiUnavailable
+        ? "Sistema indisponível"
+        : apiChecking
+          ? "Verificando sistema"
+          : "Sistema online";
+  const apiStatusColor =
+    demoStatus || apiReadiness === "demo"
+      ? "#22c55e"
+      : apiUnavailable
+        ? "#ef4444"
+        : apiChecking
+          ? "#f59e0b"
+          : "#22c55e";
+  const apiStatusTitle =
+    demoStatus || apiReadiness === "demo"
+      ? "Ambiente de demonstração com dados fictícios; a API corporativa permanece isolada."
+      : apiUnavailable
+        ? "A API corporativa não passou no readiness"
+        : undefined;
 
   useEffect(() => {
     let active = true;
@@ -231,7 +254,7 @@ function AuthScreen() {
           >
             Gestão • Operações • Desempenho
           </p>
-          <div className="mt-3 flex items-center justify-center gap-1.5" title={apiUnavailable ? "A API corporativa não passou no readiness" : undefined}>
+          <div className="mt-3 flex items-center justify-center gap-1.5" title={apiStatusTitle}>
             <span className="pulse-dot h-2 w-2 rounded-full" style={{ background: apiStatusColor }} />
             <span className="text-xs font-semibold" style={{ color: "var(--text-4)" }}>
               {apiStatusLabel}
@@ -441,7 +464,7 @@ function AuthScreen() {
                   )}
                 </button>
 
-                {step === "password" && (
+                {step === "password" && !demoAvailable && (
                   <button
                     onClick={() => {
                       clearCredentialFields();
@@ -454,20 +477,22 @@ function AuthScreen() {
                   </button>
                 )}
 
-                <button
-                  onClick={() => {
-                    if (step === "reset") {
-                      setStep("password");
-                    } else {
-                      setStep(step === "signup" ? "password" : "signup");
-                    }
-                    clearCredentialFields();
-                  }}
-                  className="w-full text-center text-sm font-semibold"
-                  style={{ color: "var(--accent)" }}
-                >
-                  {step === "signup" ? "Já tenho senha" : step === "reset" ? "Voltar para entrar" : "Primeiro acesso? Criar senha"}
-                </button>
+                {!demoAvailable && (
+                  <button
+                    onClick={() => {
+                      if (step === "reset") {
+                        setStep("password");
+                      } else {
+                        setStep(step === "signup" ? "password" : "signup");
+                      }
+                      clearCredentialFields();
+                    }}
+                    className="w-full text-center text-sm font-semibold"
+                    style={{ color: "var(--accent)" }}
+                  >
+                    {step === "signup" ? "Já tenho senha" : step === "reset" ? "Voltar para entrar" : "Primeiro acesso? Criar senha"}
+                  </button>
+                )}
 
                 <button
                   onClick={() => {
