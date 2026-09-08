@@ -94,14 +94,15 @@ INSERT INTO access_level_permissions (level_code, permission_code)
 SELECT 'inspector', code FROM access_permissions
  WHERE code NOT IN ('access.permissions.manage', 'audit.view', 'security.document.view');
 
--- Preserva o acesso integral de quem já era administrador antes desta migration.
--- Como essas contas já possuíam privilégio total, classificá-las como Master não amplia acesso existente.
+-- Migração de menor privilégio para contas existentes.
+-- Um legado com role admin não vira Master automaticamente: o nível Master é
+-- concedido somente por procedimento explícito e auditável da TI.
 INSERT INTO user_access_levels (user_id, level_code, updated_by, updated_at)
 SELECT u.id,
        CASE
-         WHEN EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id = u.id AND ur.role = 'admin')
-              THEN 'master'
          WHEN e.access_profile = 'Inspetor' THEN 'inspector'
+         WHEN EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id = u.id AND ur.role = 'admin')
+              THEN 'admin'
          ELSE 'operator'
        END,
        NULL,
