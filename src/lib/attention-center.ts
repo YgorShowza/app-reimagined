@@ -2,7 +2,9 @@ import { getOperationalSnapshot, employeeRisk } from "@/lib/insights";
 import { listOccurrences } from "@/lib/occurrences";
 import { listPracticalEvaluations } from "@/lib/operations";
 import { listCertificateRecords } from "@/lib/certificate-records";
-import { listTrainingSchedules } from "@/lib/training-schedules";
+import { deriveTrainingStatus, listTrainingSchedules } from "@/lib/training-schedules";
+import { getAttentionSupport } from "@/lib/backend/insights-gateway";
+import { isSegempatApiConfigured } from "@/lib/backend/api-client";
 import { addOperationalDays, operationalDate, operationalYear } from "@/lib/operational-time";
 
 export type AttentionPriority = "critical" | "attention" | "monitor";
@@ -54,14 +56,31 @@ async function safe<T>(loader: () => Promise<T>, fallback: T): Promise<{ data: T
 export async function getInspectorAttentionCenter(year = operationalYear()): Promise<AttentionCenterSnapshot> {
   const today = operationalDate();
   const nextSeven = addOperationalDays(today, 7);
+  const corporateApi = isSegempatApiConfigured();
 
-  const [snapshotResult, occurrencesResult, practicalResult, certificatesResult, trainingResult] = await Promise.all([
+  const [snapshotResult, occurrencesResult, practicalResult, supportResult] = await Promise.all([
     safe(() => getOperationalSnapshot(year), null),
     safe(() => listOccurrences(), []),
     safe(() => listPracticalEvaluations(), []),
-    safe(() => listCertificateRecords(), []),
-    safe(() => listTrainingSchedules(), []),
+    corporateApi ? safe(() => getAttentionSupport(), null) : Promise.resolve(null),
   ]);
+
+  const certificatesResult = supportResult
+    ? {
+        data: (supportResult.data?.certificates ?? []).map((record) => ({ ...record, has_signature: Boolean(record.has_signature) })),
+        ok: supportResult.ok,
+      }
+    : await safe(
+        async () => (await listCertificateRecords()).map((record) => ({ ...record, has_signature: Boolean(record.signature_path) })),
+        [],
+      );
+
+  const trainingResult = supportResult
+    ? {
+        data: (supportResult.data?.training ?? []).map((schedule) => ({ ...schedule, status: deriveTrainingStatus(schedule) })),
+        ok: supportResult.ok,
+      }
+    : await safe(() => listTrainingSchedules(), []);
 
   const items: AttentionItem[] = [];
   const snapshot = snapshotResult.data;
@@ -190,7 +209,7 @@ export async function getInspectorAttentionCenter(year = operationalYear()): Pro
 
   for (const certificate of certificatesResult.data) {
     if (!certificate.passed || certificate.certificate_revoked || certificate.formally_issued) continue;
-    const missingSignature = !certificate.signature_agreed || !certificate.signature_path;
+    const missingSignature = !certificate.signature_agreed || !certificate.has_signature;
     items.push({
       id: `certificate-${certificate.id}`,
       priority: "attention",

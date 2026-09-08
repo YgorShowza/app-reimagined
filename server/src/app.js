@@ -16,6 +16,7 @@ import { authRouter } from "./routes/auth.js";
 import { employeesRouter } from "./routes/employees.js";
 import { accessRouter } from "./routes/access.js";
 import { authorizationRouter } from "./routes/authorization.js";
+import { insightsRouter } from "./routes/insights.js";
 import { examsRouter, myExamsRouter } from "./routes/exams.js";
 import { examEvidenceRouter } from "./routes/exam-evidence.js";
 import { myExamEvidenceRouter } from "./routes/exam-evidence-self.js";
@@ -267,6 +268,7 @@ export function createApp() {
   app.use("/api/employees", employeesRouter);
   app.use("/api/access", accessRouter);
   app.use("/api/authorization", authorizationRouter);
+  app.use("/api/insights", insightsRouter);
   app.use("/api/exams", examsRouter);
   app.use("/api/me", myExamsRouter);
   app.use("/api/me", myExamEvidenceRouter);
