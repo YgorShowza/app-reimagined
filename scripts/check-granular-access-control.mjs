@@ -89,9 +89,16 @@ requireText(app, 'app.use("/api", enforceGranularApiPermissions)', "middleware g
 requireText(app, 'app.use("/api/authorization", authorizationRouter)', "API de administração de permissões");
 
 requireText(frontendAccessControl, "canAccessAdminPath", "contrato de autorização de rotas no frontend");
+requireText(frontendAccessControl, '"/equipe": ["team.view", "team.manage"]', "rota Equipe aceita consulta ou gestão explicitamente autorizada");
 requireText(authenticatedRoute, "canAccessAdminPath", "guard de rota com permissões");
+requireText(authenticatedRoute, "<DemoModeBadge />", "badge de demonstração preservado no shell autenticado");
+requireText(authenticatedRoute, "ssr: false", "comportamento client-side autenticado preservado");
+requireText(authenticatedRoute, "segempat-operator-desktop", "wrapper desktop do Operador preservado");
+requireText(authenticatedRoute, "segempat-inspector-desktop", "wrapper desktop do Inspetor preservado");
 requireText(appLayout, "canAccessAdminPath", "menu administrativo filtrado por permissão");
+requireText(appLayout, "accessLevelLabel", "identidade visual exibe o nível granular efetivo");
 requireText(accessRoute, "PermissionAdministration", "painel de níveis e permissões na Governança");
+requireText(accessRoute, 'title: "Acessos · SEGEMPAT"', "metadado da página de Acessos preservado");
 requireText(permissionUi, "Conta atual · protegida", "proteção visual da conta atual");
 requireText(permissionUi, "Salvar nível e permissões", "editor granular de permissões");
 
@@ -118,6 +125,7 @@ requireText(manageInspector, "session_epoch = session_epoch + 1", "script TI inv
 
 requireText(privilegedReport, "user_access_levels", "relatório TI usa níveis granulares");
 requireText(privilegedReport, "effectivePermissions", "relatório TI calcula permissões efetivas");
+requireText(privilegedReport, "TI_GRANT_MASTER_ACCESS", "relatório TI reconhece concessão explícita de Master");
 requireText(integrationWorkflow, '\"version\":\"010\"', "integração MySQL exige migration 010");
 
 if (process.exitCode) process.exit(process.exitCode);
