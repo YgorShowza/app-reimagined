@@ -40,6 +40,7 @@ const ROUTE_PERMISSIONS: Record<string, AccessPermission | AccessPermission[]> =
   "/cronograma": "schedule.manage",
   "/cronograma-gestao": "schedule.manage",
   "/provas-criar": "exams.manage",
+  "/provas": "exams.manage",
   "/banco-questoes": "question_bank.manage",
   "/modulos-treinamento": "training.manage",
   "/ciclos-treinamento": "training.manage",
@@ -47,15 +48,31 @@ const ROUTE_PERMISSIONS: Record<string, AccessPermission | AccessPermission[]> =
   "/assinaturas-provas": "certificates.manage",
   "/ia-base": "ai.view",
   "/avaliacao-pratica": "practical.manage",
+  "/conteudos": "knowledge.manage",
   "/resumos": "knowledge.manage",
   "/ocorrencias": "occurrences.manage",
   "/oportunidades": "training.manage",
   "/foco": "training.manage",
 };
 
+const ADMIN_HOME_CANDIDATES = [
+  "/admin",
+  "/atencao",
+  "/equipe",
+  "/analytics",
+  "/cronograma",
+  "/provas-criar",
+  "/relatorios",
+  "/acessos",
+  "/ocorrencias",
+  "/avaliacao-pratica",
+] as const;
+
 export function hasPermission(user: Pick<SessionUser, "isAdmin" | "isMaster" | "permissions"> | null | undefined, permission: AccessPermission) {
   if (!user) return false;
   if (user.isMaster) return true;
+  // Compatibilidade controlada com payloads antigos e com o modo demonstração.
+  // No ambiente corporativo atual a API sempre envia a lista de permissões.
   if (!Array.isArray(user.permissions)) return Boolean(user.isAdmin);
   return user.permissions.includes(permission);
 }
@@ -68,14 +85,23 @@ export function hasAnyPermission(
 }
 
 export function requiredPermissionsForPath(pathname: string): AccessPermission[] | null {
-  const exact = ROUTE_PERMISSIONS[pathname];
+  const canonicalPath = pathname !== "/" && pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+  const exact = ROUTE_PERMISSIONS[canonicalPath];
   if (exact) return Array.isArray(exact) ? exact : [exact];
-  if (pathname.startsWith("/certificado/")) return ["certificates.manage"];
+  if (canonicalPath.startsWith("/certificado/")) return ["certificates.manage"];
   return null;
 }
 
 export function canAccessAdminPath(user: SessionUser, pathname: string) {
+  if (!user.isAdmin) return false;
   const required = requiredPermissionsForPath(pathname);
-  if (!required) return Boolean(user.isAdmin);
-  return Boolean(user.isAdmin) && hasAnyPermission(user, required);
+  if (!required) return true;
+  return hasAnyPermission(user, required);
+}
+
+export function firstAllowedAdminPath(user: SessionUser) {
+  for (const path of ADMIN_HOME_CANDIDATES) {
+    if (canAccessAdminPath(user, path)) return path;
+  }
+  return "/painel";
 }
