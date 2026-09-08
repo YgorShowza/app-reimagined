@@ -33,6 +33,7 @@ const accessRoute = read("src/routes/_authenticated/acessos.tsx");
 const authenticatedRoute = read("src/routes/_authenticated/route.tsx");
 const appLayout = read("src/components/AppLayoutV2.tsx");
 const frontendAccessControl = read("src/lib/access-control.ts");
+const demoMode = read("src/lib/demo-mode.ts");
 const authorizationGateway = read("src/lib/backend/authorization-gateway.ts");
 const permissionUi = read("src/components/access/PermissionAdministration.tsx");
 const integrationWorkflow = read(".github/workflows/mysql-integration.yml");
@@ -101,6 +102,15 @@ requireText(accessRoute, "PermissionAdministration", "painel de níveis e permis
 requireText(accessRoute, 'title: "Acessos · SEGEMPAT"', "metadado da página de Acessos preservado");
 requireText(permissionUi, "Conta atual · protegida", "proteção visual da conta atual");
 requireText(permissionUi, "Salvar nível e permissões", "editor granular de permissões");
+
+requireText(demoMode, 'matricula: "000001"', "sessão demo da Inspetoria preserva matrícula esperada");
+requireText(demoMode, "isMaster: true", "sessão demo da Inspetoria permanece Master");
+requireText(demoMode, 'accessLevel: "master"', "sessão demo da Inspetoria expõe nível Master");
+requireText(demoMode, 'accessLevelLabel: "Administrador Master"', "rótulo Master consistente no modo demonstração");
+requireText(demoMode, 'matricula: "100101"', "sessão demo do Operador preserva matrícula esperada");
+requireText(demoMode, "isAdmin: false", "sessão demo do Operador não recebe privilégio administrativo");
+requireText(demoMode, "isMaster: false", "sessão demo do Operador não recebe privilégio Master");
+requireText(demoMode, 'accessLevel: "operator"', "sessão demo do Operador expõe nível Operador");
 
 requireText(authorizationGateway, "isDemoModeAllowed", "isolamento do modo demonstração");
 requireText(authorizationGateway, 'matricula: "000001"', "conta Master fictícia de demonstração");
