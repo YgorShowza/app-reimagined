@@ -140,10 +140,11 @@ function MobileNavLink({ item }: { item: MenuItem }) {
 }
 
 function AdminNavItems({ pathname, user }: { pathname: string; user: ReturnType<typeof useCurrentUser>["data"] }) {
-  if (!user) return null;
-  const visibleSections = adminSections
-    .map((section) => ({ ...section, items: section.items.filter((item) => canAccessAdminPath(user, item.path)) }))
-    .filter((section) => section.items.length > 0);
+  const visibleSections = user
+    ? adminSections
+        .map((section) => ({ ...section, items: section.items.filter((item) => canAccessAdminPath(user, item.path)) }))
+        .filter((section) => section.items.length > 0)
+    : [];
   const activeSection = visibleSections.find((section) => section.items.some((item) => routeMatches(pathname, item.path)))?.section;
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => Object.fromEntries(visibleSections.map((section) => [section.section, section.section === "Comando Operacional" || section.section === activeSection])));
   useEffect(() => { if (!activeSection) return; setOpenSections((current) => current[activeSection] ? current : { ...current, [activeSection]: true }); }, [activeSection]);
