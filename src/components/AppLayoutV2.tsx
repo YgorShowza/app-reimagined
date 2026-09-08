@@ -43,6 +43,7 @@ import { useTheme } from "@/components/ThemeProvider";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { useApiReadiness } from "@/lib/useApiReadiness";
 import { logoutSession } from "@/lib/backend/auth-gateway";
+import { canAccessAdminPath } from "@/lib/access-control";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 const LOGO_URL = "https://media.base44.com/images/public/6a1117d573bbf85981b1abee/8271ac857_IMG_9226.png";
@@ -138,17 +139,22 @@ function MobileNavLink({ item }: { item: MenuItem }) {
   return <Link to={item.path} className="flex-1" activeOptions={{ exact: true }}>{({ isActive }) => <div className="flex flex-col items-center gap-0.5 rounded-xl py-1.5 transition-colors duration-150" style={isActive ? { background: "var(--accent-soft)" } : {}}><Icon className="h-5 w-5" style={{ color: isActive ? "var(--accent)" : "var(--text-4)" }} /><span className="text-[10px] font-medium" style={{ color: isActive ? "var(--accent)" : "var(--text-4)" }}>{shortLabel}</span></div>}</Link>;
 }
 
-function AdminNavItems({ pathname }: { pathname: string }) {
-  const activeSection = adminSections.find((section) => section.items.some((item) => routeMatches(pathname, item.path)))?.section;
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => Object.fromEntries(adminSections.map((section) => [section.section, section.section === "Comando Operacional" || section.section === activeSection])));
+function AdminNavItems({ pathname, user }: { pathname: string; user: ReturnType<typeof useCurrentUser>["data"] }) {
+  const visibleSections = user
+    ? adminSections
+        .map((section) => ({ ...section, items: section.items.filter((item) => canAccessAdminPath(user, item.path)) }))
+        .filter((section) => section.items.length > 0)
+    : [];
+  const activeSection = visibleSections.find((section) => section.items.some((item) => routeMatches(pathname, item.path)))?.section;
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => Object.fromEntries(visibleSections.map((section) => [section.section, section.section === "Comando Operacional" || section.section === activeSection])));
   useEffect(() => { if (!activeSection) return; setOpenSections((current) => current[activeSection] ? current : { ...current, [activeSection]: true }); }, [activeSection]);
 
-  return <div className="space-y-2">{adminSections.map((section) => { const SectionIcon = section.icon; const isOpen = Boolean(openSections[section.section]); const isActive = activeSection === section.section; return <div key={section.section} className="overflow-hidden rounded-2xl transition-colors" style={{ background: isActive ? "var(--accent-soft)" : "transparent", border: isActive ? "1px solid rgba(200,16,46,.20)" : "1px solid transparent" }}><button type="button" onClick={() => setOpenSections((current) => ({ ...current, [section.section]: !current[section.section] }))} className="segempat-sidebar-section flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors" aria-expanded={isOpen}><div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ background: isActive ? "var(--accent-soft2)" : "var(--bg-surface-2)" }}><SectionIcon className="h-3.5 w-3.5" style={{ color: isActive ? "var(--accent)" : "var(--text-3)" }} /></div><div className="min-w-0 flex-1"><p className="truncate text-[10px] font-black uppercase tracking-[.13em]" style={{ color: isActive ? "var(--accent)" : "var(--text-2)" }}>{section.section}</p><p className="mt-0.5 text-[9px]" style={{ color: "var(--text-4)" }}>{section.items.length} funções</p></div>{isOpen ? <ChevronDown className="h-3.5 w-3.5" style={{ color: "var(--text-4)" }} /> : <ChevronRight className="h-3.5 w-3.5" style={{ color: "var(--text-4)" }} />}</button>{isOpen && <div className="space-y-1 px-1.5 pb-2">{section.items.map((item) => <MenuLink key={item.path} item={item} />)}</div>}</div>; })}</div>;
+  return <div className="space-y-2">{visibleSections.map((section) => { const SectionIcon = section.icon; const isOpen = Boolean(openSections[section.section]); const isActive = activeSection === section.section; return <div key={section.section} className="overflow-hidden rounded-2xl transition-colors" style={{ background: isActive ? "var(--accent-soft)" : "transparent", border: isActive ? "1px solid rgba(200,16,46,.20)" : "1px solid transparent" }}><button type="button" onClick={() => setOpenSections((current) => ({ ...current, [section.section]: !current[section.section] }))} className="segempat-sidebar-section flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors" aria-expanded={isOpen}><div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ background: isActive ? "var(--accent-soft2)" : "var(--bg-surface-2)" }}><SectionIcon className="h-3.5 w-3.5" style={{ color: isActive ? "var(--accent)" : "var(--text-3)" }} /></div><div className="min-w-0 flex-1"><p className="truncate text-[10px] font-black uppercase tracking-[.13em]" style={{ color: isActive ? "var(--accent)" : "var(--text-2)" }}>{section.section}</p><p className="mt-0.5 text-[9px]" style={{ color: "var(--text-4)" }}>{section.items.length} funções</p></div>{isOpen ? <ChevronDown className="h-3.5 w-3.5" style={{ color: "var(--text-4)" }} /> : <ChevronRight className="h-3.5 w-3.5" style={{ color: "var(--text-4)" }} />}</button>{isOpen && <div className="space-y-1 px-1.5 pb-2">{section.items.map((item) => <MenuLink key={item.path} item={item} />)}</div>}</div>; })}</div>;
 }
 
-function NavItems({ isAdmin, pathname }: { isAdmin: boolean; pathname: string }) {
+function NavItems({ isAdmin, pathname, user }: { isAdmin: boolean; pathname: string; user: ReturnType<typeof useCurrentUser>["data"] }) {
   if (!isAdmin) return <div className="space-y-1.5">{operatorMenu.map((item) => <MenuLink key={item.path} item={item} />)}</div>;
-  return <AdminNavItems pathname={pathname} />;
+  return <AdminNavItems pathname={pathname} user={user} />;
 }
 
 function HeaderClock() {
@@ -161,7 +167,8 @@ function HeaderClock() {
 
 function SidebarIdentity({ user, isAdmin }: { user: ReturnType<typeof useCurrentUser>["data"]; isAdmin: boolean }) {
   const initial = user?.nome?.trim()?.charAt(0)?.toUpperCase() || "S";
-  return <div className="px-4 py-4" style={{ borderBottom: "1px solid var(--border)" }}><div className="flex items-center gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-black text-white" style={{ background: "linear-gradient(135deg,#e0142f,#C8102E)", boxShadow: "0 8px 18px rgba(200,16,46,.20)" }}>{initial}</div><div className="min-w-0"><p className="truncate text-[13px] font-black" style={{ color: "var(--text-1)" }}>{user?.nome ?? "SEGEMPAT"}</p><p className="mt-0.5 text-[10px] font-mono" style={{ color: "var(--text-4)" }}>Mat. {user?.matricula ?? "—"}</p></div></div><div className="mt-3 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-black" style={{ background: "var(--accent-soft)", border: "1px solid rgba(200,16,46,.28)", color: "var(--accent)" }}><span className="h-1.5 w-1.5 rounded-full bg-[#C8102E]" />{isAdmin ? "Inspetor" : "Operador"}{user?.setor ? ` · ${user.setor}` : ""}</div></div>;
+  const accessLabel = user?.accessLevelLabel || (isAdmin ? "Inspetor" : "Operador");
+  return <div className="px-4 py-4" style={{ borderBottom: "1px solid var(--border)" }}><div className="flex items-center gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-black text-white" style={{ background: "linear-gradient(135deg,#e0142f,#C8102E)", boxShadow: "0 8px 18px rgba(200,16,46,.20)" }}>{initial}</div><div className="min-w-0"><p className="truncate text-[13px] font-black" style={{ color: "var(--text-1)" }}>{user?.nome ?? "SEGEMPAT"}</p><p className="mt-0.5 text-[10px] font-mono" style={{ color: "var(--text-4)" }}>Mat. {user?.matricula ?? "—"}</p></div></div><div className="mt-3 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-black" style={{ background: "var(--accent-soft)", border: "1px solid rgba(200,16,46,.28)", color: "var(--accent)" }}><span className="h-1.5 w-1.5 rounded-full bg-[#C8102E]" />{accessLabel}{user?.setor ? ` · ${user.setor}` : ""}</div></div>;
 }
 
 function SidebarFooter({ loggingOut, onLogout }: { loggingOut: boolean; onLogout: () => void }) {
@@ -206,7 +213,7 @@ export function AppLayoutV2({ children }: { children: ReactNode }) {
     <aside className="fixed bottom-0 left-0 top-0 z-40 hidden w-[19rem] flex-col lg:flex" style={{ background: "var(--header-bg)", borderRight: "1px solid var(--border)", boxShadow: "8px 0 24px rgba(15,23,42,.035)" }}>
       <div className="px-4 pb-4 pt-5" style={{ borderBottom: "1px solid var(--border)" }}><div className="flex items-center justify-center"><div className="overflow-hidden rounded-xl bg-white p-1.5" style={{ border: "1px solid var(--border)", boxShadow: "var(--shadow-card)" }}><img src={LOGO_URL} alt="EMPAT" className="h-12 w-auto object-contain" /></div></div></div>
       <SidebarIdentity user={user} isAdmin={isAdmin} />
-      <nav className="flex-1 overflow-y-auto px-3 py-3"><NavItems isAdmin={isAdmin} pathname={pathname} /></nav>
+      <nav className="flex-1 overflow-y-auto px-3 py-3"><NavItems isAdmin={isAdmin} pathname={pathname} user={user} /></nav>
       <SidebarFooter loggingOut={loggingOut} onLogout={handleLogout} />
     </aside>
 
@@ -216,7 +223,7 @@ export function AppLayoutV2({ children }: { children: ReactNode }) {
           <div className="flex min-w-0 items-center gap-3">
             <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
               <SheetTrigger asChild><button className="shrink-0 rounded-lg p-2 lg:hidden" style={{ color: "var(--text-2)", border: "1px solid var(--border)", background: "var(--bg-surface)" }} aria-label="Abrir menu"><Menu className="h-5 w-5" /></button></SheetTrigger>
-              <SheetContent side="left" className="segempat-sidebar-sheet w-[86vw] max-w-[340px] border-0 p-0 sm:max-w-[340px]" style={{ background: "var(--header-bg)", color: "var(--text-1)" }}><SheetTitle className="sr-only">Menu</SheetTitle><div className="flex h-full flex-col" style={{ background: "var(--header-bg)" }}><div className="px-4 pb-4 pt-5" style={{ borderBottom: "1px solid var(--border)" }}><div className="flex items-center justify-center"><div className="overflow-hidden rounded-xl bg-white p-1.5" style={{ border: "1px solid var(--border)", boxShadow: "var(--shadow-card)" }}><img src={LOGO_URL} alt="EMPAT" className="h-10 w-auto object-contain" /></div></div></div><SidebarIdentity user={user} isAdmin={isAdmin} /><nav className="flex-1 overflow-y-auto px-3 py-3"><NavItems isAdmin={isAdmin} pathname={pathname} /></nav><SidebarFooter loggingOut={loggingOut} onLogout={handleLogout} /></div></SheetContent>
+              <SheetContent side="left" className="segempat-sidebar-sheet w-[86vw] max-w-[340px] border-0 p-0 sm:max-w-[340px]" style={{ background: "var(--header-bg)", color: "var(--text-1)" }}><SheetTitle className="sr-only">Menu</SheetTitle><div className="flex h-full flex-col" style={{ background: "var(--header-bg)" }}><div className="px-4 pb-4 pt-5" style={{ borderBottom: "1px solid var(--border)" }}><div className="flex items-center justify-center"><div className="overflow-hidden rounded-xl bg-white p-1.5" style={{ border: "1px solid var(--border)", boxShadow: "var(--shadow-card)" }}><img src={LOGO_URL} alt="EMPAT" className="h-10 w-auto object-contain" /></div></div></div><SidebarIdentity user={user} isAdmin={isAdmin} /><nav className="flex-1 overflow-y-auto px-3 py-3"><NavItems isAdmin={isAdmin} pathname={pathname} user={user} /></nav><SidebarFooter loggingOut={loggingOut} onLogout={handleLogout} /></div></SheetContent>
             </Sheet>
             <div className="shrink-0 overflow-hidden rounded-lg bg-white p-1 lg:hidden" style={{ border: "1px solid var(--border)" }}><img src={LOGO_URL} alt="EMPAT" className="h-8 w-auto object-contain" /></div>
             <div className="min-w-0 lg:hidden"><p className="truncate text-sm font-bold" style={{ color: "var(--text-1)" }}>{user?.nome ?? "…"}</p><p className="text-[11px] font-mono" style={{ color: "var(--text-4)" }}>Mat. {user?.matricula ?? "—"}</p></div>

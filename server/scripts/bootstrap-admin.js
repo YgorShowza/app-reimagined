@@ -1,5 +1,5 @@
 /**
- * Cria (ou reabilita) o primeiro Inspetor do SEGEMPAT direto no MySQL.
+ * Cria (ou reabilita) o primeiro Administrador Master do SEGEMPAT direto no MySQL.
  *
  * Uso recomendado (senha via stdin, sem gravá-la no histórico do shell):
  *   read -rsp 'Senha temporária: ' SENHA_TMP; echo
@@ -38,7 +38,7 @@ function readPassword() {
 const senha = readPassword();
 
 if (confirmation !== "SIM") {
-  fail("operação privilegiada bloqueada; defina CONFIRM_BOOTSTRAP_ADMIN=SIM para confirmar conscientemente o bootstrap do Inspetor");
+  fail("operação privilegiada bloqueada; defina CONFIRM_BOOTSTRAP_ADMIN=SIM para confirmar conscientemente o bootstrap do Administrador Master");
 }
 if (!matricula) fail("MATRICULA é obrigatória");
 if (matricula.length > 64) fail("MATRICULA excede 64 caracteres");
@@ -86,7 +86,10 @@ try {
     let userId = accounts[0]?.id;
     if (userId) {
       await connection.execute(
-        `UPDATE app_users SET matricula = ?, password_hash = ?, status = 'Ativo', updated_at = UTC_TIMESTAMP(3) WHERE id = ?`,
+        `UPDATE app_users
+            SET matricula = ?, password_hash = ?, status = 'Ativo',
+                session_epoch = session_epoch + 1, updated_at = UTC_TIMESTAMP(3)
+          WHERE id = ?`,
         [employee.matricula, passwordHash, userId],
       );
     } else {
@@ -132,6 +135,14 @@ try {
     );
 
     await connection.execute(
+      `INSERT INTO user_access_levels (user_id, level_code, updated_by, updated_at)
+       VALUES (?, 'master', NULL, UTC_TIMESTAMP(3))
+       ON DUPLICATE KEY UPDATE level_code = 'master', updated_by = NULL, updated_at = UTC_TIMESTAMP(3)`,
+      [userId],
+    );
+    await connection.execute(`DELETE FROM user_permission_overrides WHERE user_id = ?`, [userId]);
+
+    await connection.execute(
       `UPDATE registration_activation_codes
           SET used_at = COALESCE(used_at, UTC_TIMESTAMP(3))
         WHERE employee_id = ?`,
@@ -144,16 +155,19 @@ try {
       [randomUUID(), userId, userId, JSON.stringify({
         matricula: employee.matricula,
         employee_id: employee.id,
+        access_level: "master",
+        least_privilege_model: "granular",
         via: "scripts/bootstrap-admin.js",
         explicit_confirmation: true,
         activation_codes_revoked: true,
+        sessions_revoked: Boolean(accounts[0]?.id),
       })],
     );
 
     return { userId, employeeId: employee.id, matricula: employee.matricula };
   });
 
-  console.log(`[bootstrap-admin] Inspetor pronto: matrícula ${result.matricula} (usuário ${result.userId})`);
+  console.log(`[bootstrap-admin] Administrador Master pronto: matrícula ${result.matricula} (usuário ${result.userId})`);
 } catch (error) {
   fail(error?.message || String(error));
 } finally {

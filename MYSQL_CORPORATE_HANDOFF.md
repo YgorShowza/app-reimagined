@@ -61,6 +61,8 @@ O runner protege histórico/checksums e, quando existe estrutura legada antes do
 
 A validação cobre tabelas, colunas, tipos, nulabilidade, defaults, charset/collation, atributos de coluna, PKs, índices, unicidade, colunas geradas, `CHECK constraints`, triggers, FKs e órfãos.
 
+A migration `010_granular_access_control.sql` cria os níveis **Administrador Master, Administrador, Inspetor e Operador** e as permissões granulares. Ela aplica menor privilégio às contas existentes e **não promove automaticamente nenhuma conta legada para Master**. A concessão de Master é uma decisão explícita e auditável da TI.
+
 **Regra de parada:** qualquer divergência estrutural deve ser corrigida explicitamente; não alterar o runner para mascará-la.
 
 ## 6. Gate 3 — Smoke estrutural
@@ -85,15 +87,34 @@ npm run cutover:audit
 
 Corrigir qualquer inconsistência antes de liberar usuários.
 
-## 9. Primeiro Inspetor
+## 9. Conta administrativa e Administrador Master
 
-Somente se ainda for necessário preparar a primeira conta administrativa e somente depois do schema estar aprovado:
+Se ainda não existir nenhuma conta administrativa, preparar a primeira conta somente depois do schema estar aprovado:
 
 ```bash
 npm run bootstrap-admin
 ```
 
-Credenciais temporárias devem ser tratadas como segredo e trocadas no primeiro acesso.
+O bootstrap cria a conta inicial como **Administrador Master**, exige confirmação explícita e deve receber a senha temporária por mecanismo seguro. Credenciais temporárias devem ser tratadas como segredo e trocadas no primeiro acesso.
+
+Se a conta já existir e a TI precisar designá-la como Master sem redefinir senha, usar o procedimento específico:
+
+```bash
+CONFIRM_MASTER_ACCESS=SIM \
+MATRICULA=<MATRICULA_AUTORIZADA> \
+TI_OPERATOR="<RESPONSAVEL_TI>" \
+npm run grant-master-access
+```
+
+Esse comando não recebe senha. Ele exige conta e cadastro funcional ativos, grava o nível Master, remove exceções individuais incompatíveis, invalida sessões anteriores e registra `TI_GRANT_MASTER_ACCESS` na auditoria.
+
+Depois da definição dos privilégios, executar:
+
+```bash
+npm run report-privileged-access
+```
+
+A TI deve revisar qualquer divergência antes da liberação. O nível Master deve ser restrito às contas formalmente autorizadas; novos Inspetores não se tornam Master automaticamente.
 
 ## 10. Subida da API
 
@@ -110,7 +131,7 @@ GET /health
 GET /health/ready
 ```
 
-`/health/ready` deve permanecer saudável antes do cutover do frontend.
+`/health/ready` deve permanecer saudável antes do cutover do frontend e deve indicar a migration esperada mais recente.
 
 ## 11. Cutover do frontend
 
@@ -121,13 +142,17 @@ VITE_SEGEMPAT_API_URL=<URL HTTPS DA API>
 VITE_SEGEMPAT_REQUIRE_API=true
 ```
 
-`VITE_SEGEMPAT_REQUIRE_API=true` impede fallback silencioso para o backend legado. O build corporativo não deve ser publicado se a URL da API estiver ausente, inválida ou sem HTTPS.
+`VITE_SEGEMPAT_REQUIRE_API=true` impede fallback silencioso para o modo demonstração. O build corporativo não deve ser publicado se a URL da API estiver ausente, inválida ou sem HTTPS.
 
 Configurar na API `SEGEMPAT_ALLOWED_ORIGINS` com as origens HTTPS exatas do frontend de homologação/produção.
 
 ## 12. Teste ponta a ponta
 
-Executar pelo menos um ciclo com **Inspetor** e um com **Operador**, cobrindo login/logout, primeiro acesso, Equipe, Cronograma, Banco de Questões, Provas, tentativas/correção, assinatura/evidências, certificados, Treinamentos, Simulador, Stress Test, Teste Rápido, Desafio Diário, Avaliação Prática, Ocorrências, Base de Conhecimento, Meu Perfil e Auditoria.
+Executar pelo menos um ciclo com **Administrador Master**, um com **Inspetor** e um com **Operador**.
+
+Para o Master, validar a tela de **Acessos → Níveis e permissões**, proteção contra alteração do próprio nível, proteção do último Master, aplicação das permissões e invalidação de sessão após mudanças. Para Inspetor e Operador, validar que telas e operações não autorizadas permanecem bloqueadas pela API, além da navegação compatível com o nível concedido.
+
+Cobrir também login/logout, primeiro acesso, Equipe, Cronograma, Banco de Questões, Provas, tentativas/correção, assinatura/evidências, certificados, Treinamentos, Simulador, Stress Test, Teste Rápido, Desafio Diário, Avaliação Prática, Ocorrências, Base de Conhecimento, Meu Perfil e Auditoria conforme as permissões de cada conta.
 
 Também validar CORS, cookies `Secure`, HTTPS, firewall, storage, backup e comportamento de `/health/ready` durante indisponibilidade controlada de dependências quando a TI puder testar isso com segurança.
 
@@ -141,7 +166,9 @@ Guardar em local corporativo:
 - resultado do `smoke`;
 - contagens/evidências da carga;
 - resultado do `cutover:audit`;
-- evidências dos testes Inspetor/Operador;
+- evidência da conta Master explicitamente aprovada pela TI;
+- saída do `report-privileged-access`;
+- evidências dos testes Master/Inspetor/Operador;
 - validação de TLS, firewall, CORS e cookies;
 - validação de backup/storage;
 - plano e aprovação de rollback/cutover.
@@ -155,15 +182,17 @@ TI inputs
   -> configurar secrets/rede/storage
   -> npm ci
   -> preflight
-  -> migrate
+  -> migrate (até a migration 010 ou superior aprovada)
   -> smoke
   -> migrar dados/evidências
   -> cutover:audit
-  -> bootstrap-admin (se necessário)
+  -> bootstrap-admin (se não houver conta administrativa)
+  -> grant-master-access (se a conta Master já existir e precisar ser designada)
+  -> report-privileged-access
   -> subir API
   -> /health/ready verde
   -> build frontend com REQUIRE_API=true
-  -> E2E Inspetor + Operador
+  -> E2E Master + Inspetor + Operador
   -> aceite/rollback
 ```
 

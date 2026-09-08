@@ -1,4 +1,5 @@
 export type UserRole = "admin" | "operator";
+export type AccessLevel = "master" | "admin" | "inspector" | "operator";
 
 export interface SessionUser {
   id: string;
@@ -6,6 +7,10 @@ export interface SessionUser {
   nome: string;
   setor: string | null;
   isAdmin: boolean;
+  isMaster?: boolean;
+  accessLevel?: AccessLevel;
+  accessLevelLabel?: string;
+  permissions?: string[];
 }
 
 export interface AuthGateway {

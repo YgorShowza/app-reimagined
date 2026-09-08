@@ -131,5 +131,5 @@ jobs:
           grep -F '"database":"connected"' /tmp/segempat-ready.json >/dev/null
           grep -F '"schema":"ready"' /tmp/segempat-ready.json >/dev/null
           grep -F '"storage":"ready"' /tmp/segempat-ready.json >/dev/null
-          grep -F '"version":"009"' /tmp/segempat-ready.json >/dev/null
-          echo "API SEGEMPAT validada contra MySQL 8 real descartável até a migration 009."
+          grep -F '"version":"010"' /tmp/segempat-ready.json >/dev/null
+          echo "API SEGEMPAT validada contra MySQL 8 real descartável até a migration 010."

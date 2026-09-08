@@ -88,8 +88,6 @@ authRouter.post(
 
     const genericFailure = unauthorized("Matrícula ou senha inválida");
     if (!account) {
-      // Mantém custo criptográfico semelhante ao caminho de uma matrícula existente,
-      // reduzindo o sinal de enumeração de contas por tempo de resposta.
       await bcrypt.hash(password || "segempat-invalid-login", 12);
       throw genericFailure;
     }
@@ -153,6 +151,7 @@ authRouter.post(
 
       const id = uuid();
       const passwordHash = await bcrypt.hash(password, 12);
+      const initialAccessLevel = employee.access_profile === "Inspetor" ? "inspector" : "operator";
 
       await connection.execute(
         `INSERT INTO app_users (id, matricula, password_hash, status, created_at, updated_at)
@@ -164,7 +163,14 @@ authRouter.post(
          VALUES (?, ?, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
         [id, employee.matricula, employee.full_name],
       );
+      await connection.execute(
+        `INSERT INTO user_access_levels (user_id, level_code, updated_by, updated_at)
+         VALUES (?, ?, NULL, UTC_TIMESTAMP(3))`,
+        [id, initialAccessLevel],
+      );
       if (employee.access_profile === "Inspetor") {
+        // Mantém a role legada somente para compatibilidade de scripts antigos.
+        // O poder efetivo passa a vir de user_access_levels + permissões.
         await connection.execute(
           `INSERT IGNORE INTO user_roles (id, user_id, role) VALUES (?, ?, 'admin')`,
           [uuid(), id],
@@ -174,7 +180,12 @@ authRouter.post(
         `UPDATE registration_activation_codes SET used_at = UTC_TIMESTAMP(3) WHERE employee_id = ?`,
         [employee.id],
       );
-      await audit(id, "ACTIVATE", "app_users", id, { matricula: employee.matricula, atomic: true }, connection);
+      await audit(id, "ACTIVATE", "app_users", id, {
+        matricula: employee.matricula,
+        initial_access_level: initialAccessLevel,
+        least_privilege: true,
+        atomic: true,
+      }, connection);
       return id;
     });
 

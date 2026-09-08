@@ -8,8 +8,9 @@
  *   CONFIRM_PRIVILEGED_ACCESS=SIM ACTION=REVOKE MATRICULA=970 TI_OPERATOR="Nome do analista TI" \
  *     node scripts/manage-inspector-access.js
  *
- * O comando nunca recebe senha. Ele apenas controla o perfil funcional privilegiado
- * e a role administrativa correspondente, dentro de uma transação e com auditoria.
+ * O comando nunca recebe senha. Ele controla o perfil funcional e o nível granular
+ * Inspector/Operator dentro de uma transação e com auditoria. Contas Master não
+ * podem ser alteradas por este utilitário para evitar rebaixamento administrativo acidental.
  */
 import { randomUUID } from "node:crypto";
 import { pool, withTransaction } from "../src/db.js";
@@ -58,24 +59,15 @@ if (!process.exitCode) {
       );
       const account = accounts[0] ?? null;
 
-      if (action === "REVOKE") {
-        // Bloqueia concorrência entre duas revogações e impede que o ambiente fique
-        // sem nenhum Inspetor ativo com conta administrativa utilizável.
-        const [activeInspectors] = await connection.execute(
-          `SELECT e.id AS employee_id, u.id AS user_id
-             FROM employees e
-             JOIN app_users u
-               ON LOWER(TRIM(u.matricula)) = LOWER(TRIM(e.matricula))
-             JOIN user_roles r
-               ON r.user_id = u.id AND r.role = 'admin'
-            WHERE e.access_profile = 'Inspetor'
-              AND e.status = 'Ativo'
-              AND u.status = 'Ativo'
-            FOR UPDATE`,
+      let previousLevel = null;
+      if (account) {
+        const [levelRows] = await connection.execute(
+          `SELECT level_code FROM user_access_levels WHERE user_id = ? LIMIT 1 FOR UPDATE`,
+          [account.id],
         );
-        const targetIsActiveInspector = activeInspectors.some((row) => row.employee_id === employee.id);
-        if (targetIsActiveInspector && activeInspectors.length <= 1) {
-          throw new Error("revogação bloqueada: este é o último Inspetor ativo com acesso administrativo");
+        previousLevel = levelRows[0]?.level_code ?? null;
+        if (previousLevel === "master") {
+          throw new Error("conta Administrador Master protegida: use o controle de níveis/permissões do SEGEMPAT ou o procedimento administrativo específico da TI");
         }
       }
 
@@ -87,6 +79,13 @@ if (!process.exitCode) {
           [employee.id],
         );
         if (account) {
+          await connection.execute(
+            `INSERT INTO user_access_levels (user_id, level_code, updated_by, updated_at)
+             VALUES (?, 'inspector', NULL, UTC_TIMESTAMP(3))
+             ON DUPLICATE KEY UPDATE level_code = 'inspector', updated_by = NULL, updated_at = UTC_TIMESTAMP(3)`,
+            [account.id],
+          );
+          await connection.execute(`DELETE FROM user_permission_overrides WHERE user_id = ?`, [account.id]);
           await connection.execute(
             `INSERT IGNORE INTO user_roles (id, user_id, role) VALUES (?, ?, 'admin')`,
             [randomUUID(), account.id],
@@ -107,6 +106,13 @@ if (!process.exitCode) {
         );
         if (account) {
           await connection.execute(
+            `INSERT INTO user_access_levels (user_id, level_code, updated_by, updated_at)
+             VALUES (?, 'operator', NULL, UTC_TIMESTAMP(3))
+             ON DUPLICATE KEY UPDATE level_code = 'operator', updated_by = NULL, updated_at = UTC_TIMESTAMP(3)`,
+            [account.id],
+          );
+          await connection.execute(`DELETE FROM user_permission_overrides WHERE user_id = ?`, [account.id]);
+          await connection.execute(
             `DELETE FROM user_roles WHERE user_id = ? AND role = 'admin'`,
             [account.id],
           );
@@ -119,6 +125,7 @@ if (!process.exitCode) {
         }
       }
 
+      const newLevel = account ? (action === "GRANT" ? "inspector" : "operator") : null;
       const auditAction = action === "GRANT" ? "TI_GRANT_INSPECTOR" : "TI_REVOKE_INSPECTOR";
       await connection.execute(
         `INSERT INTO audit_logs (id, actor_id, action, entity, entity_id, details, created_at)
@@ -132,13 +139,16 @@ if (!process.exitCode) {
             employee_name: employee.full_name,
             previous_access_profile: employee.access_profile,
             new_access_profile: action === "GRANT" ? "Inspetor" : "Operacional",
+            previous_access_level: previousLevel,
+            new_access_level: newLevel,
             account_id: account?.id ?? null,
             account_status: account?.status ?? null,
             role_changed: Boolean(account),
+            permissions_reset_to_level_default: Boolean(account),
             sessions_revoked: Boolean(account),
+            master_guard: true,
             executed_by_ti: tiOperator,
             explicit_confirmation: true,
-            last_inspector_guard: action === "REVOKE",
             via: "server/scripts/manage-inspector-access.js",
           }),
         ],
@@ -148,13 +158,14 @@ if (!process.exitCode) {
         employee: employee.full_name,
         matricula: employee.matricula,
         profile: action === "GRANT" ? "Inspetor" : "Operacional",
+        level: newLevel,
         accountLinked: Boolean(account),
         sessionsRevoked: Boolean(account),
       };
     });
 
     console.log(
-      `[manage-inspector-access] concluído: ${result.employee} (${result.matricula}) -> ${result.profile}; conta vinculada: ${result.accountLinked ? "sim" : "não"}; sessões anteriores: ${result.sessionsRevoked ? "revogadas" : "não aplicável"}`,
+      `[manage-inspector-access] concluído: ${result.employee} (${result.matricula}) -> ${result.profile}${result.level ? ` / nível ${result.level}` : ""}; conta vinculada: ${result.accountLinked ? "sim" : "não"}; sessões anteriores: ${result.sessionsRevoked ? "revogadas" : "não aplicável"}`,
     );
   } catch (error) {
     fail(error?.message || String(error));

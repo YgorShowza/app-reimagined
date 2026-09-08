@@ -2,8 +2,9 @@ import { createFileRoute, Outlet, redirect, useRouterState } from "@tanstack/rea
 import { AppLayoutV2 } from "@/components/AppLayoutV2";
 import { DemoModeBadge } from "@/components/DemoModeBadge";
 import { getCurrentSessionUser } from "@/lib/backend/current-user-gateway";
+import { canAccessAdminPath, firstAllowedAdminPath, requiredPermissionsForPath } from "@/lib/access-control";
 
-const ADMIN_ONLY_PATHS = new Set([
+export const ADMIN_ONLY_PATHS = new Set([
   "/admin",
   "/atencao",
   "/equipe",
@@ -33,7 +34,7 @@ const ADMIN_ONLY_PATHS = new Set([
   "/foco",
 ]);
 
-const OPERATOR_DESKTOP_PATHS = new Set([
+export const OPERATOR_DESKTOP_PATHS = new Set([
   "/painel",
   "/pendencias",
   "/provas",
@@ -51,7 +52,7 @@ const OPERATOR_DESKTOP_PATHS = new Set([
   "/desafio-diario",
 ]);
 
-const INSPECTOR_DESKTOP_PATHS = new Set([
+export const INSPECTOR_DESKTOP_PATHS = new Set([
   "/atencao",
   "/risco",
   "/ia-base",
@@ -60,15 +61,21 @@ const INSPECTOR_DESKTOP_PATHS = new Set([
   "/validar-certificados",
 ]);
 
+function canonicalPathname(pathname: string) {
+  return pathname !== "/" && pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+}
+
 function isAdminOnlyPath(pathname: string) {
-  return ADMIN_ONLY_PATHS.has(pathname) || pathname.startsWith("/certificado/");
+  const canonicalPath = canonicalPathname(pathname);
+  return ADMIN_ONLY_PATHS.has(canonicalPath) || canonicalPath.startsWith("/certificado/");
 }
 
 function AuthenticatedShell() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  if (pathname === "/tv") return <Outlet />;
-  const operatorDesktopRoute = OPERATOR_DESKTOP_PATHS.has(pathname) ? pathname : null;
-  const inspectorDesktopRoute = INSPECTOR_DESKTOP_PATHS.has(pathname) ? pathname : null;
+  const canonicalPath = canonicalPathname(pathname);
+  if (canonicalPath === "/tv") return <Outlet />;
+  const operatorDesktopRoute = OPERATOR_DESKTOP_PATHS.has(canonicalPath) ? canonicalPath : null;
+  const inspectorDesktopRoute = INSPECTOR_DESKTOP_PATHS.has(canonicalPath) ? canonicalPath : null;
   return (
     <AppLayoutV2>
       <DemoModeBadge />
@@ -93,8 +100,17 @@ export const Route = createFileRoute("/_authenticated")({
     const user = await getCurrentSessionUser();
     if (!user) throw redirect({ to: "/" });
 
-    if (isAdminOnlyPath(location.pathname) && !user.isAdmin) {
+    const pathname = canonicalPathname(location.pathname);
+    if (isAdminOnlyPath(pathname) && !user.isAdmin) {
       throw redirect({ to: "/painel" });
+    }
+
+    // Rotas compartilhadas, como Provas e Conteúdos, continuam disponíveis ao
+    // Operador. Para contas administrativas, porém, a permissão granular passa
+    // a ser obrigatória e a navegação não substitui a autorização da API.
+    const controlledPermissions = requiredPermissionsForPath(pathname);
+    if (user.isAdmin && controlledPermissions && !canAccessAdminPath(user, pathname)) {
+      throw redirect({ to: firstAllowedAdminPath(user) });
     }
 
     return { user };
