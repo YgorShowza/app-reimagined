@@ -84,11 +84,12 @@ Resultado:
 
 Registrar:
 
-- última migration aplicada:
-- quantidade de migrations registradas:
+- última migration aplicada: `010_granular_access_control.sql` nesta revisão
+- quantidade esperada de migrations versionadas: `10` nesta revisão
 - histórico sem lacunas:
 - checksums íntegros:
 - baseline compatível quando aplicável:
+- nenhuma conta legada foi promovida automaticamente para Master:
 
 Trecho de evidência:
 
@@ -141,6 +142,8 @@ Contagens antes/depois:
 | Colaboradores |  |  | [ ] |
 | Contas |  |  | [ ] |
 | Perfis/roles |  |  | [ ] |
+| Níveis de acesso |  |  | [ ] |
+| Overrides de permissão |  |  | [ ] |
 | Cronograma |  |  | [ ] |
 | Provas |  |  | [ ] |
 | Tentativas |  |  | [ ] |
@@ -158,6 +161,8 @@ Contagens antes/depois:
 - [ ] UUIDs preservados;
 - [ ] matrículas preservadas;
 - [ ] vínculos entre entidades preservados;
+- [ ] níveis de acesso coerentes com a regra de menor privilégio;
+- [ ] nenhuma conta foi promovida automaticamente para Administrador Master;
 - [ ] arquivos de evidência copiados para storage corporativo;
 - [ ] amostras históricas conferidas.
 
@@ -173,6 +178,7 @@ Comando:
 
 ```bash
 npm run cutover:audit
+npm run report-privileged-access
 ```
 
 Resultado:
@@ -183,7 +189,10 @@ Resultado:
 Confirmar:
 
 - [ ] identidade contas/colaboradores;
-- [ ] roles administrativas;
+- [ ] níveis e roles administrativas;
+- [ ] Administrador Master restrito às contas explicitamente aprovadas pela TI;
+- [ ] permissões efetivas coerentes com níveis/overrides;
+- [ ] relatório de acessos privilegiados sem divergência crítica;
 - [ ] cobertura operacional do Banco de Questões;
 - [ ] tentativas/certificados/assinaturas coerentes;
 - [ ] arquivos de assinatura presentes e válidos;
@@ -214,6 +223,7 @@ GET /health/ready
 - [ ] TLS pronto;
 - [ ] schema pronto;
 - [ ] storage pronto;
+- [ ] migration esperada mais recente = `010` nesta revisão;
 - [ ] histórico **completo** de migrations corresponde aos arquivos do deploy;
 - [ ] nenhum registro extra/ausente em `schema_migrations`;
 - [ ] nenhum checksum divergente.
@@ -239,7 +249,24 @@ VITE_SEGEMPAT_REQUIRE_API=true
 - [ ] nenhuma credencial MySQL está no frontend;
 - [ ] backend legado não é usado na publicação corporativa.
 
-## 10. E2E — Inspetor
+## 10. E2E — Administrador Master
+
+Conta de teste: registrar somente matrícula/identificador não sensível.
+
+- Identificador:
+
+- [ ] login/logout;
+- [ ] nível exibido como Administrador Master;
+- [ ] tela Acessos → Níveis e permissões acessível;
+- [ ] alteração de nível/permissões de outra conta funciona;
+- [ ] alteração gera `UPDATE_ACCESS_CONTROL` na auditoria;
+- [ ] sessão da conta afetada é invalidada após mudança de privilégio;
+- [ ] própria conta não consegue alterar o próprio nível;
+- [ ] último Administrador Master não pode ser removido;
+- [ ] permissão `access.permissions.manage` não pode ser delegada indevidamente;
+- [ ] `npm run report-privileged-access` confirma o estado esperado depois dos testes.
+
+## 11. E2E — Inspetor
 
 Conta de teste: registrar somente matrícula/identificador não sensível.
 
@@ -248,7 +275,7 @@ Conta de teste: registrar somente matrícula/identificador não sensível.
 - [ ] login;
 - [ ] logout;
 - [ ] troca de senha;
-- [ ] Dashboard/Analytics;
+- [ ] Dashboard/Analytics conforme permissões;
 - [ ] Equipe;
 - [ ] primeiro acesso de Operador;
 - [ ] Cronograma individual;
@@ -264,9 +291,9 @@ Conta de teste: registrar somente matrícula/identificador não sensível.
 - [ ] bloqueio de exclusão quando histórico estiver formalizado;
 - [ ] Ocorrências;
 - [ ] Certificados/assinaturas;
-- [ ] Auditoria administrativa.
+- [ ] Auditoria administrativa quando autorizada.
 
-## 11. E2E — Operador
+## 12. E2E — Operador
 
 Conta de teste: registrar somente matrícula/identificador não sensível.
 
@@ -288,7 +315,7 @@ Conta de teste: registrar somente matrícula/identificador não sensível.
 - [ ] Ocorrências pessoais;
 - [ ] Meu Perfil/progresso.
 
-## 12. Dispositivos, impressão e visual
+## 13. Dispositivos, impressão e visual
 
 - [ ] desktop corporativo;
 - [ ] Android real;
@@ -299,7 +326,7 @@ Conta de teste: registrar somente matrícula/identificador não sensível.
 - [ ] impressão conferida;
 - [ ] tema Claro/Escuro/Auto revisado nas telas principais.
 
-## 13. Backup, restore e rollback
+## 14. Backup, restore e rollback
 
 - [ ] backup MySQL imediatamente antes do cutover;
 - [ ] backup do storage imediatamente antes do cutover;
@@ -324,7 +351,7 @@ Commit implantado:
 
 ```
 
-## 14. Pendências encontradas
+## 15. Pendências encontradas
 
 | # | Pendência | Severidade | Responsável | Situação |
 | --- | --- | --- | --- | --- |
@@ -332,11 +359,13 @@ Commit implantado:
 
 Regra: nenhuma pendência crítica pode permanecer aberta no aceite.
 
-## 15. Aceite final
+## 16. Aceite final
 
 - [ ] Todos os gates obrigatórios aprovados;
+- [ ] E2E Administrador Master aprovado;
 - [ ] E2E Inspetor aprovado;
 - [ ] E2E Operador aprovado;
+- [ ] `report-privileged-access` revisado;
 - [ ] TLS/rede/CORS/cookies/storage aprovados;
 - [ ] backup/restore/rollback aprovados;
 - [ ] nenhuma pendência crítica aberta.
