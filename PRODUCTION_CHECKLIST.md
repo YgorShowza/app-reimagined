@@ -12,6 +12,7 @@
 - [x] container roda como usuário não-root;
 - [x] Docker healthcheck usa `/health/ready`;
 - [x] Nginx e systemd de referência possuem hardening validado pelo CI;
+- [x] existe gate dedicado que sobe um MySQL 8 descartável, aplica as migrations, executa `smoke` e confirma `/health/ready` da API contra o banco migrado;
 - [x] `smoke` e `cutover:audit` incluem auditoria dedicada da geração recorrente de Avaliação Prática, slots, FK, histórico e vínculo 1:1 com o Cronograma;
 - [ ] HEAD final do deploy registrado pela TI.
 
@@ -25,7 +26,7 @@
 - [ ] CA corporativa instalada quando aplicável;
 - [ ] `npm run preflight` aprovado;
 - [ ] `npm run migrate` aprovado;
-- [ ] migrations `001` a `005` registradas com histórico/checksums coerentes;
+- [ ] migrations `001` a `009` registradas com histórico/checksums coerentes;
 - [ ] `npm run smoke` aprovado, incluindo auditoria de Avaliação Prática/Cronograma;
 - [ ] `FOREIGN_KEY_CHECKS=1`, UTC, modo SQL estrito, InnoDB e `utf8mb4` confirmados.
 
@@ -53,9 +54,11 @@
 - [x] conta/colaborador inativo perde acesso;
 - [x] Inspetor exige role `admin` + perfil funcional `Inspetor`;
 - [x] troca de senha invalida sessões antigas e rotaciona a sessão atual;
+- [x] recuperação de senha usa código de uso único armazenado somente como hash, expira em 30 minutos, bloqueia após cinco tentativas incorretas e invalida sessões antigas ao concluir;
 - [ ] login real de Inspetor validado no domínio final;
 - [ ] login real de Operador validado no domínio final;
 - [ ] primeiro acesso real validado;
+- [ ] recuperação de senha real validada no ambiente corporativo;
 - [ ] troca de senha real validada;
 - [ ] logout real validado;
 - [ ] política de TTL de sessão aprovada pela TI/gestão.
@@ -73,7 +76,7 @@ VITE_SEGEMPAT_REQUIRE_API=true
 
 - [ ] `SEGEMPAT_ALLOWED_ORIGINS` contém exatamente a origem do frontend;
 - [ ] nenhuma credencial MySQL foi colocada em variável `VITE_*`;
-- [ ] preview legado não é usado como backend da publicação corporativa.
+- [ ] modo demonstração permanece isolado e desabilitado quando a API corporativa está configurada/obrigatória.
 
 ## 6. API, proxy e rede
 
@@ -105,6 +108,7 @@ VITE_SEGEMPAT_REQUIRE_API=true
 - [ ] Dashboard/Analytics;
 - [ ] Equipe/Colaboradores;
 - [ ] geração/revogação de primeiro acesso;
+- [ ] geração/revogação de recuperação segura de senha para conta existente;
 - [ ] Cronograma individual e em massa;
 - [ ] Banco de Questões;
 - [ ] criação/publicação de Provas;
@@ -124,6 +128,7 @@ VITE_SEGEMPAT_REQUIRE_API=true
 
 - [ ] primeiro acesso;
 - [ ] login/logout;
+- [ ] recuperação de senha com código temporário e nova autenticação;
 - [ ] visualização de conteúdo permitido pelo setor;
 - [ ] realização de Prova;
 - [ ] correção server-side conferida;
