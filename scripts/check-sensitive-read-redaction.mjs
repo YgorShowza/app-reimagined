@@ -35,7 +35,7 @@ for (const field of ["correct_index", "correct_answer", "explanation"]) {
   requireText(redaction, `${field}: _`, `remoção de ${field} da leitura compartilhada`);
 }
 requireText(redaction, 'path === "/api/exams"', "proteção da listagem administrativa de provas");
-requireText(redaction, '/^\\/api\\/exams\\/[^/]+$/.test(path)', "proteção do detalhe administrativo de prova");
+requireText(redaction, '/^\\/api\\/exams\\/[^/]+\\/?$/.test(path)', "proteção do detalhe administrativo de prova com ou sem barra final");
 requireText(redaction, 'path === "/api/question-bank"', "proteção da listagem administrativa do banco de questões");
 
 requireText(authorization, '"dashboard.view"', "leituras gerenciais compartilhadas preservadas");
