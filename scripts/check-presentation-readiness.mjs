@@ -156,6 +156,19 @@ requireText(wrangler, '"main": "@tanstack/react-start/server-entry"', "Entrypoin
 const originalLogo = "https://media.base44.com/images/public/6a1117d573bbf85981b1abee/8271ac857_IMG_9226.png";
 const loginRoute = requireFile("src/routes/index.tsx");
 requireText(loginRoute, originalLogo, "Logo original EMPAT no login");
+requireText(loginRoute, "isDemoModeAllowed", "Detecção do ambiente demo no login");
+requireText(loginRoute, '"Modo demonstração"', "Status correto do preview demo");
+requireText(
+  loginRoute,
+  "Ambiente de demonstração com dados fictícios; a API corporativa permanece isolada.",
+  "Explicação do isolamento demo",
+);
+requireText(
+  loginRoute,
+  'step === "password" && !demoAvailable',
+  "Recuperação de senha restrita ao ambiente corporativo",
+);
+requireText(loginRoute, "{!demoAvailable && (", "Primeiro acesso restrito ao ambiente corporativo");
 requireText(appLayout, originalLogo, "Logo original EMPAT no layout autenticado");
 
 const vite = requireFile("vite.config.ts");
@@ -167,4 +180,5 @@ console.log("SEGEMPAT presentation readiness contract OK");
 console.log(`- ${adminRoutes.length} rotas do Inspetor protegidas`);
 console.log(`- ${operatorRoutes.length} rotas do Operador protegidas`);
 console.log("- demo Inspetor/Operador, notas 0–10 e evolução 5.8 → 6.6 → 7.6 → 8.8 protegidos");
+console.log("- login demo sem falso alerta de indisponibilidade e sem fluxos corporativos inválidos");
 console.log("- Worker app-reimagined e logo EMPAT original protegidos");
