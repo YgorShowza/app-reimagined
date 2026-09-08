@@ -3,7 +3,7 @@ import { listAdminAttemptsByYear } from "@/lib/backend/admin-attempts";
 import { apiRequest, isSegempatApiConfigured } from "@/lib/backend/api-client";
 import { listEmployees, type Employee } from "@/lib/employees";
 import { listExams, type Exam, type ExamAttempt } from "@/lib/exams";
-import { listCronogramaEntriesByYear, syncCronogramaWithExamAttempts, type CronogramaEntry } from "@/lib/cronograma";
+import { listCronogramaEntriesByYear, type CronogramaEntry } from "@/lib/cronograma";
 import { operationalDate, operationalMonth, operationalYear } from "@/lib/operational-time";
 
 export interface OperationalSnapshot {
@@ -32,10 +32,7 @@ function activeOperationalScope(data: OperationalSnapshot) {
 
 export async function getOperationalSnapshot(year = operationalYear()): Promise<OperationalSnapshot> {
   if (isSegempatApiConfigured()) {
-    const currentUser = await getCurrentSessionUser();
-    if (currentUser?.isAdmin) {
-      await syncCronogramaWithExamAttempts();
-    }
+    return apiRequest<OperationalSnapshot>(`/api/insights/operational-snapshot?year=${encodeURIComponent(String(year))}`);
   }
 
   const [employees, exams, rawAttempts, rawCronograma] = await Promise.all([
