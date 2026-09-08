@@ -26,7 +26,7 @@ export type AccessPermission =
 const ROUTE_PERMISSIONS: Record<string, AccessPermission | AccessPermission[]> = {
   "/admin": "dashboard.view",
   "/atencao": "attention.view",
-  "/equipe": "team.view",
+  "/equipe": ["team.view", "team.manage"],
   "/acessos": ["access.identity.manage", "access.password_reset", "access.permissions.manage"],
   "/analytics": "analytics.view",
   "/risco": "risk.view",
