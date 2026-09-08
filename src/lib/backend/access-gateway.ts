@@ -19,6 +19,10 @@ export interface ActivationCodeStatus {
   created_at: string | null;
   has_account: boolean;
   account_active?: boolean;
+  access_level?: "master" | "admin" | "inspector" | "operator" | null;
+  access_level_label?: string | null;
+  password_reset_allowed?: boolean;
+  password_reset_block_reason?: string | null;
   expired: boolean;
   reset_expires_at?: string | null;
   reset_used_at?: string | null;
