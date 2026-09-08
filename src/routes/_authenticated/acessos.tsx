@@ -35,5 +35,6 @@ function AccessPage() {
 }
 
 export const Route = createFileRoute("/_authenticated/acessos")({
+  head: () => ({ meta: [{ title: "Acessos · SEGEMPAT" }] }),
   component: AccessPage,
 });
