@@ -1,4 +1,5 @@
-import { getAdminExamAttemptEvidence, type Exam, type ExamAttempt, type ExamAttemptEvidence } from "@/lib/exams";
+import { type Exam, type ExamAttempt, type ExamAttemptEvidence } from "@/lib/exams";
+import { getInsightExamAttemptEvidence } from "@/lib/backend/insights-gateway";
 import { isDemoModeEnabled } from "@/lib/demo-mode";
 
 export interface IndividualQuestionEvidence {
@@ -25,11 +26,14 @@ function expectedAnswer(exam: Exam, questionId: string) {
 }
 
 function productionEvidence(evidence: ExamAttemptEvidence, exam: Exam): IndividualAttemptEvidence {
+  const canResolveReference = Array.isArray(exam.questions) && exam.questions.length > 0;
   return {
     ...evidence,
     questions: evidence.questions.map((question) => ({
       ...question,
-      correct_answer: expectedAnswer(exam, question.id),
+      correct_answer: canResolveReference
+        ? expectedAnswer(exam, question.id)
+        : "Resposta de referência restrita ao gestor de provas",
     })),
   };
 }
@@ -82,6 +86,6 @@ function demoEvidence(attempt: ExamAttempt, exam: Exam): IndividualAttemptEviden
 
 export async function getIndividualAttemptEvidence(attempt: ExamAttempt, exam: Exam): Promise<IndividualAttemptEvidence> {
   if (isDemoModeEnabled()) return demoEvidence(attempt, exam);
-  const evidence = await getAdminExamAttemptEvidence(attempt.id);
+  const evidence = await getInsightExamAttemptEvidence(attempt.id);
   return productionEvidence(evidence, exam);
 }
