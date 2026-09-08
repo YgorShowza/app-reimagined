@@ -152,15 +152,17 @@ authorizationRouter.patch("/users/:userId", async (req, res, next) => {
       const currentLevel = levelRows[0]?.level_code || (metadata.access_profile === "Inspetor" ? "inspector" : "operator");
 
       if (currentLevel === "master" && requestedLevel !== "master") {
-        // Bloqueia as linhas dos Masters ativos antes de decidir. Se duas operações
-        // concorrentes tentarem rebaixar Masters ao mesmo tempo, uma delas espera
-        // (ou sofre rollback por deadlock) e não consegue deixar o sistema sem Master.
+        // Conta e cadastro funcional precisam estar ativos para um Master ser realmente
+        // utilizável. O lock conjunto impede que rebaixamento e inativação concorrentes
+        // deixem o SEGEMPAT sem uma conta Master capaz de autenticar.
         const [activeMasterRows] = await connection.execute(
           `SELECT ual.user_id
              FROM user_access_levels ual
              JOIN app_users u ON u.id = ual.user_id
+             JOIN employees e ON LOWER(TRIM(e.matricula)) = LOWER(TRIM(u.matricula))
             WHERE ual.level_code = 'master'
               AND u.status = 'Ativo'
+              AND e.status = 'Ativo'
             ORDER BY ual.user_id
             FOR UPDATE`,
         );
