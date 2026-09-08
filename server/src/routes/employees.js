@@ -100,6 +100,29 @@ async function hasAccountOrHistory(connection, employee) {
   return Object.values(rows[0] ?? {}).some((value) => Number(value) > 0);
 }
 
+async function lockLinkedAccessAccount(connection, matricula) {
+  const [accounts] = await connection.execute(
+    `SELECT id, status
+       FROM app_users
+      WHERE LOWER(TRIM(matricula)) = LOWER(TRIM(?))
+      LIMIT 1
+      FOR UPDATE`,
+    [matricula],
+  );
+  const account = accounts[0] ?? null;
+  if (!account) return { account: null, level: null };
+
+  const [levels] = await connection.execute(
+    `SELECT level_code
+       FROM user_access_levels
+      WHERE user_id = ?
+      LIMIT 1
+      FOR UPDATE`,
+    [account.id],
+  );
+  return { account, level: levels[0]?.level_code ?? null };
+}
+
 employeesRouter.post(
   "/",
   requireAdmin,
@@ -137,6 +160,19 @@ employeesRouter.patch(
 
       assertOperationalPrivilegeBoundary(input, lockedEmployee);
 
+      const statusChanged = Object.prototype.hasOwnProperty.call(input, "status") && input.status !== lockedEmployee.status;
+      const linkedAccess = input.access_profile || input.status
+        ? await lockLinkedAccessAccount(connection, lockedEmployee.matricula)
+        : { account: null, level: null };
+      const linkedAccount = linkedAccess.account;
+      const linkedLevel = linkedAccess.level;
+
+      if (statusChanged && input.status === "Inativo" && linkedLevel === "master") {
+        throw conflict(
+          "Cadastro vinculado a Administrador Master não pode ser inativado pela Gestão de Equipe. Primeiro transfira ou remova o nível Master em Acessos.",
+        );
+      }
+
       if (input.matricula && input.matricula.trim().toLowerCase() !== String(lockedEmployee.matricula).trim().toLowerCase()) {
         if (await hasAccountOrHistory(connection, lockedEmployee)) {
           throw conflict("Matrícula de colaborador com conta ou histórico não pode ser alterada. Inative o cadastro.");
@@ -154,32 +190,26 @@ employeesRouter.patch(
       );
 
       let sessionsRevoked = false;
-      if (input.access_profile || input.status) {
-        const [accounts] = await connection.execute(
-          `SELECT id FROM app_users WHERE LOWER(TRIM(matricula)) = LOWER(TRIM(?)) LIMIT 1 FOR UPDATE`,
-          [lockedEmployee.matricula],
-        );
-        const account = accounts[0];
-        if (account) {
-          const profile = input.access_profile ?? lockedEmployee.access_profile;
-          const status = input.status ?? lockedEmployee.status;
-          const statusChanged = Object.prototype.hasOwnProperty.call(input, "status") && status !== lockedEmployee.status;
+      if ((input.access_profile || input.status) && linkedAccount) {
+        const profile = input.access_profile ?? lockedEmployee.access_profile;
+        const status = input.status ?? lockedEmployee.status;
 
-          if (profile === "Inspetor" && status === "Ativo") {
-            await connection.execute(`INSERT IGNORE INTO user_roles (id, user_id, role) VALUES (?, ?, 'admin')`, [uuid(), account.id]);
-          } else {
-            await connection.execute(`DELETE FROM user_roles WHERE user_id = ? AND role = 'admin'`, [account.id]);
-          }
+        // O nível granular é a fonte de verdade. Um Master mantém a role administrativa
+        // legada mesmo se o perfil funcional não for Inspetor.
+        if (linkedLevel === "master" || (profile === "Inspetor" && status === "Ativo")) {
+          await connection.execute(`INSERT IGNORE INTO user_roles (id, user_id, role) VALUES (?, ?, 'admin')`, [uuid(), linkedAccount.id]);
+        } else {
+          await connection.execute(`DELETE FROM user_roles WHERE user_id = ? AND role = 'admin'`, [linkedAccount.id]);
+        }
 
-          if (statusChanged) {
-            await connection.execute(
-              `UPDATE app_users
-                  SET session_epoch = session_epoch + 1, updated_at = UTC_TIMESTAMP(3)
-                WHERE id = ?`,
-              [account.id],
-            );
-            sessionsRevoked = true;
-          }
+        if (statusChanged) {
+          await connection.execute(
+            `UPDATE app_users
+                SET session_epoch = session_epoch + 1, updated_at = UTC_TIMESTAMP(3)
+              WHERE id = ?`,
+            [linkedAccount.id],
+          );
+          sessionsRevoked = true;
         }
       }
 
@@ -189,6 +219,7 @@ employeesRouter.patch(
         role_sync_atomic: true,
         privilege_boundary: "operational",
         sessions_revoked: sessionsRevoked,
+        master_status_guard: linkedLevel === "master",
       }, connection);
     });
     res.status(204).end();
