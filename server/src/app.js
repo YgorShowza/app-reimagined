@@ -11,6 +11,7 @@ import { config } from "./config.js";
 import { healthcheck, query, queryOne } from "./db.js";
 import { attachUser } from "./session.js";
 import { enforceGranularApiPermissions } from "./authorization.js";
+import { enforceSensitiveReadRedaction } from "./sensitive-read-redaction.js";
 import { authRouter } from "./routes/auth.js";
 import { employeesRouter } from "./routes/employees.js";
 import { accessRouter } from "./routes/access.js";
@@ -260,6 +261,7 @@ export function createApp() {
 
   app.use("/api", enforceTrustedWriteOrigin);
   app.use("/api", enforceGranularApiPermissions);
+  app.use("/api", enforceSensitiveReadRedaction);
 
   app.use("/api/auth", authRouter);
   app.use("/api/employees", employeesRouter);

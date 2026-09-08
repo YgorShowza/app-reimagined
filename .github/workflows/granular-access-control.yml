@@ -27,9 +27,13 @@ jobs:
       - name: Validate granular access control contract
         run: node scripts/check-granular-access-control.mjs
 
+      - name: Validate sensitive administrative read redaction
+        run: node scripts/check-sensitive-read-redaction.mjs
+
       - name: Validate backend syntax
         run: |
           node --check server/src/authorization.js
+          node --check server/src/sensitive-read-redaction.js
           node --check server/src/routes/authorization.js
           node --check server/scripts/bootstrap-admin.js
           node --check server/scripts/grant-master-access.js
