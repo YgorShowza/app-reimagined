@@ -26,7 +26,7 @@ A API é a única camada que acessa o banco. O navegador nunca recebe credenciai
 | Registro final de evidências/aceite | `HOMOLOGATION_EVIDENCE_TEMPLATE.md` |
 | Checklist de produção/cutover | `PRODUCTION_CHECKLIST.md` |
 | Auditoria de segurança atual | `SECURITY_AUDIT.md` |
-| Schema MySQL | `database/mysql/001_schema.sql` |
+| Schema MySQL | `database/mysql/001_schema.sql` + migrations versionadas até `010_granular_access_control.sql` nesta revisão |
 | Modelo de variáveis da API | `server/.env.example` |
 | Docker | `server/Dockerfile`, `server/docker-compose.yml` |
 | systemd | `server/deploy/segempat-api.service` |
@@ -37,6 +37,7 @@ A API é a única camada que acessa o banco. O navegador nunca recebe credenciai
 - MySQL 8.x;
 - database dedicado ao SEGEMPAT;
 - usuário de aplicação de privilégio mínimo;
+- usuário separado de migration;
 - TLS habilitado para MySQL em produção;
 - CA corporativa instalada quando exigida;
 - servidor/VM/container para a API;
@@ -51,6 +52,7 @@ A API é a única camada que acessa o banco. O navegador nunca recebe credenciai
 Nunca colocar em GitHub, issue, chat compartilhado ou variável `VITE_*`:
 
 - `MYSQL_PASSWORD`;
+- `MYSQL_MIGRATION_PASSWORD`;
 - `SEGEMPAT_SESSION_SECRET`;
 - chave privada de certificado;
 - conteúdo de CA privada quando a política da empresa tratar como material restrito.
@@ -78,8 +80,17 @@ Se falhar, **parar**. Não executar migrations.
 
 ### 3. Schema
 
+Injetar temporariamente `MYSQL_MIGRATION_USER` e `MYSQL_MIGRATION_PASSWORD`, com identidade distinta do runtime, e executar:
+
 ```bash
 npm run migrate
+```
+
+Nesta revisão, o histórico esperado chega até `010_granular_access_control.sql`.
+
+Encerrar/remover o secret de migration e voltar à identidade de runtime. Então:
+
+```bash
 npm run smoke
 ```
 
@@ -88,6 +99,8 @@ Se qualquer um falhar, **parar** e corrigir a causa.
 ### 4. Migrar dados e evidências
 
 Carregar os dados oficiais preservando UUIDs, matrículas e vínculos. Copiar assinaturas/evidências para o storage corporativo e registrar contagens antes/depois.
+
+A migration `010` aplica menor privilégio às contas existentes e não promove automaticamente nenhuma conta para Administrador Master.
 
 ### 5. Auditoria pós-carga
 
@@ -99,7 +112,7 @@ Qualquer inconsistência crítica bloqueia a continuidade.
 
 A auditoria inclui a integridade da geração recorrente de Avaliação Prática: data operacional, slots, vínculo 1:1 com o Cronograma, coerência de colaborador/tema/data e ausência de marcadores `[PRACTICAL:<id>]` órfãos.
 
-### 6. Primeiro Inspetor, somente se necessário
+### 6. Administrador Master, somente se necessário
 
 Se a carga não trouxer uma conta administrativa válida, executar o bootstrap depois da carga/auditoria. Não digitar a senha na linha de comando:
 
@@ -112,7 +125,24 @@ printf '%s' "$SENHA_TMP" | \
 unset SENHA_TMP
 ```
 
-A senha temporária deve ser trocada no primeiro acesso.
+O bootstrap cria o primeiro **Administrador Master**. A senha temporária deve ser trocada no primeiro acesso.
+
+Se a conta já existir e a TI precisar designá-la como Master sem redefinir senha:
+
+```bash
+CONFIRM_MASTER_ACCESS=SIM \
+MATRICULA=<MATRICULA_AUTORIZADA> \
+TI_OPERATOR="<RESPONSAVEL_TI>" \
+npm run grant-master-access
+```
+
+Depois de qualquer definição de privilégio administrativo:
+
+```bash
+npm run report-privileged-access
+```
+
+Qualquer divergência crítica no relatório bloqueia a liberação.
 
 ### 7. Subir API
 
@@ -140,7 +170,7 @@ VITE_SEGEMPAT_API_URL=https://<api-corporativa>
 VITE_SEGEMPAT_REQUIRE_API=true
 ```
 
-A segunda variável impede fallback silencioso para o backend legado.
+A segunda variável impede fallback silencioso para o modo demonstração.
 
 Na API:
 
@@ -152,7 +182,13 @@ A origem deve ser exata e HTTPS.
 
 ### 9. E2E
 
-Executar pelo menos um ciclo completo com Inspetor e um com Operador, incluindo primeiro acesso, login/logout, Equipe, Cronograma, Banco de Questões, Provas, assinatura, certificados, Treinamentos, gamificação, Avaliação Prática manual e recorrente, Ocorrências, Base de Conhecimento, Perfil e Auditoria.
+Executar pelo menos um ciclo completo com **Administrador Master**, **Inspetor** e **Operador**.
+
+Para o Master, validar Acessos → Níveis e permissões, proteção da própria conta, proteção do último Master, aplicação de permissões, invalidação de sessão após mudança de privilégio e auditoria das alterações.
+
+Para Inspetor e Operador, validar os módulos permitidos e confirmar que operações não autorizadas permanecem bloqueadas pela API.
+
+Cobrir também primeiro acesso, login/logout, Equipe, Cronograma, Banco de Questões, Provas, assinatura, certificados, Treinamentos, gamificação, Avaliação Prática manual e recorrente, Ocorrências, Base de Conhecimento, Perfil e Auditoria conforme as permissões efetivas.
 
 Na Avaliação Prática recorrente, confirmar também uma segunda execução sem duplicação, respeito a suspensões, vínculo com o Cronograma/indicadores e proteção do histórico formalizado.
 
@@ -179,9 +215,12 @@ Usar `HOMOLOGATION_EVIDENCE_TEMPLATE.md` para registrar, sem secrets:
 - commit implantado;
 - versão do MySQL/Node e ambiente;
 - resultados de `preflight`, `migrate`, `smoke` e `cutover:audit`;
+- migration mais recente e histórico/checksums;
 - contagens antes/depois da carga;
 - estado de `/health` e `/health/ready`;
-- E2E de Inspetor e Operador;
+- evidência da conta Master aprovada pela TI;
+- saída do `report-privileged-access`;
+- E2E de Administrador Master, Inspetor e Operador;
 - TLS, rede, CORS, cookies, storage e dispositivos;
 - backup, restore e rollback;
 - pendências e aceite técnico/funcional.
@@ -194,10 +233,15 @@ Sem esse registro preenchido e sem os gates reais aprovados, não declarar homol
 - `Secure=true` obrigatório em produção;
 - autorização reconstruída do MySQL a cada requisição;
 - conta/colaborador inativo bloqueado;
-- Inspetor exige role + perfil funcional;
+- níveis granulares `master`, `admin`, `inspector` e `operator`;
+- permissões efetivas aplicadas pela API;
+- gestão de níveis/permissões exclusiva do Administrador Master;
+- última conta Master e alteração do próprio nível protegidas;
+- mudanças de privilégio invalidam sessões anteriores e geram auditoria;
 - operações de escrita exigem `Origin` autorizada;
 - login/ativação possuem limitação de tentativas local;
 - troca de senha invalida sessões antigas;
+- recuperação segura de senha usa código temporário armazenado como hash;
 - senhas e códigos temporários usam bcrypt;
 - evidências ficam em storage privado;
 - container e serviços possuem hardening de referência;
