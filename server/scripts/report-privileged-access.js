@@ -47,9 +47,17 @@ async function main() {
          ON latest.id = (
            SELECT al.id
              FROM audit_logs al
-            WHERE (al.entity = 'employees' AND al.entity_id = e.id)
-               OR (u.id IS NOT NULL AND al.entity = 'app_users' AND al.entity_id = u.id
-                   AND al.action IN ('UPDATE_ACCESS_CONTROL', 'BOOTSTRAP_ADMIN'))
+            WHERE (
+                    al.entity = 'employees'
+                AND al.entity_id = e.id
+                AND al.action IN ('TI_GRANT_INSPECTOR', 'TI_REVOKE_INSPECTOR')
+                  )
+               OR (
+                    u.id IS NOT NULL
+                AND al.entity = 'app_users'
+                AND al.entity_id = u.id
+                AND al.action IN ('UPDATE_ACCESS_CONTROL', 'BOOTSTRAP_ADMIN', 'TI_GRANT_MASTER_ACCESS')
+                  )
             ORDER BY al.created_at DESC, al.id DESC
             LIMIT 1
          )
