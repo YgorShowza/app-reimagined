@@ -75,8 +75,8 @@ export function effectivePermissions(levelCode, overrides = []) {
 }
 
 export function fallbackLevel({ legacyAdmin = false, legacyInspector = false } = {}) {
-  if (legacyAdmin) return "master";
   if (legacyInspector) return "inspector";
+  if (legacyAdmin) return "admin";
   return "operator";
 }
 
