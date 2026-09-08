@@ -21,6 +21,9 @@ export const DEMO_INSPECTOR_USER: SessionUser = {
   nome: "Inspetor Demonstração",
   setor: "Segurança Portuária",
   isAdmin: true,
+  isMaster: true,
+  accessLevel: "master",
+  accessLevelLabel: "Administrador Master",
 };
 
 export const DEMO_OPERATOR_USER: SessionUser = {
@@ -29,6 +32,10 @@ export const DEMO_OPERATOR_USER: SessionUser = {
   nome: "Operador Demo 01",
   setor: "CFTV",
   isAdmin: false,
+  isMaster: false,
+  accessLevel: "operator",
+  accessLevelLabel: "Operador",
+  permissions: [],
 };
 
 // Compatibilidade com o restante da base demo existente, que usa DEMO_USER
