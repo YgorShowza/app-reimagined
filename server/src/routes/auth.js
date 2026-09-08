@@ -2,6 +2,11 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { queryOne, withTransaction } from "../db.js";
 import { audit } from "../audit.js";
+import {
+  lockActiveUserAuthorization,
+  lockEffectiveAuthorization,
+  passwordResetAuthority,
+} from "../password-reset-policy.js";
 import { clearSessionCookie, loadAuthContext, requireAuth, setSessionCookie, toSessionUser } from "../session.js";
 import { HttpError, asyncHandler, badRequest, forbidden, requireText, unauthorized, uuid } from "../util.js";
 
@@ -212,21 +217,33 @@ authRouter.post(
     const nextHash = await bcrypt.hash(next, 12);
     const result = await withTransaction(async (connection) => {
       const [accounts] = await connection.execute(
-        `SELECT u.id, u.password_hash, u.status AS account_status, e.status AS employee_status
-           FROM app_users u
-           JOIN employees e ON LOWER(TRIM(e.matricula)) = LOWER(TRIM(u.matricula))
-          WHERE LOWER(TRIM(u.matricula)) = ?
+        `SELECT id, matricula, password_hash, status AS account_status
+           FROM app_users
+          WHERE LOWER(TRIM(matricula)) = ?
           LIMIT 1
           FOR UPDATE`,
         [matricula],
       );
       const account = accounts[0];
-      if (!account || account.account_status !== "Ativo" || account.employee_status !== "Ativo") {
-        return { ok: false };
-      }
+      if (!account || account.account_status !== "Ativo") return { ok: false };
+
+      const [employees] = await connection.execute(
+        `SELECT status AS employee_status, access_profile
+           FROM employees
+          WHERE LOWER(TRIM(matricula)) = LOWER(TRIM(?))
+          LIMIT 1
+          FOR UPDATE`,
+        [account.matricula],
+      );
+      const employee = employees[0];
+      if (!employee || employee.employee_status !== "Ativo") return { ok: false };
+
+      const targetAuthorization = await lockEffectiveAuthorization(connection, account.id, {
+        legacyInspector: employee.access_profile === "Inspetor",
+      });
 
       const [tokens] = await connection.execute(
-        `SELECT code_hash, failed_attempts
+        `SELECT code_hash, failed_attempts, created_by
            FROM password_reset_codes
           WHERE user_id = ?
             AND used_at IS NULL
@@ -237,6 +254,26 @@ authRouter.post(
       );
       const token = tokens[0];
       if (!token) return { ok: false };
+
+      const issuerAuthorization = token.created_by
+        ? await lockActiveUserAuthorization(connection, token.created_by)
+        : null;
+      const authority = issuerAuthorization
+        ? passwordResetAuthority(issuerAuthorization, targetAuthorization)
+        : { allowed: false };
+
+      if (!authority.allowed) {
+        // Um código antigo não volta a valer caso o emissor recupere permissões depois.
+        // Promoção do alvo, demissão/inativação do emissor ou perda da permissão
+        // tornam o código definitivamente inutilizável.
+        await connection.execute(
+          `UPDATE password_reset_codes
+              SET locked_at = COALESCE(locked_at, UTC_TIMESTAMP(3)), updated_at = UTC_TIMESTAMP(3)
+            WHERE user_id = ?`,
+          [account.id],
+        );
+        return { ok: false };
+      }
 
       const matches = await bcrypt.compare(resetCode, token.code_hash);
       if (!matches) {
@@ -274,6 +311,11 @@ authRouter.post(
         atomic: true,
         recovery_code_used: true,
         sessions_rotated: true,
+        authorized_by: token.created_by,
+        issuer_access_level: authority.actor.code,
+        target_access_level: authority.target.code,
+        strict_hierarchy_revalidated: true,
+        master_recovery_ti_only: true,
       }, connection);
       return { ok: true };
     });

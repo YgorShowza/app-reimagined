@@ -196,6 +196,14 @@ export function AccessActivationAdmin() {
           const hasResetRecord = Boolean(row.reset_expires_at && !row.reset_used_at);
           const hasLiveReset = Boolean(hasResetRecord && !row.reset_expired && !row.reset_locked_at);
           const resetBusy = generateReset.isPending || revokeReset.isPending;
+          const resetAllowed = row.password_reset_allowed !== false;
+          const resetBlockReason = row.password_reset_block_reason || null;
+          const resetActionTitle = recoveryUnavailableInDemo
+            ? "Disponível no ambiente corporativo conectado à API SEGEMPAT"
+            : !resetAllowed
+              ? resetBlockReason || "Seu nível não possui autoridade para recuperar esta conta."
+              : undefined;
+
           return (
             <Card key={row.employee_id} className="p-4">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -203,12 +211,20 @@ export function AccessActivationAdmin() {
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="truncate font-bold" style={{ color: "var(--text-1)" }}>{row.employee_name}</p>
                     <span className="rounded-full px-2 py-0.5 text-[9px] font-black" style={{ background: state.bg, color: state.color }}>{state.label}</span>
+                    {row.has_account && row.access_level_label && (
+                      <span className="rounded-full px-2 py-0.5 text-[9px] font-black" style={{ background: "var(--bg-surface-3)", color: "var(--text-3)" }}>
+                        {row.access_level_label.toUpperCase()}
+                      </span>
+                    )}
                   </div>
                   <p className="mt-1 text-xs" style={{ color: "var(--text-4)" }}>Mat. {row.matricula} · {row.sector}</p>
                   {row.expires_at && !row.has_account && !row.used_at && (
                     <p className="mt-1 text-[11px]" style={{ color: row.expired ? "#ef4444" : "var(--text-4)" }}>{row.expired ? "Expirou" : "Válido até"} {formatDateTime(row.expires_at)}</p>
                   )}
                   {row.has_account && <p className="mt-1 text-[11px] text-emerald-500">A matrícula já possui credencial cadastrada no SEGEMPAT.</p>}
+                  {row.has_account && !resetAllowed && resetBlockReason && !recoveryUnavailableInDemo && (
+                    <p className="mt-1 text-[11px] text-amber-500">{resetBlockReason}</p>
+                  )}
                   {row.has_account && hasResetRecord && (
                     <p className="mt-1 text-[11px]" style={{ color: row.reset_locked_at || row.reset_expired ? "#ef4444" : "#f59e0b" }}>
                       {row.reset_locked_at ? "Recuperação bloqueada por tentativas incorretas" : row.reset_expired ? "Código de recuperação expirado" : `Recuperação válida até ${formatDateTime(row.reset_expires_at)}`}
@@ -223,7 +239,8 @@ export function AccessActivationAdmin() {
                         <Button
                           variant="outline"
                           onClick={() => { if (confirm(`Revogar a recuperação de senha de ${row.employee_name}?`)) revokeReset.mutate(row); }}
-                          disabled={resetBusy || recoveryUnavailableInDemo}
+                          disabled={resetBusy || recoveryUnavailableInDemo || !resetAllowed}
+                          title={resetActionTitle}
                         >
                           Revogar
                         </Button>
@@ -233,8 +250,8 @@ export function AccessActivationAdmin() {
                           if (hasLiveReset && !confirm("Gerar um novo código invalidará o código de recuperação atual. Continuar?")) return;
                           generateReset.mutate(row);
                         }}
-                        disabled={resetBusy || recoveryUnavailableInDemo || row.account_active === false}
-                        title={recoveryUnavailableInDemo ? "Disponível no ambiente corporativo conectado à API SEGEMPAT" : undefined}
+                        disabled={resetBusy || recoveryUnavailableInDemo || row.account_active === false || !resetAllowed}
+                        title={resetActionTitle}
                         className="bg-[#C8102E] font-bold text-white hover:bg-[#A00D24] disabled:bg-[var(--bg-surface-3)] disabled:text-[var(--text-4)]"
                       >
                         <RotateCcw className="mr-2 h-4 w-4" /> {hasResetRecord ? "Gerar novo" : "Redefinir senha"}

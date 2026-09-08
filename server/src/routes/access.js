@@ -2,8 +2,14 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { query, withTransaction } from "../db.js";
 import { audit } from "../audit.js";
+import { fallbackLevel, levelDefinition } from "../authorization.js";
+import {
+  lockActiveUserAuthorization,
+  lockEffectiveAuthorization,
+  passwordResetAuthority,
+} from "../password-reset-policy.js";
 import { requireAdmin } from "../session.js";
-import { asyncHandler, badRequest, conflict, notFound, numericCode } from "../util.js";
+import { asyncHandler, badRequest, conflict, forbidden, notFound, numericCode } from "../util.js";
 
 export const accessRouter = Router();
 
@@ -17,18 +23,30 @@ function boundedInteger(value, { fallback, min, max, label }) {
   return parsed;
 }
 
+function listedTargetAuthorization(row) {
+  if (!row.account_id) return null;
+  const code = row.level_code || fallbackLevel({
+    legacyAdmin: Number(row.legacy_admin || 0) > 0,
+    legacyInspector: row.access_profile === "Inspetor",
+  });
+  const level = levelDefinition(code);
+  return { code: level.code, label: level.label, rank: level.rank, permissions: [] };
+}
+
 accessRouter.get(
   "/activation-codes",
   requireAdmin,
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
     // Retorna os colaboradores ativos com o estado de primeiro acesso e, quando
     // a conta já existe, o estado do código de recuperação de senha. Nenhum
     // endpoint administrativo devolve hashes ou códigos antigos.
     const rows = await query(
-      `SELECT e.id AS employee_id, e.full_name, e.matricula, e.sector,
+      `SELECT e.id AS employee_id, e.full_name, e.matricula, e.sector, e.access_profile,
               r.expires_at, r.used_at, r.created_at,
               (r.used_at IS NULL AND r.expires_at IS NOT NULL AND r.expires_at < UTC_TIMESTAMP(3)) AS expired,
               u.id AS account_id, u.status AS account_status,
+              ual.level_code,
+              (SELECT COUNT(*) FROM user_roles ur WHERE ur.user_id = u.id AND ur.role = 'admin') AS legacy_admin,
               pr.expires_at AS reset_expires_at, pr.used_at AS reset_used_at,
               pr.created_at AS reset_created_at, pr.locked_at AS reset_locked_at,
               pr.failed_attempts AS reset_failed_attempts,
@@ -36,29 +54,43 @@ accessRouter.get(
          FROM employees e
          LEFT JOIN registration_activation_codes r ON r.employee_id = e.id
          LEFT JOIN app_users u ON LOWER(TRIM(u.matricula)) = LOWER(TRIM(e.matricula))
+         LEFT JOIN user_access_levels ual ON ual.user_id = u.id
          LEFT JOIN password_reset_codes pr ON pr.user_id = u.id
         WHERE e.status = 'Ativo'
         ORDER BY e.full_name ASC`,
     );
     res.json(
-      rows.map((row) => ({
-        employee_id: row.employee_id,
-        employee_name: row.full_name,
-        matricula: row.matricula,
-        sector: row.sector,
-        expires_at: row.expires_at ?? null,
-        used_at: row.used_at ?? null,
-        created_at: row.created_at ?? null,
-        has_account: Boolean(row.account_id),
-        account_active: row.account_status === "Ativo",
-        expired: Number(row.expired) > 0,
-        reset_expires_at: row.reset_expires_at ?? null,
-        reset_used_at: row.reset_used_at ?? null,
-        reset_created_at: row.reset_created_at ?? null,
-        reset_locked_at: row.reset_locked_at ?? null,
-        reset_failed_attempts: Number(row.reset_failed_attempts ?? 0),
-        reset_expired: Number(row.reset_expired) > 0,
-      })),
+      rows.map((row) => {
+        const targetAuthorization = listedTargetAuthorization(row);
+        const authority = !row.account_id
+          ? { allowed: false, reason: null }
+          : row.account_status !== "Ativo"
+            ? { allowed: false, reason: "A conta de acesso está inativa." }
+            : passwordResetAuthority(req.user, targetAuthorization);
+
+        return {
+          employee_id: row.employee_id,
+          employee_name: row.full_name,
+          matricula: row.matricula,
+          sector: row.sector,
+          expires_at: row.expires_at ?? null,
+          used_at: row.used_at ?? null,
+          created_at: row.created_at ?? null,
+          has_account: Boolean(row.account_id),
+          account_active: row.account_status === "Ativo",
+          access_level: targetAuthorization?.code ?? null,
+          access_level_label: targetAuthorization?.label ?? null,
+          password_reset_allowed: Boolean(authority.allowed),
+          password_reset_block_reason: authority.reason ?? null,
+          expired: Number(row.expired) > 0,
+          reset_expires_at: row.reset_expires_at ?? null,
+          reset_used_at: row.reset_used_at ?? null,
+          reset_created_at: row.reset_created_at ?? null,
+          reset_locked_at: row.reset_locked_at ?? null,
+          reset_failed_attempts: Number(row.reset_failed_attempts ?? 0),
+          reset_expired: Number(row.reset_expired) > 0,
+        };
+      }),
     );
   }),
 );
@@ -161,7 +193,7 @@ accessRouter.post(
 
     const issued = await withTransaction(async (connection) => {
       const [employees] = await connection.execute(
-        `SELECT id, full_name, matricula, sector, status
+        `SELECT id, full_name, matricula, sector, status, access_profile
            FROM employees
           WHERE id = ?
           LIMIT 1
@@ -183,6 +215,15 @@ accessRouter.post(
       if (!account) throw conflict("Esta matrícula ainda não possui acesso cadastrado");
       if (account.status !== "Ativo") throw conflict("A conta de acesso está inativa");
 
+      const targetAuthorization = await lockEffectiveAuthorization(connection, account.id, {
+        legacyInspector: employee.access_profile === "Inspetor",
+      });
+      const actorAuthorization = await lockActiveUserAuthorization(connection, req.user.id);
+      if (!actorAuthorization) throw forbidden("Conta administrativa emissora não está mais ativa");
+
+      const authority = passwordResetAuthority(actorAuthorization, targetAuthorization);
+      if (!authority.allowed) throw forbidden(authority.reason);
+
       await connection.execute(
         `INSERT INTO password_reset_codes
            (user_id, code_hash, expires_at, used_at, failed_attempts, locked_at, created_by, created_at, updated_at)
@@ -196,6 +237,10 @@ accessRouter.post(
         matricula: employee.matricula,
         employee_id: employee.id,
         ttl_minutes: RESET_CODE_TTL_MINUTES,
+        actor_access_level: authority.actor.code,
+        target_access_level: authority.target.code,
+        strict_hierarchy: true,
+        master_recovery_ti_only: true,
         atomic: true,
       }, connection);
 
@@ -224,7 +269,7 @@ accessRouter.delete(
 
     await withTransaction(async (connection) => {
       const [employees] = await connection.execute(
-        `SELECT matricula FROM employees WHERE id = ? LIMIT 1 FOR UPDATE`,
+        `SELECT matricula, access_profile FROM employees WHERE id = ? LIMIT 1 FOR UPDATE`,
         [employeeId],
       );
       const employee = employees[0];
@@ -237,6 +282,15 @@ accessRouter.delete(
       const account = accounts[0];
       if (!account) throw notFound("Conta de acesso não encontrada");
 
+      const targetAuthorization = await lockEffectiveAuthorization(connection, account.id, {
+        legacyInspector: employee.access_profile === "Inspetor",
+      });
+      const actorAuthorization = await lockActiveUserAuthorization(connection, req.user.id);
+      if (!actorAuthorization) throw forbidden("Conta administrativa emissora não está mais ativa");
+
+      const authority = passwordResetAuthority(actorAuthorization, targetAuthorization);
+      if (!authority.allowed) throw forbidden(authority.reason);
+
       const [rows] = await connection.execute(
         `SELECT user_id FROM password_reset_codes WHERE user_id = ? FOR UPDATE`,
         [account.id],
@@ -246,6 +300,10 @@ accessRouter.delete(
       await connection.execute(`DELETE FROM password_reset_codes WHERE user_id = ?`, [account.id]);
       await audit(req.user.id, "REVOKE_PASSWORD_RESET_CODE", "password_reset_codes", account.id, {
         employee_id: employeeId,
+        actor_access_level: authority.actor.code,
+        target_access_level: authority.target.code,
+        strict_hierarchy: true,
+        master_recovery_ti_only: true,
         atomic: true,
       }, connection);
     });
