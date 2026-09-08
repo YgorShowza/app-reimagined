@@ -1,112 +1,110 @@
 # SEGEMPAT — Governança LGPD e segregação de responsabilidades
 
-Este documento descreve a divisão de responsabilidades e os controles esperados para operação do SEGEMPAT no ambiente corporativo.
+Atualizado em 08/09/2026.
 
-> Este documento é uma especificação técnica e de governança do sistema. A definição final de base legal, prazos de retenção, atendimento aos titulares e responsabilidades institucionais deve ser aprovada pelo controlador dos dados e, quando aplicável, pelo Encarregado/DPO e áreas jurídica/compliance da empresa.
+Este documento descreve controles técnicos e responsabilidades esperadas para operação do SEGEMPAT no ambiente corporativo.
 
-## 1. Princípio de menor privilégio
+> Esta é uma especificação técnica de governança, não parecer jurídico. A definição final de bases legais, finalidades, retenção, direitos dos titulares e responsabilidades institucionais deve ser aprovada pelo controlador dos dados e, quando aplicável, pelo Encarregado/DPO, Jurídico, Compliance e demais áreas competentes da empresa.
 
-O SEGEMPAT deve operar com separação entre administração técnica e gestão operacional.
+## 1. Princípios
 
-### TI / Administração técnica
+O SEGEMPAT deve operar com:
 
-Responsável por:
+- menor privilégio;
+- necessidade de acesso;
+- segregação de funções;
+- rastreabilidade;
+- minimização de dados;
+- revisão humana de indicadores de desempenho;
+- proteção contra divulgação e indexação indevida;
+- revisão periódica de identidades e permissões.
 
-- infraestrutura da API, MySQL, proxy, certificados, DNS e Cloudflare;
-- secrets, credenciais do MySQL e chaves de sessão;
-- grants do usuário MySQL da aplicação;
-- firewall, VPN, allowlists e segmentação de rede;
-- backup, restauração e plano de rollback;
-- logs técnicos, disponibilidade e tratamento de incidentes de infraestrutura;
-- implantação e atualização do backend corporativo;
-- concessão e revogação do privilégio funcional de Inspetor;
-- bootstrap do primeiro Inspetor quando necessário;
-- preservação de evidências técnicas de mudanças privilegiadas;
-- revisão periódica das identidades privilegiadas.
+O sistema separa **perfil funcional** do colaborador e **nível de autorização da aplicação**. Alterar um nível no SEGEMPAT não substitui os procedimentos corporativos da TI para identidades funcionais privilegiadas.
 
-A TI não necessita de acesso rotineiro ao conteúdo operacional de avaliações, ocorrências, notas ou análises individuais para executar essas funções.
+## 2. Modelo de autorização do SEGEMPAT
+
+A aplicação possui quatro níveis:
+
+### Administrador Master
+
+Responsável pela governança de autorização dentro do aplicativo:
+
+- possui todas as permissões da aplicação;
+- é o único nível com `access.permissions.manage`;
+- pode definir níveis e permissões de outras contas;
+- não pode alterar o próprio nível pela tela de Acessos;
+- não pode delegar poder superior ao modelo permitido;
+- mudanças de nível/permissão invalidam sessões anteriores e geram auditoria;
+- o sistema impede que o último Master realmente utilizável seja removido ou inativado por fluxo operacional inadequado.
+
+O título **Administrador Master** representa autoridade técnica dentro do SEGEMPAT. Não transforma o usuário em controlador de dados, DPO, administrador de infraestrutura ou DBA.
+
+### Administrador
+
+Pode exercer funções administrativas concedidas pelo Master. As permissões são efetivas no backend e podem ser reduzidas individualmente.
+
+Não possui a permissão exclusiva de gerenciar níveis e permissões e não pode assumir autoridade de Master por fluxo comum.
 
 ### Inspetor
 
-Responsável por gestão operacional do SEGEMPAT:
+Exerce gestão operacional conforme permissões efetivas, por exemplo equipe, cronograma, treinamentos, avaliações, ocorrências e análises.
 
-- cadastro e manutenção de colaboradores operacionais;
-- emissão/revogação de códigos de primeiro acesso para colaboradores previamente autorizados;
-- Cronograma;
-- banco de questões e provas;
-- treinamentos;
-- avaliações práticas;
-- ocorrências;
-- certificados e evidências funcionais;
-- relatórios, dashboards e análises operacionais;
-- acompanhamento de desempenho como apoio à decisão humana.
-
-O Inspetor não pode, pela API operacional:
-
-- criar outro Inspetor;
-- promover Operacional para Inspetor;
-- rebaixar Inspetor;
-- alterar matrícula ou status de uma identidade privilegiada de Inspetor;
-- excluir cadastro de Inspetor.
-
-Essas alterações exigem ação explícita da TI no servidor.
+O nível de autorização `inspector` não elimina as regras corporativas existentes sobre o **perfil funcional de Inspetor** no cadastro de colaboradores. Alterações funcionais privilegiadas continuam sujeitas aos procedimentos definidos para a TI quando aplicável.
 
 ### Operador
 
-Responsável apenas pelo próprio uso funcional autorizado, incluindo suas provas, treinamentos, avaliações, certificados, pendências e demais recursos pessoais previstos pelo sistema.
+Acessa somente recursos pessoais/funcionais autorizados. Não recebe permissões administrativas e não deve acessar registros de terceiros fora dos fluxos explicitamente permitidos.
 
-O Operador não recebe acesso administrativo a registros de outros colaboradores.
+## 3. TI / Administração técnica
 
-### Encarregado/DPO / Controlador
+A TI é responsável, conforme política corporativa, por:
 
-Responsável por definir e aprovar, fora do código do sistema:
+- infraestrutura da API, MySQL, proxy, certificados, DNS e Cloudflare;
+- secrets, credenciais MySQL e chaves de sessão;
+- grants dos usuários de runtime e migration;
+- firewall, VPN, allowlists, WAF e segmentação de rede;
+- backup, restauração e rollback;
+- logs técnicos, disponibilidade e incidentes de infraestrutura;
+- implantação e atualização do backend corporativo;
+- bootstrap técnico inicial quando necessário;
+- concessão explícita do primeiro Administrador Master quando aplicável;
+- procedimentos técnicos para identidades funcionais privilegiadas;
+- revisão periódica de acessos privilegiados;
+- proteção dos runners, pipelines e credenciais de CI/CD.
 
-- finalidades do tratamento;
-- bases legais aplicáveis;
-- política de retenção e descarte;
-- procedimento de atendimento aos direitos dos titulares;
-- resposta e comunicação de incidentes de dados pessoais;
-- critérios para compartilhamento e acesso excepcional;
-- revisão periódica dos controles de privacidade e segurança.
+A TI não necessita de acesso rotineiro ao conteúdo operacional de avaliações, ocorrências, notas ou análises individuais apenas para manter a infraestrutura.
 
-## 2. Gestão técnica do privilégio de Inspetor
+## 4. Governança de privilégio funcional
 
-A API operacional bloqueia alteração de privilégio de Inspetor.
+A Gestão de Equipe operacional não deve ser usada para contornar a governança de identidades privilegiadas.
 
-A TI deve executar, na pasta `server/`, o comando controlado:
+O backend mantém barreiras para impedir alterações destrutivas ou inconsistentes em cadastros privilegiados. Scripts técnicos como `manage-inspector-access`, `grant-master-access` e `report-privileged-access` existem para procedimentos controlados de TI quando aplicáveis.
 
-```bash
-CONFIRM_PRIVILEGED_ACCESS=SIM \
-ACTION=GRANT \
-MATRICULA=<MATRICULA> \
-TI_OPERATOR="<NOME_DO_RESPONSAVEL_TI>" \
-npm run manage-inspector-access
-```
+A concessão de Master deve ser explícita, auditável e realizada apenas por responsável técnico autorizado. A recuperação de senha de conta Master não é autorizada pelo fluxo administrativo comum do app; é procedimento exclusivo da TI.
 
-Para revogar:
+## 5. Recuperação de senha e segregação de autoridade
 
-```bash
-CONFIRM_PRIVILEGED_ACCESS=SIM \
-ACTION=REVOKE \
-MATRICULA=<MATRICULA> \
-TI_OPERATOR="<NOME_DO_RESPONSAVEL_TI>" \
-npm run manage-inspector-access
-```
+A recuperação administrativa de senha segue hierarquia rígida:
 
-O comando:
+- conta Master: recuperação somente pela TI;
+- Administrador pode recuperar Inspetor e Operador, desde que mantenha `access.password_reset`;
+- Inspetor pode recuperar Operador, desde que mantenha `access.password_reset`;
+- não é permitido recuperar conta de nível igual ou superior.
 
-- exige confirmação explícita;
-- exige identificação do responsável da TI;
-- opera dentro de transação;
-- sincroniza perfil funcional e role administrativa;
-- registra `TI_GRANT_INSPECTOR` ou `TI_REVOKE_INSPECTOR` em `audit_logs`;
-- invalida sessões previamente emitidas da conta vinculada;
-- bloqueia a revogação do último Inspetor ativo com acesso administrativo;
-- não recebe nem manipula senha do usuário.
+O código:
 
-Alterações de status de colaboradores operacionais com conta vinculada também incrementam a versão de sessão, evitando reuso de cookies anteriores após inativação/reativação.
+- possui 8 dígitos;
+- é armazenado apenas como hash bcrypt;
+- expira em 30 minutos;
+- é de uso único;
+- bloqueia após cinco tentativas incorretas;
+- revalida autoridade do emissor no momento do consumo;
+- invalida sessões anteriores após sucesso;
+- gera trilha de auditoria.
 
-## 3. Revisão periódica de privilégios
+A pessoa que autoriza a recuperação não define nem visualiza a nova senha do titular.
+
+## 6. Revisão periódica de privilégios
 
 A TI deve executar periodicamente:
 
@@ -114,54 +112,66 @@ A TI deve executar periodicamente:
 npm run report-privileged-access
 ```
 
-O relatório é somente leitura e lista:
+A revisão deve considerar, no mínimo:
 
-- identidade funcional privilegiada;
-- situação do colaborador;
-- situação da conta;
-- presença da role administrativa;
-- última concessão/revogação registrada;
-- responsável de TI registrado na última ação privilegiada;
-- divergências como `SEM_ROLE_ADMIN` ou `ROLE_ADMIN_INDEVIDA`.
+- conta e cadastro funcional ativos;
+- nível granular atual;
+- permissões efetivas;
+- existência de Administradores Master utilizáveis;
+- roles legadas mantidas somente por compatibilidade;
+- divergências entre perfil funcional, nível e role;
+- últimas alterações privilegiadas e respectivos responsáveis.
 
-A periodicidade deve ser definida pela política interna da empresa. O sistema não impõe sozinho um intervalo jurídico ou corporativo.
+A periodicidade deve ser definida pela política interna da empresa.
 
-## 4. Dados pessoais tratados pelo SEGEMPAT
+## 7. Dados pessoais tratados
 
-O sistema pode armazenar, conforme os módulos utilizados:
+Conforme os módulos utilizados, o SEGEMPAT pode armazenar:
 
 - nome e matrícula funcional;
-- setor e perfil de acesso;
+- setor, perfil funcional, nível e permissões;
 - histórico de provas, notas e aprovações;
 - respostas e tentativas;
 - certificados;
-- assinatura/evidência funcional quando aplicável;
-- treinamentos;
+- assinatura/evidência funcional;
+- treinamentos e atividades;
 - avaliações práticas;
-- Cronograma e histórico de execução;
+- cronograma e histórico de execução;
 - ocorrências operacionais associadas a colaborador;
-- logs de auditoria e identidade do responsável por alterações.
+- logs de auditoria e identidade de responsáveis por alterações.
 
-A empresa deve documentar a finalidade e o prazo de retenção de cada categoria. O código não deve definir sozinho prazos jurídicos de retenção sem aprovação institucional.
+A empresa deve documentar finalidade e prazo de retenção de cada categoria. O código não deve inventar prazo jurídico de retenção sem aprovação institucional.
 
-## 5. Minimização e acesso
+## 8. Minimização e acesso
 
-- credenciais do MySQL nunca são entregues ao navegador;
+- credenciais MySQL nunca são entregues ao navegador;
 - secrets permanecem no servidor/secrets manager;
-- Operadores recebem somente escopo pessoal ou funcional autorizado;
-- Inspetores recebem escopo operacional necessário à atividade;
-- TI administra infraestrutura e privilégios sem necessidade de consulta rotineira ao conteúdo operacional;
-- acesso excepcional da TI a conteúdo operacional deve possuir finalidade técnica justificada e ficar registrado conforme procedimento interno;
-- relatórios e exportações devem ser usados apenas para finalidade institucional autorizada;
-- compartilhamentos fora do ambiente corporativo devem obedecer política interna do controlador.
+- Operadores recebem apenas escopo pessoal/funcional;
+- usuários privilegiados recebem somente as permissões necessárias;
+- leituras gerenciais não devem expor gabaritos ou respostas-modelo sem permissão específica;
+- endpoints de Dashboard, Analytics, Risco, Atenção e Relatórios devem retornar apenas dados necessários ao propósito da tela;
+- TI administra infraestrutura sem necessidade de consulta rotineira ao conteúdo operacional;
+- acesso excepcional a conteúdo deve possuir finalidade justificada e seguir procedimento corporativo;
+- exportações e relatórios devem ser usados somente para finalidade institucional autorizada.
 
-## 6. Análises de desempenho
+## 9. Publicação e indexação
 
-Recursos como `Evolução de Desempenho`, `Precisa Melhorar`, indicadores de risco e análises individuais devem funcionar como apoio ao trabalho do Inspetor.
+O SEGEMPAT é aplicação corporativa e não deve ser indexado como website público.
 
-O SEGEMPAT não deve ser tratado como mecanismo autônomo de punição, promoção, afastamento ou outra decisão trabalhista exclusivamente automatizada. Decisões com impacto relevante devem possuir análise humana e possibilidade de revisão conforme a política da empresa e a legislação aplicável.
+O frontend mantém:
 
-## 7. Segurança e rastreabilidade
+- `robots.txt` com `Disallow: /`;
+- metadados `robots` e `googlebot` com `noindex, nofollow, noarchive, nosnippet, noimageindex`.
+
+Esses mecanismos reduzem indexação acidental, mas **não substituem controle de acesso**. A TI deve definir domínio, autenticação, proxy, Cloudflare/WAF, firewall, VPN/allowlist e demais barreiras adequadas ao ambiente real.
+
+## 10. Análises de desempenho
+
+Recursos como Evolução de Desempenho, Zona de Risco, “Precisa Melhorar”, indicadores, rankings e análises individuais devem funcionar como **apoio à decisão humana**.
+
+O SEGEMPAT não deve ser tratado como mecanismo autônomo de punição, promoção, afastamento ou outra decisão trabalhista exclusivamente automatizada. Decisões com impacto relevante devem possuir análise humana e possibilidade de revisão conforme política interna e legislação aplicável.
+
+## 11. Segurança e rastreabilidade
 
 O ambiente corporativo deve manter:
 
@@ -170,29 +180,24 @@ O ambiente corporativo deve manter:
 - cookies de sessão `HttpOnly` e `Secure`;
 - CORS e origem de escrita em allowlist;
 - storage privado para evidências;
-- usuário MySQL da aplicação com privilégio mínimo;
+- usuário MySQL de runtime com privilégio mínimo;
+- usuário de migration separado;
 - backups protegidos e restauração testada;
 - logs técnicos e auditoria funcional;
 - revisão periódica de usuários e privilégios;
 - inativação imediata de contas quando perderem autorização;
 - monitoramento e processo de resposta a incidentes.
 
-A migration `006_governance_audit_session_hardening.sql` torna `audit_logs` append-only no MySQL:
+A migration `006_governance_audit_session_hardening.sql` protege `audit_logs` contra `UPDATE` e `DELETE` operacionais e usa `RESTRICT` para preservar autoria. `app_users.session_epoch` permite revogação imediata de sessões quando credenciais, status ou privilégios mudam.
 
-- `UPDATE` é bloqueado por trigger;
-- `DELETE` é bloqueado por trigger;
-- a referência ao ator usa `RESTRICT`, evitando que a exclusão de uma conta reescreva silenciosamente a autoria do histórico;
-- `app_users.session_epoch` permite revogação imediata de cookies quando privilégio/status muda.
+## 12. Retenção e descarte
 
-Os gates `smoke` e `cutover:audit` executam `check-governance-integrity.js` para confirmar esses controles no banco real.
-
-## 8. Retenção e descarte
-
-Antes da produção, o controlador deve preencher uma matriz de retenção contendo, no mínimo:
+Antes da produção, o controlador deve preencher uma matriz de retenção contendo no mínimo:
 
 | Categoria | Finalidade | Base legal definida pela empresa | Prazo | Evento de descarte | Responsável |
 | --- | --- | --- | --- | --- | --- |
 | Cadastro funcional | A definir | A definir | A definir | A definir | A definir |
+| Contas, níveis e permissões | A definir | A definir | A definir | A definir | A definir |
 | Provas e tentativas | A definir | A definir | A definir | A definir | A definir |
 | Certificados | A definir | A definir | A definir | A definir | A definir |
 | Avaliações práticas | A definir | A definir | A definir | A definir | A definir |
@@ -202,44 +207,47 @@ Antes da produção, o controlador deve preencher uma matriz de retenção conte
 
 Nenhum prazo deve ser inventado pelo aplicativo sem aprovação do controlador.
 
-Como `audit_logs` é tecnicamente imutável para proteger a rastreabilidade, eventual descarte de auditoria aprovado pela política corporativa não deve ser feito pela aplicação operacional. Deve existir procedimento excepcional da TI/DBA, previamente autorizado, documentado e com preservação da evidência da execução (por exemplo, arquivamento controlado seguido de mudança administrativa aprovada no banco).
+Como `audit_logs` é tecnicamente imutável para preservar rastreabilidade, eventual descarte de auditoria aprovado pela política corporativa deve usar procedimento excepcional da TI/DBA, previamente autorizado, documentado e com preservação de evidência da execução.
 
-## 9. Direitos dos titulares
+## 13. Direitos dos titulares
 
 A empresa deve definir canal e procedimento para solicitações relacionadas a dados pessoais. Quando uma solicitação exigir correção, bloqueio, exportação ou outra providência no SEGEMPAT, a execução deve preservar integridade, histórico obrigatório e evidência de quem realizou a ação.
 
-Solicitações de exclusão não devem apagar automaticamente histórico cuja manutenção seja necessária por obrigação legal, regulatória, contratual ou para exercício regular de direitos; essa decisão pertence ao controlador, com orientação jurídica/DPO quando necessário.
+Solicitações de exclusão não devem apagar automaticamente histórico cuja manutenção seja necessária por obrigação legal/regulatória, contrato ou exercício regular de direitos. Essa decisão pertence ao controlador, com orientação jurídica/DPO quando necessária.
 
-## 10. Incidentes
+## 14. Incidentes
 
-A TI deve possuir procedimento para:
+A TI e as áreas responsáveis devem possuir procedimento para:
 
 1. identificar e conter o incidente;
 2. preservar logs e evidências;
-3. avaliar dados, titulares e sistemas afetados;
-4. comunicar imediatamente o responsável interno por privacidade/Encarregado;
-5. executar o procedimento corporativo de notificação quando aplicável;
-6. documentar causa, impacto, correção e medidas preventivas.
+3. avaliar sistemas, dados e titulares potencialmente afetados;
+4. comunicar os responsáveis internos por segurança e privacidade;
+5. executar recuperação/rollback de forma controlada;
+6. registrar causa, impacto, providências e ações preventivas;
+7. avaliar comunicações externas exigidas pela legislação e pela política da empresa.
 
-## 11. Recuperação de acesso privilegiado
+O código do SEGEMPAT não decide sozinho se um incidente é notificável à ANPD ou aos titulares.
 
-O SEGEMPAT não deve possuir senha mestra ou usuário oculto de emergência dentro do frontend.
+## 15. Homologação antes da produção
 
-Se a organização perder todos os acessos privilegiados, a recuperação deve ocorrer por procedimento técnico controlado da TI no servidor, utilizando o bootstrap/comando administrativo previsto, com identificação do responsável, registro da ocorrência e revisão posterior. O procedimento deve ser incorporado ao plano de continuidade da empresa.
+A governança não deve ser considerada concluída apenas porque o código compilou. Antes da entrada em produção real devem ser comprovados:
 
-## 12. Critério de aceite LGPD
+- MySQL corporativo e migrations aplicadas;
+- TLS/CA real;
+- grants mínimos;
+- domínio final e política de cookies;
+- CORS/origens;
+- proxy e IP de origem;
+- firewall/WAF/VPN/allowlists;
+- storage persistente;
+- backup e restauração testada;
+- logs e monitoramento;
+- E2E de Master, Administrador, Inspetor e Operador;
+- matriz de retenção e responsabilidades aprovada institucionalmente;
+- procedimento de resposta a incidentes;
+- revisão de acessos privilegiados.
 
-O SEGEMPAT só deve ser descrito institucionalmente como adequado à governança de proteção de dados após, no mínimo:
+## 16. Princípio de responsabilidade
 
-- segregação de responsabilidades validada;
-- matriz de retenção aprovada;
-- finalidades e bases legais documentadas;
-- responsável/controlador e Encarregado/canal definidos;
-- política de acesso privilegiado aprovada;
-- revisão periódica de privilégios definida;
-- backup/restauração testados;
-- resposta a incidentes definida;
-- ambiente corporativo homologado;
-- revisão pela área responsável por privacidade/compliance da empresa.
-
-A aprovação técnica do código, isoladamente, não constitui certificação jurídica de conformidade com a LGPD.
+O SEGEMPAT fornece controles técnicos para autenticação, autorização, auditoria e minimização, mas a conformidade depende também de processos organizacionais. Nenhum nível da aplicação substitui as responsabilidades legais do controlador, do operador de dados, do Encarregado/DPO ou das áreas corporativas competentes.
