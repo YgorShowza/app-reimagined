@@ -26,7 +26,7 @@ export const pool = mysql.createPool({
   timezone: "Z",
   dateStrings: ["DATE"],
   namedPlaceholders: false,
-  charset: "utf8mb4_general_ci",
+  charset: "utf8mb4_unicode_ci",
 });
 
 const SESSION_INVARIANTS_SQL = `
