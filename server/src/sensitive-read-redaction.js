@@ -67,7 +67,7 @@ export function enforceSensitiveReadRedaction(req, res, next) {
   if (!req.user || !SAFE_READ_METHODS.has(String(req.method || "GET").toUpperCase())) return next();
 
   const path = apiPath(req);
-  const examRead = path === "/api/exams" || path === "/api/exams/" || /^\/api\/exams\/[^/]+$/.test(path);
+  const examRead = path === "/api/exams" || path === "/api/exams/" || /^\/api\/exams\/[^/]+\/?$/.test(path);
   if (examRead && !hasPermission(req.user, "exams.manage")) {
     installJsonRedaction(res, redactExamPayload);
     return next();
