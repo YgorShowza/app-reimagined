@@ -116,42 +116,63 @@ authorizationRouter.patch("/users/:userId", async (req, res, next) => {
     }
 
     const result = await withTransaction(async (connection) => {
-      const [targetRows] = await connection.execute(
-        `SELECT u.id AS user_id, u.matricula, u.status AS account_status,
-                p.nome AS profile_name,
-                e.id AS employee_id, e.full_name, e.sector, e.access_profile, e.status AS employee_status,
-                ual.level_code
-           FROM app_users u
-           LEFT JOIN profiles p ON p.id = u.id
-           LEFT JOIN employees e ON LOWER(TRIM(e.matricula)) = LOWER(TRIM(u.matricula))
-           LEFT JOIN user_access_levels ual ON ual.user_id = u.id
-          WHERE u.id = ?
+      // Primeiro bloqueia somente a conta-alvo. Evitamos SELECT com LEFT JOIN ... FOR UPDATE,
+      // que pode ter comportamento diferente entre versões/configurações do MySQL 8.
+      const [accountRows] = await connection.execute(
+        `SELECT id AS user_id, matricula, status AS account_status
+           FROM app_users
+          WHERE id = ?
           LIMIT 1
           FOR UPDATE`,
         [targetUserId],
       );
-      const target = targetRows[0];
-      if (!target) throw notFound("Conta de acesso não encontrada");
-      if (target.account_status !== "Ativo") throw conflict("A conta selecionada está inativa");
-      if (target.employee_status && target.employee_status !== "Ativo") throw conflict("O cadastro funcional selecionado está inativo");
+      const account = accountRows[0];
+      if (!account) throw notFound("Conta de acesso não encontrada");
+      if (account.account_status !== "Ativo") throw conflict("A conta selecionada está inativa");
 
-      const currentLevel = target.level_code || (target.access_profile === "Inspetor" ? "inspector" : "operator");
+      const [metadataRows] = await connection.execute(
+        `SELECT p.nome AS profile_name,
+                e.id AS employee_id, e.full_name, e.sector, e.access_profile, e.status AS employee_status
+           FROM app_users u
+           LEFT JOIN profiles p ON p.id = u.id
+           LEFT JOIN employees e ON LOWER(TRIM(e.matricula)) = LOWER(TRIM(u.matricula))
+          WHERE u.id = ?
+          LIMIT 1`,
+        [targetUserId],
+      );
+      const metadata = metadataRows[0] ?? {};
+      if (metadata.employee_status && metadata.employee_status !== "Ativo") {
+        throw conflict("O cadastro funcional selecionado está inativo");
+      }
+
+      const [levelRows] = await connection.execute(
+        `SELECT level_code FROM user_access_levels WHERE user_id = ? LIMIT 1 FOR UPDATE`,
+        [targetUserId],
+      );
+      const currentLevel = levelRows[0]?.level_code || (metadata.access_profile === "Inspetor" ? "inspector" : "operator");
+
       if (currentLevel === "master" && requestedLevel !== "master") {
-        const [masterRows] = await connection.execute(
-          `SELECT COUNT(*) AS total
+        // Bloqueia as linhas dos Masters ativos antes de decidir. Se duas operações
+        // concorrentes tentarem rebaixar Masters ao mesmo tempo, uma delas espera
+        // (ou sofre rollback por deadlock) e não consegue deixar o sistema sem Master.
+        const [activeMasterRows] = await connection.execute(
+          `SELECT ual.user_id
              FROM user_access_levels ual
-             JOIN app_users u ON u.id = ual.user_id AND u.status = 'Ativo'
-            WHERE ual.level_code = 'master'`,
+             JOIN app_users u ON u.id = ual.user_id
+            WHERE ual.level_code = 'master'
+              AND u.status = 'Ativo'
+            ORDER BY ual.user_id
+            FOR UPDATE`,
         );
-        if (Number(masterRows[0]?.total ?? 0) <= 1) {
+        if (activeMasterRows.length <= 1) {
           throw conflict("Não é permitido remover o último Administrador Master do SEGEMPAT");
         }
       }
 
-      const oldOverrideRows = await connection.execute(
+      const [oldOverrideRows] = await connection.execute(
         `SELECT permission_code, allowed FROM user_permission_overrides WHERE user_id = ? FOR UPDATE`,
         [targetUserId],
-      ).then(([rows]) => rows);
+      );
       const oldSnapshot = {
         level: currentLevel,
         permissions: effectivePermissions(currentLevel, oldOverrideRows),
@@ -207,17 +228,23 @@ authorizationRouter.patch("/users/:userId", async (req, res, next) => {
       };
 
       await audit(req.user.id, "UPDATE_ACCESS_CONTROL", "app_users", targetUserId, {
-        target_matricula: target.matricula,
+        target_matricula: account.matricula,
         old: oldSnapshot,
         new: newSnapshot,
         sessions_revoked: true,
         self_change_blocked: true,
+        last_master_guard: true,
         master_only_not_delegable: true,
         atomic: true,
       }, connection);
 
+      const target = {
+        ...account,
+        ...metadata,
+        level_code: requestedLevel,
+      };
       return {
-        ...buildAuthorizationSnapshot({ ...target, level_code: requestedLevel },
+        ...buildAuthorizationSnapshot(target,
           requestedLevel === "master" || requestedLevel === "operator"
             ? []
             : ACCESS_PERMISSIONS
