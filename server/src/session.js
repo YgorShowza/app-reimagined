@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { config } from "./config.js";
 import { queryOne, query } from "./db.js";
+import { loadAuthorization } from "./authorization.js";
 import { forbidden, unauthorized } from "./util.js";
 
 const MAX_SESSION_TOKEN_LENGTH = 2048;
@@ -75,6 +76,8 @@ export function clearSessionCookie(res) {
 /**
  * Reconstrói o contexto de autorização a cada requisição. Conta e colaborador
  * precisam permanecer ativos mesmo quando o cookie de sessão ainda é válido.
+ * Nível e permissões também são recarregados do MySQL; alterações administrativas
+ * incrementam session_epoch e derrubam imediatamente as sessões anteriores.
  */
 export async function loadAuthContext(userId) {
   const row = await queryOne(
@@ -92,8 +95,11 @@ export async function loadAuthContext(userId) {
   if (row.account_status !== "Ativo" || row.employee_status !== "Ativo") return null;
 
   const roles = await query(`SELECT role FROM user_roles WHERE user_id = ?`, [userId]);
-  const hasAdminRole = roles.some((entry) => entry.role === "admin");
-  const isAdmin = hasAdminRole && row.access_profile === "Inspetor";
+  const legacyAdmin = roles.some((entry) => entry.role === "admin");
+  const authorization = await loadAuthorization(userId, {
+    legacyAdmin,
+    legacyInspector: row.access_profile === "Inspetor",
+  });
   const sessionVersion = credentialVersion(row.password_hash, row.session_epoch);
 
   return {
@@ -103,7 +109,12 @@ export async function loadAuthContext(userId) {
     setor: row.sector ?? null,
     employeeId: row.employee_id ?? null,
     accessProfile: row.access_profile ?? null,
-    isAdmin,
+    isAdmin: authorization.isPrivileged,
+    isMaster: authorization.isMaster,
+    accessLevel: authorization.accessLevel,
+    accessLevelLabel: authorization.accessLevelLabel,
+    accessRank: authorization.accessRank,
+    permissions: authorization.permissions,
     sessionVersion,
   };
 }
@@ -131,7 +142,7 @@ export function requireAuth(req, _res, next) {
 
 export function requireAdmin(req, _res, next) {
   if (!req.user) return next(unauthorized());
-  if (!req.user.isAdmin) return next(forbidden("Acesso restrito à Inspetoria"));
+  if (!req.user.isAdmin) return next(forbidden("Acesso restrito a contas administrativas autorizadas"));
   next();
 }
 
@@ -142,5 +153,9 @@ export function toSessionUser(user) {
     nome: user.nome,
     setor: user.setor,
     isAdmin: user.isAdmin,
+    isMaster: Boolean(user.isMaster),
+    accessLevel: user.accessLevel ?? (user.isAdmin ? "inspector" : "operator"),
+    accessLevelLabel: user.accessLevelLabel ?? (user.isAdmin ? "Inspetor" : "Operador"),
+    permissions: Array.isArray(user.permissions) ? user.permissions : [],
   };
 }
