@@ -139,15 +139,27 @@ function requireAnyForRequest(req, next, permissions) {
   return next(forbidden("Seu nível de acesso não possui permissão para consultar estes dados"));
 }
 
+const ADMIN_READ_PERMISSIONS = [
+  "dashboard.view",
+  "attention.view",
+  "team.view",
+  "risk.view",
+  "analytics.view",
+  "reports.view",
+];
+
 /**
  * Camada central de menor privilégio. Os routers continuam validando autenticação
  * e regras de negócio; esta camada impede que um usuário privilegiado acesse uma
- * área administrativa que não recebeu explicitamente.
+ * área administrativa que não recebeu explicitamente. Leituras compartilhadas
+ * admitem permissões de consulta correlatas, enquanto operações de escrita exigem
+ * a permissão de gestão do domínio.
  */
 export function enforceGranularApiPermissions(req, _res, next) {
   if (!req.user) return next();
   const path = apiPath(req);
   const method = String(req.method || "GET").toUpperCase();
+  const safeRead = method === "GET" || method === "HEAD";
   const privileged = Boolean(req.user.isAdmin);
 
   if (path.startsWith("/api/authorization")) {
@@ -160,27 +172,38 @@ export function enforceGranularApiPermissions(req, _res, next) {
     return requireForRequest(req, next, "access.password_reset");
   }
   if (path.startsWith("/api/access/activation-codes")) {
+    if (safeRead) return requireAnyForRequest(req, next, ["access.identity.manage", "access.password_reset"]);
     return requireForRequest(req, next, "access.identity.manage");
   }
 
   if (path === "/api/employees" || path === "/api/employees/") {
-    if (method !== "GET") return requireForRequest(req, next, "team.manage");
+    if (!safeRead) return requireForRequest(req, next, "team.manage");
     if (privileged) {
       return requireAnyForRequest(req, next, [
-        "team.view", "analytics.view", "reports.view", "schedule.manage", "occurrences.manage",
-        "practical.manage", "exams.manage", "training.manage",
+        ...ADMIN_READ_PERMISSIONS,
+        "team.manage",
+        "schedule.manage",
+        "occurrences.manage",
+        "practical.manage",
+        "exams.manage",
+        "training.manage",
       ]);
     }
   }
   if (path.startsWith("/api/employees/") && path !== "/api/employees/me") {
-    if (method !== "GET") return requireForRequest(req, next, "team.manage");
+    if (!safeRead) return requireForRequest(req, next, "team.manage");
+    if (privileged) return requireAnyForRequest(req, next, [...ADMIN_READ_PERMISSIONS, "team.manage"]);
   }
 
   if (path.startsWith("/api/cronograma")) {
-    return requireForRequest(req, next, "schedule.manage");
+    if (!safeRead) return requireForRequest(req, next, "schedule.manage");
+    if (privileged) return requireAnyForRequest(req, next, [...ADMIN_READ_PERMISSIONS, "schedule.manage"]);
   }
   if (path.startsWith("/api/question-bank")) {
-    return requireForRequest(req, next, "question_bank.manage");
+    if (!safeRead) return requireForRequest(req, next, "question_bank.manage");
+    if (privileged) {
+      return requireAnyForRequest(req, next, ["question_bank.manage", "exams.manage", "schedule.manage", "training.manage"]);
+    }
   }
   if (path.startsWith("/api/admin/training")) {
     return requireForRequest(req, next, "training.manage");
@@ -189,20 +212,24 @@ export function enforceGranularApiPermissions(req, _res, next) {
     return requireForRequest(req, next, "certificates.manage");
   }
   if (path.startsWith("/api/exams") && privileged) {
-    return requireForRequest(req, next, "exams.manage");
+    if (!safeRead) return requireForRequest(req, next, "exams.manage");
+    return requireAnyForRequest(req, next, [...ADMIN_READ_PERMISSIONS, "exams.manage", "certificates.manage"]);
   }
-  if (path.startsWith("/api/training") && privileged && method !== "GET") {
+  if (path.startsWith("/api/training") && privileged && !safeRead) {
     return requireForRequest(req, next, "training.manage");
   }
 
   if (path.startsWith("/api/operations/knowledge") && privileged) {
-    return requireForRequest(req, next, "knowledge.manage");
+    if (!safeRead) return requireForRequest(req, next, "knowledge.manage");
+    return requireAnyForRequest(req, next, ["knowledge.manage", "ai.view", ...ADMIN_READ_PERMISSIONS]);
   }
   if (path.startsWith("/api/operations/occurrences") && privileged) {
-    return requireForRequest(req, next, "occurrences.manage");
+    if (!safeRead) return requireForRequest(req, next, "occurrences.manage");
+    return requireAnyForRequest(req, next, ["occurrences.manage", ...ADMIN_READ_PERMISSIONS]);
   }
   if (path.startsWith("/api/operations/") && privileged) {
-    return requireForRequest(req, next, "practical.manage");
+    if (!safeRead) return requireForRequest(req, next, "practical.manage");
+    return requireAnyForRequest(req, next, ["practical.manage", ...ADMIN_READ_PERMISSIONS]);
   }
 
   return next();
