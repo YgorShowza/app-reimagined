@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet, redirect, useRouterState } from "@tanstack/react-router";
 import { AppLayoutV2 } from "@/components/AppLayoutV2";
+import { DemoModeBadge } from "@/components/DemoModeBadge";
 import { getCurrentSessionUser } from "@/lib/backend/current-user-gateway";
 import { canAccessAdminPath, firstAllowedAdminPath, requiredPermissionsForPath } from "@/lib/access-control";
 
@@ -72,27 +73,29 @@ function isAdminOnlyPath(pathname: string) {
 function AuthenticatedShell() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const canonicalPath = canonicalPathname(pathname);
-  const isOperatorDesktopRoute = OPERATOR_DESKTOP_PATHS.has(canonicalPath);
-  const isInspectorDesktopRoute = INSPECTOR_DESKTOP_PATHS.has(canonicalPath);
-
   if (canonicalPath === "/tv") return <Outlet />;
+  const operatorDesktopRoute = OPERATOR_DESKTOP_PATHS.has(canonicalPath) ? canonicalPath : null;
+  const inspectorDesktopRoute = INSPECTOR_DESKTOP_PATHS.has(canonicalPath) ? canonicalPath : null;
   return (
     <AppLayoutV2>
-      <div
-        className={[
-          isOperatorDesktopRoute ? "segempat-operator-desktop" : "",
-          isInspectorDesktopRoute ? "segempat-inspector-desktop" : "",
-        ].filter(Boolean).join(" ") || undefined}
-        data-operator-route={isOperatorDesktopRoute ? canonicalPath : undefined}
-        data-inspector-route={isInspectorDesktopRoute ? canonicalPath : undefined}
-      >
+      <DemoModeBadge />
+      {operatorDesktopRoute ? (
+        <div className="segempat-operator-desktop min-w-0 w-full" data-operator-route={operatorDesktopRoute}>
+          <Outlet />
+        </div>
+      ) : inspectorDesktopRoute ? (
+        <div className="segempat-inspector-desktop min-w-0 w-full" data-inspector-route={inspectorDesktopRoute}>
+          <Outlet />
+        </div>
+      ) : (
         <Outlet />
-      </div>
+      )}
     </AppLayoutV2>
   );
 }
 
 export const Route = createFileRoute("/_authenticated")({
+  ssr: false,
   beforeLoad: async ({ location }) => {
     const user = await getCurrentSessionUser();
     if (!user) throw redirect({ to: "/" });
@@ -109,6 +112,8 @@ export const Route = createFileRoute("/_authenticated")({
     if (user.isAdmin && controlledPermissions && !canAccessAdminPath(user, pathname)) {
       throw redirect({ to: firstAllowedAdminPath(user) });
     }
+
+    return { user };
   },
   component: AuthenticatedShell,
 });
