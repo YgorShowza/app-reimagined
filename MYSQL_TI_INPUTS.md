@@ -113,6 +113,8 @@ Depois, com `MYSQL_MIGRATION_USER` e `MYSQL_MIGRATION_PASSWORD` injetados de for
 npm run migrate
 ```
 
+Nesta revisão, o histórico esperado chega até `010_granular_access_control.sql`.
+
 Remover/encerrar a exposição do secret de migration e voltar à identidade de runtime. Então:
 
 ```bash
@@ -123,15 +125,20 @@ Somente se todos os gates acima passarem:
 
 1. realizar a carga/migração dos dados e evidências;
 2. executar `npm run cutover:audit`;
-3. executar `npm run bootstrap-admin` apenas se for necessário preparar o primeiro Inspetor;
-4. executar `npm run report-privileged-access` e revisar qualquer divergência;
-5. iniciar a API com `npm start` ou pelo runtime corporativo definido;
-6. confirmar `GET /health` e `GET /health/ready`;
-7. publicar o frontend corporativo com `VITE_SEGEMPAT_API_URL=<HTTPS DA API>` e `VITE_SEGEMPAT_REQUIRE_API=true`;
-8. executar os testes ponta a ponta.
+3. executar `npm run bootstrap-admin` apenas se for necessário criar a primeira conta administrativa, que será **Administrador Master**;
+4. se a conta já existir e precisar ser designada Master, executar `npm run grant-master-access` com confirmação explícita da TI;
+5. executar `npm run report-privileged-access` e revisar qualquer divergência;
+6. iniciar a API com `npm start` ou pelo runtime corporativo definido;
+7. confirmar `GET /health` e `GET /health/ready`;
+8. publicar o frontend corporativo com `VITE_SEGEMPAT_API_URL=<HTTPS DA API>` e `VITE_SEGEMPAT_REQUIRE_API=true`;
+9. executar os testes ponta a ponta com Administrador Master, Inspetor e Operador.
 
 Então validar:
 
+- login de Administrador Master;
+- Acessos → Níveis e permissões;
+- proteção da própria conta e do último Master;
+- invalidação de sessão após mudança de privilégio;
 - login de Inspetor;
 - login de Operador;
 - primeiro acesso/ativação;
@@ -147,11 +154,28 @@ Então validar:
 - demais módulos funcionais;
 - CORS, cookies, HTTPS, firewall, backup e rollback.
 
-## 6. Controle de privilégio de Inspetor pela TI
+## 6. Controle de acesso privilegiado pela TI
 
-A Gestão de Equipe do aplicativo é operacional e **não pode conceder, revogar ou alterar identidade privilegiada de Inspetor**. Essas ações ficam sob responsabilidade da TI no servidor da API.
+A Gestão de Equipe do aplicativo é operacional e **não deve promover automaticamente nenhuma conta para Administrador Master**. A migration `010_granular_access_control.sql` preserva menor privilégio: contas legadas podem ser classificadas como Administrador, Inspetor ou Operador, mas Master exige decisão explícita e auditável da TI.
 
-Depois do bootstrap do primeiro Inspetor, conceder privilégio a outro colaborador somente com:
+### Administrador Master
+
+Se a conta já existir e a TI precisar designá-la como Master sem redefinir senha:
+
+```bash
+CONFIRM_MASTER_ACCESS=SIM \
+MATRICULA=<MATRICULA_AUTORIZADA> \
+TI_OPERATOR="<RESPONSAVEL_TI>" \
+npm run grant-master-access
+```
+
+A concessão invalida sessões anteriores, registra `TI_GRANT_MASTER_ACCESS` e não manipula senha.
+
+O nível Master deve permanecer restrito às contas formalmente aprovadas pela TI. A própria conta não pode alterar o próprio nível e a remoção do último Administrador Master é bloqueada pela API.
+
+### Inspetor
+
+Depois do bootstrap/concessão inicial, conceder privilégio de Inspetor a outro colaborador somente com:
 
 ```bash
 CONFIRM_PRIVILEGED_ACCESS=SIM \
@@ -171,9 +195,9 @@ TI_OPERATOR="<RESPONSAVEL_TI>" \
 npm run manage-inspector-access
 ```
 
-A execução é transacional, não recebe senha, invalida sessões anteriores da conta vinculada e registra a alteração em `audit_logs` como `TI_GRANT_INSPECTOR` ou `TI_REVOKE_INSPECTOR`. A revogação do último Inspetor ativo com acesso administrativo é bloqueada.
+A execução é transacional, não recebe senha, invalida sessões anteriores da conta vinculada e registra a alteração em `audit_logs` como `TI_GRANT_INSPECTOR` ou `TI_REVOKE_INSPECTOR`. O script protege conta Master contra rebaixamento indevido.
 
-Para revisão periódica:
+Para revisão periódica e antes do aceite:
 
 ```bash
 npm run report-privileged-access
@@ -192,11 +216,13 @@ A migration `006_governance_audit_session_hardening.sql` acrescenta:
 - trigger que bloqueia `DELETE` de `audit_logs`;
 - preservação do vínculo do ator por foreign key `RESTRICT`.
 
-`npm run smoke` e `npm run cutover:audit` executam `check-governance-integrity.js` no banco real.
+A migration `010_granular_access_control.sql` acrescenta os níveis e permissões granulares e exige concessão explícita do nível Master.
+
+`npm run smoke` e `npm run cutover:audit` executam verificações de integridade no banco real; `/health/ready` valida o histórico completo das migrations versionadas do deploy.
 
 ## 8. Regra de parada
 
-Se `preflight`, `migrate`, `smoke`, `cutover:audit` ou `/health/ready` falharem, **não considerar o ambiente homologado e não mascarar a divergência**. Corrigir a configuração, schema, dados ou infraestrutura e repetir o gate.
+Se `preflight`, `migrate`, `smoke`, `cutover:audit`, `report-privileged-access` ou `/health/ready` apresentarem divergência crítica, **não considerar o ambiente homologado e não mascarar a divergência**. Corrigir a configuração, schema, dados, privilégios ou infraestrutura e repetir o gate.
 
 ## 9. Critério de conclusão
 

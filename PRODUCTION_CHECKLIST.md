@@ -14,6 +14,7 @@
 - [x] Nginx e systemd de referência possuem hardening validado pelo CI;
 - [x] existe gate dedicado que sobe um MySQL 8 descartável, aplica as migrations, executa `smoke` e confirma `/health/ready` da API contra o banco migrado;
 - [x] `smoke` e `cutover:audit` incluem auditoria dedicada da geração recorrente de Avaliação Prática, slots, FK, histórico e vínculo 1:1 com o Cronograma;
+- [x] migration `010_granular_access_control.sql` e contrato dedicado protegem níveis, permissões, menor privilégio e concessão explícita de Administrador Master;
 - [ ] HEAD final do deploy registrado pela TI.
 
 ## 2. MySQL corporativo
@@ -26,7 +27,8 @@
 - [ ] CA corporativa instalada quando aplicável;
 - [ ] `npm run preflight` aprovado;
 - [ ] `npm run migrate` aprovado;
-- [ ] migrations `001` a `009` registradas com histórico/checksums coerentes;
+- [ ] migrations `001` a `010` registradas com histórico/checksums coerentes;
+- [ ] migration `010` confirmou `access_levels`, `access_permissions`, `access_level_permissions`, `user_access_levels` e `user_permission_overrides`;
 - [ ] `npm run smoke` aprovado, incluindo auditoria de Avaliação Prática/Cronograma;
 - [ ] `FOREIGN_KEY_CHECKS=1`, UTC, modo SQL estrito, InnoDB e `utf8mb4` confirmados.
 
@@ -36,6 +38,7 @@
 - [ ] backup da fonte realizado antes da migração;
 - [ ] UUIDs, matrículas e vínculos preservados;
 - [ ] contas/perfis tratados conforme plano aprovado;
+- [ ] contas legadas administrativas não foram promovidas automaticamente para Master;
 - [ ] provas, tentativas, certificados, treinamentos, Cronograma e demais históricos migrados;
 - [ ] assinaturas/evidências copiadas para storage corporativo;
 - [ ] contagens antes/depois registradas por entidade crítica;
@@ -52,9 +55,17 @@
 - [x] login/ativação possuem limitação de tentativas na aplicação;
 - [x] contexto do usuário é reconstruído do MySQL em toda requisição protegida;
 - [x] conta/colaborador inativo perde acesso;
-- [x] Inspetor exige role `admin` + perfil funcional `Inspetor`;
+- [x] níveis granulares disponíveis: `master`, `admin`, `inspector` e `operator`;
+- [x] permissões efetivas são aplicadas pela API e usadas também para filtrar rotas/menu do frontend;
+- [x] permissão `access.permissions.manage` é exclusiva do Administrador Master;
+- [x] nenhuma conta legada vira Master automaticamente;
+- [x] alteração de nível/permissão invalida sessões anteriores da conta afetada e gera auditoria;
+- [x] a própria conta não pode alterar o próprio nível e o último Administrador Master não pode ser removido;
 - [x] troca de senha invalida sessões antigas e rotaciona a sessão atual;
 - [x] recuperação de senha usa código de uso único armazenado somente como hash, expira em 30 minutos, bloqueia após cinco tentativas incorretas e invalida sessões antigas ao concluir;
+- [ ] conta Administrador Master explicitamente aprovada pela TI;
+- [ ] `npm run report-privileged-access` revisado sem divergência crítica;
+- [ ] login real de Administrador Master validado no domínio final;
 - [ ] login real de Inspetor validado no domínio final;
 - [ ] login real de Operador validado no domínio final;
 - [ ] primeiro acesso real validado;
@@ -82,7 +93,7 @@ VITE_SEGEMPAT_REQUIRE_API=true
 
 - [ ] API executando no host corporativo;
 - [ ] `/health` responde;
-- [ ] `/health/ready` permanece verde e reconhece a migration MySQL mais recente;
+- [ ] `/health/ready` permanece verde e reconhece a migration MySQL mais recente (`010` nesta revisão);
 - [ ] proxy reverso HTTPS configurado;
 - [ ] HTTP redireciona para HTTPS;
 - [ ] TLS 1.2/1.3 conforme política corporativa;
@@ -103,9 +114,21 @@ VITE_SEGEMPAT_REQUIRE_API=true
 
 ## 8. Teste funcional ponta a ponta
 
+### Administrador Master
+
+- [ ] login/logout;
+- [ ] nível exibido como Administrador Master;
+- [ ] Acessos → Níveis e permissões abre somente com permissão Master;
+- [ ] alteração de nível/permissões de outra conta funciona e gera auditoria;
+- [ ] sessão da conta alterada é invalidada após mudança de privilégio;
+- [ ] conta atual não consegue alterar o próprio nível;
+- [ ] último Administrador Master não pode ser removido;
+- [ ] permissão exclusiva de Master não pode ser delegada por override;
+- [ ] `npm run report-privileged-access` confirma o estado esperado após os testes.
+
 ### Inspetor
 
-- [ ] Dashboard/Analytics;
+- [ ] Dashboard/Analytics conforme permissões concedidas;
 - [ ] Equipe/Colaboradores;
 - [ ] geração/revogação de primeiro acesso;
 - [ ] geração/revogação de recuperação segura de senha para conta existente;
@@ -122,7 +145,7 @@ VITE_SEGEMPAT_REQUIRE_API=true
 - [ ] resultado do Cronograma sincronizado aparece em Dashboard, Analytics, Relatórios, Relatório Mensal e Análise Individual conforme os filtros aplicáveis;
 - [ ] Ocorrências;
 - [ ] Certificados/validação;
-- [ ] Auditoria administrativa.
+- [ ] Auditoria administrativa quando a permissão correspondente estiver concedida.
 
 ### Operador
 
@@ -165,7 +188,7 @@ VITE_SEGEMPAT_REQUIRE_API=true
 - [ ] impacto de rollback de schema avaliado antes de qualquer reversão;
 - [ ] responsável técnico pelo rollback definido.
 
-## 11. Bootstrap do primeiro Inspetor
+## 11. Bootstrap do primeiro Administrador Master
 
 Executar somente se a carga de dados não trouxer uma conta administrativa válida e depois de schema/dados estarem coerentes. Preferir senha via `stdin`, sem digitá-la na linha de comando/histórico:
 
@@ -178,25 +201,44 @@ printf '%s' "$SENHA_TMP" | \
 unset SENHA_TMP
 ```
 
-- [ ] necessidade do bootstrap confirmada;
+Se a conta já existir e a TI precisar promovê-la explicitamente a Master sem redefinir senha:
+
+```bash
+CONFIRM_MASTER_ACCESS=SIM \
+MATRICULA=<MATRICULA_AUTORIZADA> \
+TI_OPERATOR="<RESPONSAVEL_TI>" \
+npm run grant-master-access
+```
+
+Depois de qualquer definição de privilégio administrativo:
+
+```bash
+npm run report-privileged-access
+```
+
+- [ ] necessidade do bootstrap ou concessão Master confirmada;
 - [ ] execução registrada como evidência sem guardar senha;
-- [ ] senha temporária trocada no primeiro acesso.
+- [ ] concessão Master explicitamente autorizada pela TI;
+- [ ] relatório de acessos privilegiados revisado;
+- [ ] senha temporária trocada no primeiro acesso quando houver bootstrap.
 
 ## 12. Ordem oficial do cutover
 
 1. receber dados da TI e preparar secrets/rede/storage;
 2. `npm ci`;
 3. `npm run preflight`;
-4. `npm run migrate`;
+4. `npm run migrate` até a migration `010` desta revisão;
 5. `npm run smoke`;
 6. migrar dados e evidências;
 7. `npm run cutover:audit`;
-8. bootstrap do primeiro Inspetor somente se necessário;
-9. subir API e manter `/health/ready` verde;
-10. publicar frontend com `VITE_SEGEMPAT_REQUIRE_API=true`;
-11. executar E2E Inspetor + Operador;
-12. validar backup, restore e rollback;
-13. aprovar o cutover.
+8. bootstrap do primeiro Administrador Master somente se necessário;
+9. `npm run grant-master-access` somente quando uma conta existente precisar ser designada Master pela TI;
+10. `npm run report-privileged-access` e revisar divergências;
+11. subir API e manter `/health/ready` verde;
+12. publicar frontend com `VITE_SEGEMPAT_REQUIRE_API=true`;
+13. executar E2E Administrador Master + Inspetor + Operador;
+14. validar backup, restore e rollback;
+15. aprovar o cutover.
 
 ## 13. Critério final
 

@@ -24,22 +24,25 @@ jobs:
           set -euo pipefail
           grep -F 'charset: "utf8mb4_unicode_ci"' server/src/db.js >/dev/null
           test -f database/mysql/009_secure_password_recovery.sql
+          test -f database/mysql/010_granular_access_control.sql
           test -f .github/workflows/mysql-integration.yml
           grep -F 'image: mysql:8.0' .github/workflows/mysql-integration.yml >/dev/null
           grep -F 'npm --prefix server run preflight' .github/workflows/mysql-integration.yml >/dev/null
           grep -F 'npm --prefix server run migrate' .github/workflows/mysql-integration.yml >/dev/null
           grep -F 'npm --prefix server run smoke' .github/workflows/mysql-integration.yml >/dev/null
           grep -F '/health/ready' .github/workflows/mysql-integration.yml >/dev/null
-          grep -F '"version":"009"' .github/workflows/mysql-integration.yml >/dev/null
-          grep -F 'migrations `001` a `009`' PRODUCTION_CHECKLIST.md >/dev/null
+          grep -F '"version":"010"' .github/workflows/mysql-integration.yml >/dev/null
+          grep -F 'migrations `001` a `010`' PRODUCTION_CHECKLIST.md >/dev/null
+          grep -F 'migration `010_granular_access_control.sql`' MYSQL_CORPORATE_HANDOFF.md >/dev/null
+          grep -F 'E2E — Administrador Master' HOMOLOGATION_EVIDENCE_TEMPLATE.md >/dev/null
           grep -F 'não é backend alternativo da produção' MYSQL_MIGRATION_PLAN.md >/dev/null
           grep -F 'não fazem parte do runtime/build ativo' MYSQL_MIGRATION_PLAN.md >/dev/null
           if grep -F 'o código legado pode continuar disponível' MYSQL_MIGRATION_PLAN.md >/dev/null; then
             echo "::error::Plano MySQL voltou a descrever fallback legado como ativo"
             exit 1
           fi
-          if grep -F 'migrations `001` a `005`' PRODUCTION_CHECKLIST.md >/dev/null; then
+          if grep -F 'migrations `001` a `009`' PRODUCTION_CHECKLIST.md >/dev/null; then
             echo "::error::Checklist de produção voltou a usar faixa antiga de migrations"
             exit 1
           fi
-          echo "Hardening final de MySQL do SEGEMPAT validado."
+          echo "Hardening final de MySQL do SEGEMPAT validado até a migration 010."

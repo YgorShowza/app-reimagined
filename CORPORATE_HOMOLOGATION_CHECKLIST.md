@@ -66,7 +66,7 @@ Se falhar, **não executar migrations**.
 npm run migrate
 ```
 
-- [ ] migrations sem erro;
+- [ ] migrations `001` a `010` aplicadas sem erro;
 - [ ] histórico/checksums coerentes;
 - [ ] nenhuma migration aplicada foi alterada;
 - [ ] nenhuma lacuna de versão;
@@ -75,7 +75,8 @@ npm run migrate
 - [ ] PKs, índices e UNIQUE compatíveis;
 - [ ] colunas geradas e `CHECK constraints` compatíveis;
 - [ ] ausência de triggers/FKs extras não declarados;
-- [ ] ausência de órfãos.
+- [ ] ausência de órfãos;
+- [ ] migration `010_granular_access_control.sql` criou níveis e permissões granulares sem promover contas legadas automaticamente para Master.
 
 Qualquer divergência deve bloquear a continuidade.
 
@@ -105,7 +106,8 @@ npm run smoke
 - [ ] preservar os marcadores `[PRACTICAL:<id>]` de vínculo com o Cronograma quando houver histórico gerado;
 - [ ] copiar assinaturas/evidências para storage corporativo;
 - [ ] registrar contagens antes/depois;
-- [ ] validar amostras históricas e funcionais.
+- [ ] validar amostras históricas e funcionais;
+- [ ] confirmar que nenhuma conta legada recebeu nível Master automaticamente.
 
 ## 7. Gate 4 — Auditoria pós-carga
 
@@ -115,7 +117,8 @@ npm run cutover:audit
 
 - [ ] contas e perfis coerentes;
 - [ ] vínculos usuário/colaborador corretos;
-- [ ] Inspetores/admin coerentes;
+- [ ] níveis administrativos coerentes;
+- [ ] Administrador Master restrito às contas explicitamente autorizadas pela TI;
 - [ ] Banco de Questões consistente;
 - [ ] certificados coerentes com tentativas;
 - [ ] códigos/revogações coerentes;
@@ -126,16 +129,37 @@ npm run cutover:audit
 - [ ] colaborador, tema e data da avaliação prática coincidem com o lançamento do Cronograma;
 - [ ] nenhum marcador `[PRACTICAL:<id>]` órfão permanece no Cronograma.
 
-## 8. Primeiro Inspetor, se necessário
+## 8. Administrador Master inicial, se necessário
 
-Somente depois de schema e auditorias aprovados:
+Somente depois de schema e auditorias aprovados.
+
+Se não existir conta administrativa válida:
 
 ```text
 npm run bootstrap-admin
 ```
 
-- [ ] credencial temporária tratada como secret;
-- [ ] troca de senha no primeiro acesso.
+O bootstrap cria o primeiro **Administrador Master** e a credencial temporária deve ser tratada como secret e trocada no primeiro acesso.
+
+Se a conta já existir e precisar ser designada explicitamente como Master pela TI:
+
+```text
+CONFIRM_MASTER_ACCESS=SIM \
+MATRICULA=<MATRICULA_AUTORIZADA> \
+TI_OPERATOR="<RESPONSAVEL_TI>" \
+npm run grant-master-access
+```
+
+Depois:
+
+```text
+npm run report-privileged-access
+```
+
+- [ ] concessão Master explicitamente aprovada;
+- [ ] nenhuma conta foi promovida a Master por migração automática;
+- [ ] relatório de acessos privilegiados revisado;
+- [ ] nenhuma divergência crítica permaneceu aberta.
 
 ## 9. Subida da API
 
@@ -147,7 +171,7 @@ Ou runtime corporativo preparado em Docker/systemd.
 
 - [ ] `GET /health` responde;
 - [ ] `GET /health/ready` permanece verde;
-- [ ] `/health/ready` confirma o histórico **completo** de migrations, não apenas a última versão;
+- [ ] `/health/ready` confirma o histórico **completo** de migrations até `010` nesta revisão, não apenas a última versão;
 - [ ] alterar/remover/adicionar indevidamente uma linha de `schema_migrations` faz o readiness ficar indisponível;
 - [ ] checksum divergente de qualquer migration faz o readiness ficar indisponível;
 - [ ] HTTPS válido no proxy;
@@ -170,11 +194,26 @@ VITE_SEGEMPAT_REQUIRE_API=true
 
 ## 11. Teste ponta a ponta
 
-Executar com **Inspetor** e **Operador**:
+Executar com **Administrador Master**, **Inspetor** e **Operador**.
+
+### Administrador Master
+
+- [ ] login/logout;
+- [ ] nível exibido corretamente;
+- [ ] Acessos → Níveis e permissões;
+- [ ] alteração de nível/permissões de outra conta;
+- [ ] alteração gera auditoria;
+- [ ] sessão da conta afetada é invalidada após mudança de privilégio;
+- [ ] própria conta não consegue alterar o próprio nível;
+- [ ] último Administrador Master não pode ser removido;
+- [ ] permissão exclusiva de Master não pode ser delegada indevidamente;
+- [ ] `npm run report-privileged-access` permanece coerente após os testes.
+
+### Inspetor e Operador
 
 - [ ] login/logout;
 - [ ] primeiro acesso e troca de senha;
-- [ ] Equipe/Colaboradores;
+- [ ] Equipe/Colaboradores conforme permissão;
 - [ ] Cronograma;
 - [ ] Banco de Questões;
 - [ ] Provas/tentativas/correção server-side;
@@ -195,7 +234,7 @@ Executar com **Inspetor** e **Operador**:
 - [ ] Ocorrências;
 - [ ] Base de Conhecimento;
 - [ ] Meu Perfil;
-- [ ] Auditoria administrativa.
+- [ ] Auditoria administrativa conforme permissão efetiva.
 
 ## 12. Segurança, operação e rollback
 
@@ -218,15 +257,16 @@ TI inputs
   -> configurar secrets/rede/storage
   -> npm ci
   -> preflight
-  -> migrate
+  -> migrate até 010
   -> smoke
   -> migrar dados/evidências
   -> cutover:audit
-  -> bootstrap-admin (se necessário)
+  -> bootstrap-admin ou grant-master-access (se necessário)
+  -> report-privileged-access
   -> subir API
   -> /health/ready verde e histórico completo de migrations íntegro
   -> frontend REQUIRE_API=true
-  -> E2E Inspetor + Operador
+  -> E2E Master + Inspetor + Operador
   -> aceite/rollback
 ```
 
