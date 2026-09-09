@@ -26,7 +26,12 @@ jobs:
           test -f database/mysql/009_secure_password_recovery.sql
           test -f database/mysql/010_granular_access_control.sql
           test -f .github/workflows/mysql-integration.yml
+          test -f server/.npmrc
+          grep -F 'registry=https://registry.npmjs.org/' server/.npmrc >/dev/null
+          grep -F 'replace-registry-host=always' server/.npmrc >/dev/null
           grep -F 'image: mysql:8.0' .github/workflows/mysql-integration.yml >/dev/null
+          grep -F 'registry-url: https://registry.npmjs.org' .github/workflows/mysql-integration.yml >/dev/null
+          grep -F 'npm ci --prefix server --ignore-scripts --registry=https://registry.npmjs.org/' .github/workflows/mysql-integration.yml >/dev/null
           grep -F 'npm --prefix server run preflight' .github/workflows/mysql-integration.yml >/dev/null
           grep -F 'npm --prefix server run migrate' .github/workflows/mysql-integration.yml >/dev/null
           grep -F 'npm --prefix server run smoke' .github/workflows/mysql-integration.yml >/dev/null
@@ -45,4 +50,4 @@ jobs:
             echo "::error::Checklist de produção voltou a usar faixa antiga de migrations"
             exit 1
           fi
-          echo "Hardening final de MySQL do SEGEMPAT validado até a migration 010."
+          echo "Hardening final de MySQL do SEGEMPAT validado até a migration 010 com dependências no registro npm oficial."
