@@ -1,0 +1,16 @@
+name: SEGEMPAT Runner Diagnostic
+
+on:
+  push:
+    branches: [hardening/security-audit-fixes]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Runner available
+        run: echo "GitHub-hosted runner disponível"
