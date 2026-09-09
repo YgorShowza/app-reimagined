@@ -86,6 +86,9 @@ export interface ExamAttemptEvidence {
   attempt_id: string;
   exam_id: string;
   exam_title: string;
+  exam_description?: string | null;
+  exam_type?: string;
+  min_approval_pct?: number;
   employee_name: string;
   matricula: string | null;
   sector: string;
