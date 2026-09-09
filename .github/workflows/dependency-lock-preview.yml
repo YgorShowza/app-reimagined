@@ -1,0 +1,61 @@
+name: SEGEMPAT Dependency Lock Preview
+
+on:
+  push:
+    branches: [hardening/dependency-security]
+    paths:
+      - .github/workflows/dependency-lock-preview.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate-lock-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Prepare hardened dependency manifest
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          delete pkg.dependencies.xlsx;
+          pkg.dependencies['read-excel-file'] = '^9.3.10';
+          pkg.dependencies.jspdf = '^4.2.1';
+          fs.writeFileSync('package.json', `${JSON.stringify(pkg, null, 2)}\n`);
+          NODE
+
+      - name: Regenerate Bun lockfile from npm registry
+        shell: bash
+        run: |
+          rm -f bun.lock
+          bun install --ignore-scripts --registry=https://registry.npmjs.org
+          bun install --frozen-lockfile --ignore-scripts --registry=https://registry.npmjs.org
+
+      - name: Verify resolved security replacements
+        shell: bash
+        run: |
+          test -f bun.lock
+          ! grep -Eq '(^|["/])xlsx(["@/]|$)' bun.lock
+          grep -q 'read-excel-file' bun.lock
+          grep -q 'jspdf' bun.lock
+
+      - name: Upload dependency preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: segempat-dependency-lock-preview
+          path: |
+            package.json
+            bun.lock
+          if-no-files-found: error
+          retention-days: 1
