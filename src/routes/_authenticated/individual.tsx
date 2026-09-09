@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { IndividualAnalysisV2 } from "@/components/individual-analysis/IndividualAnalysisV2";
+import { IndividualAnalysisPolished } from "@/components/individual-analysis/IndividualAnalysisPolished";
 
 export const Route = createFileRoute("/_authenticated/individual")({
   head: () => ({ meta: [{ title: "Análise Individual · SEGEMPAT" }] }),
@@ -9,7 +9,7 @@ export const Route = createFileRoute("/_authenticated/individual")({
 function IndividualAnalysisPage() {
   return (
     <div className="segempat-analytical-individual w-full">
-      <IndividualAnalysisV2 />
+      <IndividualAnalysisPolished />
     </div>
   );
 }
