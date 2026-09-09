@@ -26,8 +26,21 @@ import {
   type EmployeeForm,
 } from "@/lib/employees";
 
-function Surface({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <section className={`rounded-2xl ${className}`} style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", boxShadow: "var(--shadow-card, var(--shadow-md))" }}>{children}</section>;
+function Surface({ children, className = "", style, ...props }: React.ComponentProps<"section">) {
+  return (
+    <section
+      {...props}
+      className={`rounded-2xl ${className}`}
+      style={{
+        background: "var(--bg-surface)",
+        border: "1px solid var(--border)",
+        boxShadow: "var(--shadow-card, var(--shadow-md))",
+        ...style,
+      }}
+    >
+      {children}
+    </section>
+  );
 }
 
 function MetricCard({ label, value, icon: Icon, accent, sub }: { label: string; value: number | string; icon: typeof Users; accent: string; sub: string }) {
