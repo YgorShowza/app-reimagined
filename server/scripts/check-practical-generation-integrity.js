@@ -8,12 +8,16 @@ const EXPECTED_COLUMNS = new Map([
 
 async function loadIndex(indexName) {
   return query(
-    `SELECT index_name, non_unique, seq_in_index, column_name, sub_part
+    `SELECT INDEX_NAME AS index_name,
+            NON_UNIQUE AS non_unique,
+            SEQ_IN_INDEX AS seq_in_index,
+            COLUMN_NAME AS column_name,
+            SUB_PART AS sub_part
        FROM information_schema.statistics
       WHERE table_schema = DATABASE()
         AND table_name = 'practical_evaluations'
         AND index_name = ?
-      ORDER BY seq_in_index`,
+      ORDER BY SEQ_IN_INDEX`,
     [indexName],
   );
 }
@@ -44,7 +48,11 @@ async function assertZero(sql, message) {
 async function main() {
   try {
     const columns = await query(
-      `SELECT column_name, data_type, is_nullable, column_default, character_maximum_length
+      `SELECT COLUMN_NAME AS column_name,
+              DATA_TYPE AS data_type,
+              IS_NULLABLE AS is_nullable,
+              COLUMN_DEFAULT AS column_default,
+              CHARACTER_MAXIMUM_LENGTH AS character_maximum_length
          FROM information_schema.columns
         WHERE table_schema = DATABASE()
           AND table_name = 'practical_evaluations'
@@ -85,12 +93,12 @@ async function main() {
     );
 
     const foreignKey = await queryOne(
-      `SELECT kcu.table_name,
-              kcu.column_name,
-              kcu.referenced_table_name,
-              kcu.referenced_column_name,
-              rc.delete_rule,
-              rc.update_rule
+      `SELECT kcu.TABLE_NAME AS table_name,
+              kcu.COLUMN_NAME AS column_name,
+              kcu.REFERENCED_TABLE_NAME AS referenced_table_name,
+              kcu.REFERENCED_COLUMN_NAME AS referenced_column_name,
+              rc.DELETE_RULE AS delete_rule,
+              rc.UPDATE_RULE AS update_rule
          FROM information_schema.key_column_usage AS kcu
          JOIN information_schema.referential_constraints AS rc
            ON rc.constraint_schema = kcu.constraint_schema
@@ -113,7 +121,9 @@ async function main() {
     }
 
     const deleteGuard = await queryOne(
-      `SELECT action_timing, event_manipulation, action_statement
+      `SELECT ACTION_TIMING AS action_timing,
+              EVENT_MANIPULATION AS event_manipulation,
+              ACTION_STATEMENT AS action_statement
          FROM information_schema.triggers
         WHERE trigger_schema = DATABASE()
           AND event_object_table = 'practical_evaluations'
@@ -189,8 +199,6 @@ async function main() {
       "Slots recorrentes duplicados encontrados",
     );
 
-    // Registros gerados por modelo precisam manter vínculo 1:1 com o Cronograma.
-    // Isso é o caminho que alimenta Dashboard, Analytics e Relatórios pela fonte canônica.
     await assertZero(
       `SELECT COUNT(*) AS total
          FROM practical_evaluations pe
