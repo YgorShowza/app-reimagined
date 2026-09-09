@@ -1,0 +1,49 @@
+name: SEGEMPAT Security Lock Refresh
+
+on:
+  push:
+    branches: [hardening/security-audit-fixes]
+
+permissions:
+  contents: read
+
+jobs:
+  refresh-lock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+
+      - name: Regenerate lockfile from approved registries
+        run: |
+          rm -f bun.lock
+          bun install --lockfile-only
+
+      - name: Verify hardened dependency resolutions
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'jspdf@4.2.1' bun.lock >/dev/null
+          grep -F 'xlsx-0.20.3' bun.lock >/dev/null
+          if grep -F 'xlsx@0.18.5' bun.lock >/dev/null; then
+            echo '::error::SheetJS vulnerável ainda presente no lockfile'
+            exit 1
+          fi
+          if grep -Fi 'lovable' bun.lock >/dev/null; then
+            echo '::error::Referência residual a cache Lovable encontrada no lockfile regenerado'
+            exit 1
+          fi
+
+      - name: Upload regenerated lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: hardened-bun-lock
+          path: bun.lock
+          if-no-files-found: error
+          retention-days: 1
