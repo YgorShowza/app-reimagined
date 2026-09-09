@@ -15,6 +15,10 @@ const NOME_KEYS = ["nome", "name", "colaborador", "funcionario", "operador", "al
 const TEMA_KEYS = ["tema", "treinamento", "curso", "modulo", "avaliacao", "atividade", "subject", "training"];
 const NOTA_KEYS = ["nota", "score", "nota_final", "resultado", "aproveitamento", "grade", "valor", "acerto", "formula", "percent"];
 const DATA_KEYS = ["data", "datahora", "dataehora", "datetime", "date", "datahor"];
+const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024;
+const MAX_IMPORT_ROWS = 5000;
+const MAX_IMPORT_COLUMNS = 64;
+const BLOCKED_HEADER_NAMES = new Set(["__proto__", "prototype", "constructor"]);
 
 type ImportRow = {
   matricula: string;
@@ -87,21 +91,56 @@ function findHeaderRow(rows: unknown[][]) {
   return bestIndex;
 }
 
+function validateSpreadsheetFile(file: File) {
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  if (extension !== "xlsx" && extension !== "xls") {
+    throw new Error("Formato inválido. Envie somente arquivo .xlsx ou .xls.");
+  }
+  if (file.size <= 0) throw new Error("O arquivo selecionado está vazio.");
+  if (file.size > MAX_IMPORT_FILE_BYTES) {
+    throw new Error("A planilha excede o limite de 5 MB para importação.");
+  }
+}
+
+function validateSpreadsheetSignature(buffer: ArrayBuffer) {
+  const bytes = new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 8));
+  const isZip = bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
+  const isOle = bytes.length >= 8 && bytes[0] === 0xd0 && bytes[1] === 0xcf && bytes[2] === 0x11 && bytes[3] === 0xe0 && bytes[4] === 0xa1 && bytes[5] === 0xb1 && bytes[6] === 0x1a && bytes[7] === 0xe1;
+  if (!isZip && !isOle) {
+    throw new Error("O conteúdo do arquivo não corresponde a uma planilha Excel válida.");
+  }
+}
+
 function sheetToObjects(sheet: XLSX.WorkSheet) {
+  const rangeRef = sheet["!ref"];
+  if (rangeRef) {
+    const range = XLSX.utils.decode_range(rangeRef);
+    const rowCount = range.e.r - range.s.r + 1;
+    const columnCount = range.e.c - range.s.c + 1;
+    if (rowCount > MAX_IMPORT_ROWS + 16) throw new Error(`A planilha excede o limite de ${MAX_IMPORT_ROWS} linhas de dados.`);
+    if (columnCount > MAX_IMPORT_COLUMNS) throw new Error(`A planilha excede o limite de ${MAX_IMPORT_COLUMNS} colunas.`);
+  }
+
   const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "", raw: false });
   if (!rows.length) return [] as Record<string, unknown>[];
+  if (rows.length > MAX_IMPORT_ROWS + 16) throw new Error(`A planilha excede o limite de ${MAX_IMPORT_ROWS} linhas de dados.`);
+
   const headerIndex = findHeaderRow(rows);
   const headers = rows[headerIndex] ?? [];
+  if (headers.length > MAX_IMPORT_COLUMNS) throw new Error(`A planilha excede o limite de ${MAX_IMPORT_COLUMNS} colunas.`);
+
   const output: Record<string, unknown>[] = [];
   for (let index = headerIndex + 1; index < rows.length; index += 1) {
     const row = rows[index] ?? [];
     if (row.every((cell) => cell === "" || cell === null || cell === undefined)) continue;
-    const item: Record<string, unknown> = {};
+    const item = Object.create(null) as Record<string, unknown>;
     headers.forEach((header, column) => {
       const label = String(header ?? "").trim();
-      if (label) item[label] = row[column] ?? "";
+      if (!label || BLOCKED_HEADER_NAMES.has(label.toLowerCase())) return;
+      item[label] = row[column] ?? "";
     });
     output.push(item);
+    if (output.length > MAX_IMPORT_ROWS) throw new Error(`A planilha excede o limite de ${MAX_IMPORT_ROWS} linhas de dados.`);
   }
   return output;
 }
@@ -139,11 +178,24 @@ export function CronogramaImportResults({ open, onOpenChange, onComplete }: { op
     setParsing(true);
     setResult(null);
     try {
+      validateSpreadsheetFile(file);
       const buffer = await file.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: "array" });
+      validateSpreadsheetSignature(buffer);
+      const workbook = XLSX.read(buffer, {
+        type: "array",
+        sheets: 0,
+        sheetRows: MAX_IMPORT_ROWS + 16,
+        cellFormula: false,
+        cellHTML: false,
+        cellNF: false,
+        cellStyles: false,
+        bookVBA: false,
+      });
       const firstSheet = workbook.SheetNames[0];
       if (!firstSheet) throw new Error("A planilha não possui abas.");
-      const rawRows = sheetToObjects(workbook.Sheets[firstSheet]);
+      const sheet = workbook.Sheets[firstSheet];
+      if (!sheet) throw new Error("A primeira aba da planilha não pôde ser lida.");
+      const rawRows = sheetToObjects(sheet);
       if (!rawRows.length) throw new Error("Nenhuma linha de dados foi reconhecida.");
 
       const employees = await listEmployees();
@@ -224,7 +276,7 @@ export function CronogramaImportResults({ open, onOpenChange, onComplete }: { op
             <button type="button" disabled={parsing} onClick={() => inputRef.current?.click()} className="w-full rounded-2xl border-2 border-dashed p-10 text-center transition-colors" style={{ borderColor: "var(--border)", background: "var(--bg-surface-2)" }}>
               {parsing ? <Loader2 className="mx-auto h-9 w-9 animate-spin text-[#C8102E]" /> : <Upload className="mx-auto h-9 w-9 text-[#C8102E]" />}
               <p className="mt-3 font-black" style={{ color: "var(--text-1)" }}>{parsing ? "Lendo planilha..." : "Selecionar arquivo Excel"}</p>
-              <p className="mt-1 text-xs" style={{ color: "var(--text-4)" }}>Aceita .xlsx e .xls. Nenhum dado é gravado antes da revisão.</p>
+              <p className="mt-1 text-xs" style={{ color: "var(--text-4)" }}>Aceita .xlsx e .xls de até 5 MB. Nenhum dado é gravado antes da revisão.</p>
             </button>
           </div>
         )}
