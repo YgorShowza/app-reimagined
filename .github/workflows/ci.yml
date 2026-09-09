@@ -18,6 +18,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Normalize dependency registries
+        run: node scripts/normalize-package-registries.mjs
+
       - name: Enforce API-only Cloudflare architecture
         shell: bash
         run: |
@@ -110,8 +113,8 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install MySQL API dependencies
-        run: npm ci --prefix server --ignore-scripts
+      - name: Install MySQL API dependencies from official npm registry
+        run: npm ci --prefix server --ignore-scripts --registry=https://registry.npmjs.org/ --replace-registry-host=always
 
       - name: Validate MySQL API syntax
         shell: bash
@@ -299,8 +302,8 @@ jobs:
         with:
           bun-version: 1.4.2
 
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
+      - name: Install dependencies from official npm registry
+        run: bun install --frozen-lockfile --registry https://registry.npmjs.org
 
       - name: Typecheck
         run: bun run typecheck
