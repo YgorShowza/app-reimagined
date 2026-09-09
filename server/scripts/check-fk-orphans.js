@@ -7,7 +7,7 @@ const REQUIRED_FOREIGN_KEYS = [
   ["registration_activation_employee_fk", "registration_activation_codes", "employee_id", "employees", "id", "CASCADE"],
   ["registration_activation_creator_fk", "registration_activation_codes", "created_by", "app_users", "id", "SET NULL"],
   ["exams_creator_fk", "exams", "created_by", "app_users", "id", "SET NULL"],
-  ["exam_attempts_exam_fk", "exam_attempts", "exam_id", "exams", "id", "CASCADE"],
+  ["exam_attempts_exam_fk", "exam_attempts", "exam_id", "exams", "id", "RESTRICT"],
   ["exam_attempts_user_fk", "exam_attempts", "user_id", "app_users", "id", "RESTRICT"],
   ["certificates_attempt_fk", "certificates", "attempt_id", "exam_attempts", "id", "CASCADE"],
   ["certificates_exam_fk", "certificates", "exam_id", "exams", "id", "RESTRICT"],
@@ -43,6 +43,14 @@ const REQUIRED_FOREIGN_KEYS = [
 
 function quoteIdentifier(value) {
   return `\`${String(value).replaceAll("`", "``")}\``;
+}
+
+function normalizeReferentialRule(value) {
+  const normalized = String(value || "").toUpperCase();
+  // No MySQL/InnoDB, NO ACTION e RESTRICT têm a mesma semântica imediata.
+  // O INFORMATION_SCHEMA pode expor NO ACTION mesmo quando o DDL omite
+  // ON UPDATE ou quando a intenção de integridade é RESTRICT.
+  return normalized === "NO ACTION" ? "RESTRICT" : normalized;
 }
 
 function groupForeignKeys(rows) {
@@ -100,12 +108,12 @@ function validateRequiredForeignKeys(foreignKeys) {
       );
     }
 
-    if (actual.deleteRule !== expected.deleteRule) {
+    if (normalizeReferentialRule(actual.deleteRule) !== normalizeReferentialRule(expected.deleteRule)) {
       problems.push(
         `${expected.constraintName}: ON DELETE ${actual.deleteRule || "desconhecido"}; esperado ${expected.deleteRule}`,
       );
     }
-    if (actual.updateRule !== expected.updateRule) {
+    if (normalizeReferentialRule(actual.updateRule) !== normalizeReferentialRule(expected.updateRule)) {
       problems.push(
         `${expected.constraintName}: ON UPDATE ${actual.updateRule || "desconhecido"}; esperado ${expected.updateRule}`,
       );
