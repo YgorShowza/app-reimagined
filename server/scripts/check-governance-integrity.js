@@ -4,7 +4,10 @@ async function main() {
   const problems = [];
 
   const columns = await query(
-    `SELECT column_name, column_type, is_nullable, column_default
+    `SELECT COLUMN_NAME AS column_name,
+            COLUMN_TYPE AS column_type,
+            IS_NULLABLE AS is_nullable,
+            COLUMN_DEFAULT AS column_default
        FROM information_schema.columns
       WHERE table_schema = DATABASE()
         AND table_name = 'app_users'
@@ -26,7 +29,9 @@ async function main() {
   }
 
   const triggers = await query(
-    `SELECT trigger_name, action_timing, event_manipulation
+    `SELECT TRIGGER_NAME AS trigger_name,
+            ACTION_TIMING AS action_timing,
+            EVENT_MANIPULATION AS event_manipulation
        FROM information_schema.triggers
       WHERE trigger_schema = DATABASE()
         AND event_object_table = 'audit_logs'
@@ -49,7 +54,9 @@ async function main() {
   }
 
   const constraints = await query(
-    `SELECT rc.constraint_name, rc.update_rule, rc.delete_rule
+    `SELECT rc.CONSTRAINT_NAME AS constraint_name,
+            rc.UPDATE_RULE AS update_rule,
+            rc.DELETE_RULE AS delete_rule
        FROM information_schema.referential_constraints rc
       WHERE rc.constraint_schema = DATABASE()
         AND rc.table_name = 'audit_logs'
