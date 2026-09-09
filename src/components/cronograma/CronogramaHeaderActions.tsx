@@ -29,27 +29,17 @@ export function CronogramaHeaderActions() {
         <Button
           asChild
           className="h-10 w-full font-bold sm:w-auto"
-          style={{
-            background: "linear-gradient(135deg,#f0c400,#ffd700)",
-            color: "#111",
-            boxShadow: "0 6px 18px rgba(200,160,0,.28)",
-          }}
+          style={{ background: "linear-gradient(135deg,#f0c400,#ffd700)", color: "#111", boxShadow: "0 6px 18px rgba(200,160,0,.28)" }}
         >
           <Link to="/cronograma-gestao" search={{ novo: true }}>
-            <Plus className="mr-2 h-4 w-4" />
-            Novo Registro
+            <Plus className="mr-2 h-4 w-4" /> Novo registro
           </Link>
         </Button>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button
-              variant="outline"
-              className="h-10 w-full font-bold sm:w-auto"
-              style={{ borderColor: "var(--border)", background: "var(--bg-surface-2)" }}
-            >
-              Ações
-              <ChevronDown className="ml-2 h-3.5 w-3.5 opacity-60" />
+            <Button variant="outline" className="h-10 w-full font-bold sm:w-auto" style={{ borderColor: "var(--border)", background: "var(--bg-surface-2)" }}>
+              Mais ações <ChevronDown className="ml-2 h-3.5 w-3.5 opacity-60" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-64">
@@ -59,11 +49,11 @@ export function CronogramaHeaderActions() {
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => setImportOpen(true)}>
               <FileSpreadsheet className="mr-2 h-4 w-4 text-blue-500" />
-              <span className="font-semibold">Importar Resultados</span>
+              <span className="font-semibold">Importar resultados</span>
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => setGeneratorOpen(true)}>
               <Sparkles className="mr-2 h-4 w-4 text-amber-500" />
-              <span className="font-semibold">Gerar Ano</span>
+              <span className="font-semibold">Gerar planejamento anual</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <CronogramaPracticalActions asSubmenu />
