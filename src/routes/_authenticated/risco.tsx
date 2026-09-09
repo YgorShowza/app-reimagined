@@ -100,6 +100,22 @@ function RiskPage() {
     staleTime: 60_000,
   });
 
+  const rows = useMemo(() => (query.data ? employeeRisk(query.data) : []), [query.data]);
+  const sectors = useMemo(
+    () => ["Todos", ...Array.from(new Set(rows.map((row) => row.employee.sector))).sort((a, b) => a.localeCompare(b, "pt-BR"))],
+    [rows],
+  );
+  const filteredRows = useMemo(() => {
+    const normalized = normalizeSearch(search);
+    return rows.filter((row) => {
+      if (levelFilter !== "Todos" && row.level !== levelFilter) return false;
+      if (sectorFilter !== "Todos" && row.employee.sector !== sectorFilter) return false;
+      if (!normalized) return true;
+      return [row.employee.full_name, row.employee.matricula, row.employee.sector, row.level]
+        .some((value) => normalizeSearch(String(value)).includes(normalized));
+    });
+  }, [rows, search, levelFilter, sectorFilter]);
+
   if (query.isLoading) return <Loading />;
 
   if (query.isError || !query.data) {
@@ -120,28 +136,10 @@ function RiskPage() {
     );
   }
 
-  const rows = employeeRisk(query.data);
   const high = rows.filter((row) => row.level === "Alto").length;
   const medium = rows.filter((row) => row.level === "Médio").length;
   const low = rows.filter((row) => row.level === "Baixo").length;
   const normal = rows.filter((row) => row.level === "Normal").length;
-
-  const sectors = useMemo(
-    () => ["Todos", ...Array.from(new Set(rows.map((row) => row.employee.sector))).sort((a, b) => a.localeCompare(b, "pt-BR"))],
-    [rows],
-  );
-
-  const filteredRows = useMemo(() => {
-    const normalized = normalizeSearch(search);
-    return rows.filter((row) => {
-      if (levelFilter !== "Todos" && row.level !== levelFilter) return false;
-      if (sectorFilter !== "Todos" && row.employee.sector !== sectorFilter) return false;
-      if (!normalized) return true;
-      return [row.employee.full_name, row.employee.matricula, row.employee.sector, row.level]
-        .some((value) => normalizeSearch(String(value)).includes(normalized));
-    });
-  }, [rows, search, levelFilter, sectorFilter]);
-
   const hasFilters = Boolean(search.trim()) || levelFilter !== "Todos" || sectorFilter !== "Todos";
   const clearFilters = () => {
     setSearch("");
