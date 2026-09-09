@@ -30,7 +30,7 @@ const REQUIRED_FOREIGN_KEYS = [
   ["practical_evaluations_evaluator_fk", "practical_evaluations", "evaluator_id", "app_users", "id", "SET NULL"],
   ["occurrences_employee_fk", "occurrences", "employee_id", "employees", "id", "SET NULL"],
   ["occurrences_creator_fk", "occurrences", "created_by", "app_users", "id", "SET NULL"],
-  ["audit_logs_actor_fk", "audit_logs", "actor_id", "app_users", "id", "SET NULL"],
+  ["audit_logs_actor_fk", "audit_logs", "actor_id", "app_users", "id", "RESTRICT"],
 ].map(([constraintName, tableName, columnName, referencedTableName, referencedColumnName, deleteRule]) => ({
   constraintName,
   tableName,
@@ -121,15 +121,17 @@ function validateRequiredForeignKeys(foreignKeys) {
 
 async function main() {
   try {
+    // Alias explícito evita depender da caixa exposta pelo INFORMATION_SCHEMA
+    // em combinações diferentes de MySQL 8 e mysql2.
     const rows = await query(
-      `SELECT kcu.constraint_name,
-              kcu.table_name,
-              kcu.column_name,
-              kcu.referenced_table_name,
-              kcu.referenced_column_name,
-              kcu.ordinal_position,
-              rc.delete_rule,
-              rc.update_rule
+      `SELECT kcu.CONSTRAINT_NAME AS constraint_name,
+              kcu.TABLE_NAME AS table_name,
+              kcu.COLUMN_NAME AS column_name,
+              kcu.REFERENCED_TABLE_NAME AS referenced_table_name,
+              kcu.REFERENCED_COLUMN_NAME AS referenced_column_name,
+              kcu.ORDINAL_POSITION AS ordinal_position,
+              rc.DELETE_RULE AS delete_rule,
+              rc.UPDATE_RULE AS update_rule
          FROM information_schema.key_column_usage AS kcu
          JOIN information_schema.referential_constraints AS rc
            ON rc.constraint_schema = kcu.constraint_schema
@@ -137,7 +139,7 @@ async function main() {
           AND rc.table_name = kcu.table_name
         WHERE kcu.constraint_schema = DATABASE()
           AND kcu.referenced_table_name IS NOT NULL
-        ORDER BY kcu.constraint_name, kcu.ordinal_position`,
+        ORDER BY kcu.CONSTRAINT_NAME, kcu.ORDINAL_POSITION`,
     );
 
     const foreignKeys = groupForeignKeys(rows);
