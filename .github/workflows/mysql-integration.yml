@@ -64,7 +64,7 @@ jobs:
       - name: Prepare integration storage
         run: mkdir -p "$SEGEMPAT_STORAGE_PATH"
 
-      - name: Create least-privilege runtime and migration identities
+      - name: Configure trigger policy and least-privilege identities
         working-directory: server
         shell: bash
         run: |
@@ -79,6 +79,16 @@ jobs:
             password: 'ci-root-password',
           });
           try {
+            // O SEGEMPAT usa triggers de integridade/auditoria. Com binary log ativo,
+            // MySQL exige SUPER para criá-los quando esta política é 0. O ambiente
+            // descartável modela a configuração corporativa segura que permite à
+            // credencial de migration permanecer restrita ao schema da aplicação.
+            await connection.query('SET GLOBAL log_bin_trust_function_creators = 1');
+            const [policyRows] = await connection.query('SELECT @@GLOBAL.log_bin_trust_function_creators AS trusted');
+            if (Number(policyRows?.[0]?.trusted) !== 1) {
+              throw new Error('log_bin_trust_function_creators não foi habilitado no MySQL descartável');
+            }
+
             await connection.query("CREATE USER IF NOT EXISTS 'segempat_runtime'@'%' IDENTIFIED BY 'runtime-ci-password'");
             await connection.query("CREATE USER IF NOT EXISTS 'segempat_migration'@'%' IDENTIFIED BY 'migration-ci-password'");
             await connection.query("GRANT SELECT, INSERT, UPDATE, DELETE ON `segempat_ci`.* TO 'segempat_runtime'@'%'");
@@ -87,7 +97,7 @@ jobs:
           } finally {
             await connection.end();
           }
-          console.log('Identidades MySQL de integração preparadas.');
+          console.log('Política de triggers e identidades MySQL de integração preparadas.');
           NODE
 
       - name: Run preflight against real MySQL 8
