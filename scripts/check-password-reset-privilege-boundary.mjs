@@ -4,6 +4,13 @@ function read(path) {
   return fs.readFileSync(path, "utf8");
 }
 
+function readContract(filename) {
+  for (const candidate of [`.github/contracts/${filename}`, `.github/workflows/${filename}`]) {
+    if (fs.existsSync(candidate)) return read(candidate);
+  }
+  throw new Error(`Contrato CI não encontrado: ${filename}`);
+}
+
 function requireText(source, needle, label) {
   if (!source.includes(needle)) {
     console.error(`[password-reset-privilege-boundary] ausente: ${label}`);
@@ -23,7 +30,7 @@ const access = read("server/src/routes/access.js");
 const auth = read("server/src/routes/auth.js");
 const gateway = read("src/lib/backend/access-gateway.ts");
 const ui = read("src/components/access/AccessActivationAdmin.tsx");
-const workflow = read(".github/workflows/password-recovery.yml");
+const workflow = readContract("password-recovery.yml");
 
 requireText(policy, 'PASSWORD_RESET_PERMISSION = "access.password_reset"', "permissão de recuperação centralizada");
 requireText(policy, 'target.code === "master"', "Master bloqueado no fluxo administrativo de recuperação");

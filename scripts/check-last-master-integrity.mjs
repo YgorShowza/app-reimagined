@@ -4,6 +4,13 @@ function read(path) {
   return fs.readFileSync(path, "utf8");
 }
 
+function readContract(filename) {
+  for (const candidate of [`.github/contracts/${filename}`, `.github/workflows/${filename}`]) {
+    if (fs.existsSync(candidate)) return read(candidate);
+  }
+  throw new Error(`Contrato CI não encontrado: ${filename}`);
+}
+
 function requireText(source, needle, label) {
   if (!source.includes(needle)) {
     console.error(`[last-master-integrity] ausente: ${label}`);
@@ -16,7 +23,7 @@ const employeesRoute = read("server/src/routes/employees.js");
 const session = read("server/src/session.js");
 const grantMaster = read("server/scripts/grant-master-access.js");
 const manageInspector = read("server/scripts/manage-inspector-access.js");
-const workflow = read(".github/workflows/granular-access-control.yml");
+const workflow = readContract("granular-access-control.yml");
 
 requireText(
   authorizationRoute,
