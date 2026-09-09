@@ -110,7 +110,7 @@ export const Route = createFileRoute("/_authenticated")({
     // a ser obrigatória e a navegação não substitui a autorização da API.
     const controlledPermissions = requiredPermissionsForPath(pathname);
     if (user.isAdmin && controlledPermissions && !canAccessAdminPath(user, pathname)) {
-      throw redirect({ to: firstAllowedAdminPath(user) });
+      throw redirect({ href: firstAllowedAdminPath(user) });
     }
 
     return { user };
