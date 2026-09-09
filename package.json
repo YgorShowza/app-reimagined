@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "deploy": "bun run build && wrangler deploy",
     "cf-typegen": "wrangler types",
+    "registry:normalize": "node scripts/normalize-package-registries.mjs",
     "audit:public": "node scripts/check-public-review-readiness.mjs",
     "typecheck": "node scripts/check-route-access.mjs && tsc --noEmit --noUncheckedIndexedAccess false --exactOptionalPropertyTypes false --noPropertyAccessFromIndexSignature false --noImplicitReturns false",
     "lint": "eslint .",
