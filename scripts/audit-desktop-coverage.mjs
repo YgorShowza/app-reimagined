@@ -160,7 +160,7 @@ for (const file of routeFiles) {
   const route = `/${file.slice(0, -4)}`;
   check(classifiedRoutes.has(route), `Rota autenticada sem classificação desktop/fluxo: ${route}`);
 }
-check(shell.includes('pathname.startsWith("/certificado/")'), "Emissão administrativa de certificado perdeu a proteção dinâmica /certificado/.");
+check(shell.includes('canonicalPath.startsWith("/certificado/")'), "Emissão administrativa de certificado perdeu a proteção dinâmica /certificado/.");
 requireText("src/routes/_authenticated/certificado.$attemptId.tsx", ["CertificateAdminPage", "getAdminExamAttemptEvidence", "A emissão do certificado é exclusiva da Inspetoria"]);
 
 requireText("src/components/dashboard/AdminDashboardV2.tsx", ['max-w-[1536px]']);
