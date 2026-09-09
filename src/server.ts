@@ -21,8 +21,15 @@ async function getServerEntry(): Promise<ServerEntry> {
 function withSecurityHeaders(response: Response): Response {
   const headers = new Headers(response.headers);
   headers.set("X-Content-Type-Options", "nosniff");
+  headers.set("X-Frame-Options", "DENY");
   headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  headers.set("Strict-Transport-Security", "max-age=31536000");
+  // CSP deliberadamente mínima nesta etapa: bloqueia framing/base/object sem
+  // interferir no bootstrap inline de tema ou nos assets atuais. A política de
+  // scripts/styles pode ser endurecida depois que fontes e scripts inline forem
+  // eliminados da cadeia de produção.
+  headers.set("Content-Security-Policy", "frame-ancestors 'none'; base-uri 'self'; object-src 'none'");
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
