@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { syncCronogramaWithExamAttempts } from "@/lib/cronograma";
 import { invalidateCronogramaFlow } from "@/lib/operational-query-sync";
-import { CronogramaSourceParityV2 } from "@/components/cronograma/CronogramaSourceParityV2";
+import { CronogramaSourcePolished } from "@/components/cronograma/CronogramaSourcePolished";
 import { CronogramaHeaderActions } from "@/components/cronograma/CronogramaHeaderActions";
 import "@/operational-desktop.css";
 
@@ -37,7 +37,7 @@ export function CronogramaPorted() {
 
   return (
     <div className="segempat-operational-cronograma relative">
-      <CronogramaSourceParityV2 actions={user?.isAdmin ? <CronogramaHeaderActions /> : undefined} />
+      <CronogramaSourcePolished actions={user?.isAdmin ? <CronogramaHeaderActions /> : undefined} />
     </div>
   );
 }
