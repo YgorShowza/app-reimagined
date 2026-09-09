@@ -14,6 +14,8 @@ Preencher/confirmar:
 - Nome do database destinado ao SEGEMPAT:
 - Usuário de aplicação/runtime com privilégio mínimo:
 - Usuário separado de migration, controlado pela TI:
+- Binary logging ativo? `sim/não`:
+- Se binary logging estiver ativo, `log_bin_trust_function_creators=1` (ou política corporativa equivalente que permita à identidade de migration criar os triggers versionados sem conceder `SUPER` ao runtime):
 - TLS disponível e habilitado para a conexão da API: `sim` (obrigatório com `NODE_ENV=production`):
 - CA corporativa própria? `sim/não`:
 - Se houver CA, caminho absoluto onde ela ficará no host da API:
@@ -39,6 +41,8 @@ Em `NODE_ENV=production`, `npm run migrate` recusa:
 - `MYSQL_MIGRATION_USER` igual a `MYSQL_USER`.
 
 A senha de migration não deve permanecer no `.env` do serviço da API depois da atualização de schema. Preferir secret temporário, cofre corporativo ou mecanismo equivalente da TI.
+
+O schema do SEGEMPAT possui triggers de integridade e auditoria. Em servidores MySQL com binary logging ativo e `log_bin_trust_function_creators=0`, a criação desses objetos pode exigir privilégio global elevado. A configuração recomendada para homologação é a TI aprovar `log_bin_trust_function_creators=1` (ou mecanismo corporativo equivalente) durante a política de migrations, mantendo a conta de runtime sem `SUPER` e sem DDL. O workflow descartável do GitHub reproduz essa separação.
 
 Se o MySQL corporativo não oferecer TLS para o host da API, a homologação em modo `production` deve parar até a TI definir uma solução compatível; não desabilitar o controle apenas para fazer o gate passar.
 
