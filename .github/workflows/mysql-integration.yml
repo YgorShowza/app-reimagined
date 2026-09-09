@@ -53,13 +53,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Normalize dependency registries
+        run: node scripts/normalize-package-registries.mjs
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          registry-url: https://registry.npmjs.org
 
-      - name: Install API dependencies
-        run: npm ci --prefix server --ignore-scripts
+      - name: Install API dependencies from official npm registry
+        run: npm ci --prefix server --ignore-scripts --registry=https://registry.npmjs.org/ --replace-registry-host=always
 
       - name: Prepare integration storage
         run: mkdir -p "$SEGEMPAT_STORAGE_PATH"
