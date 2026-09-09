@@ -1,6 +1,6 @@
 # SEGEMPAT — Guia de revisão técnica pela TI
 
-Atualizado em 08/09/2026.
+Atualizado em 09/09/2026.
 
 Este documento é o ponto de entrada para a análise técnica do repositório pela TI. Ele descreve o estado do código antes da conexão/homologação no ambiente corporativo.
 
@@ -9,6 +9,8 @@ Este documento é o ponto de entrada para a análise técnica do repositório pe
 **PARTE DO MYSQL NO CÓDIGO CONCLUÍDA — PRONTO PARA CONECTAR AO BANCO DA EMPRESA.**
 
 O projeto ainda **não** deve ser declarado homologado no MySQL corporativo. A homologação depende do ambiente real da empresa, credenciais segregadas, TLS, rede, storage, backup/restore, domínio e testes E2E.
+
+Revisão verificada nesta atualização: `main` em `db1912a9450f8d65a20bd94075a110fb3f0a040a`.
 
 ## 2. Arquitetura vigente
 
@@ -106,15 +108,21 @@ Depois:
 6. validar backup, restore e rollback;
 7. preencher `HOMOLOGATION_EVIDENCE_TEMPLATE.md`.
 
-## 7. CI/CD e situação dos runners
+## 7. CI/CD — estado verificado em 09/09/2026
 
-O repositório possui contratos automatizados para build, arquitetura, MySQL, segurança, permissões, recuperação de senha, privacidade, apresentação e experiência desktop.
+Os runners hospedados do GitHub Actions voltaram a executar normalmente. No commit `db1912a9450f8d65a20bd94075a110fb3f0a040a`, já incorporado à `main`, os cinco gates estruturais terminaram com sucesso:
 
-No momento desta revisão, os jobs hospedados do GitHub Actions estão sendo encerrados antes da execução, sem runner atribuído e sem steps iniciados. Isso deve ser tratado como uma pendência de infraestrutura/execução do GitHub, e não como evidência de aprovação ou reprovação do código.
+- `SEGEMPAT CI` — run 1011 — sucesso;
+- `SEGEMPAT Contract Suite` — run 4 — sucesso;
+- `SEGEMPAT MySQL Integration` — run 80 — sucesso;
+- `SEGEMPAT MySQL Final Hardening` — run 80 — sucesso;
+- `SEGEMPAT Cloudflare Deployment Readiness` — run 27 — sucesso.
 
-O Cloudflare, por outro lado, compilou/publicou com sucesso o HEAD do `main` usado antes deste pacote de revisão. Após esta alteração, o SHA final também deve ser confirmado no Cloudflare.
+O `SEGEMPAT CI` validou arquitetura API-only, migrations, sintaxe/configuração da API, sessão/CSRF, cutover do frontend, hardening do deploy, typecheck, lint e build corporativo. O `SEGEMPAT MySQL Integration` executou preflight, todas as migrations, smoke completo e readiness contra MySQL 8 real em ambiente de integração. O gate de Cloudflare concluiu build corporativo e `wrangler deploy --dry-run` com sucesso.
 
-Antes de exigir checks como regra obrigatória do `main`, a TI deve confirmar que os runners estão executando normalmente e rerodar os gates.
+Os 24 contratos leves anteriormente separados foram consolidados em `SEGEMPAT Contract Suite`, preservando as validações em um único runner para reduzir consumo de minutos do GitHub Actions.
+
+**Nenhum deploy de produção foi executado nesta validação.** O workflow de produção continua manual, protegido e separado do gate de readiness.
 
 ## 8. Repositório público e segredos
 
@@ -130,6 +138,8 @@ Os arquivos `.env.mysql.example` e `server/.env.example` são apenas modelos. Os
 
 ## 9. Branch principal
 
-A recomendação para produção é proteger `main` contra exclusão/force-push e exigir Pull Request + checks obrigatórios. A proteção deve ser ativada depois que os runners estiverem normais, para não transformar a indisponibilidade atual do GitHub Actions em bloqueio permanente de manutenção.
+O GitHub reporta a branch `main` como protegida nesta revisão. Entretanto, a configuração atual de `required status checks` não possui contexts/checks obrigatórios configurados.
+
+Agora que os runners estão executando normalmente, a recomendação antes do uso produtivo é manter a proteção contra exclusão/force-push e configurar PR + checks obrigatórios para impedir merge de revisão que não passe pelos gates definidos pela TI. Os nomes finais dos checks obrigatórios devem ser selecionados na configuração administrativa do repositório a partir dos jobs que já executam com sucesso.
 
 A aprovação final, política de deploy, branch protection, domínio, rede e secrets pertencem à governança da TI da empresa.
