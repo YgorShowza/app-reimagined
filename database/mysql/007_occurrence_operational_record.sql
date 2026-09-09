@@ -36,7 +36,11 @@ CREATE TABLE occurrence_updates (
 CREATE TABLE occurrence_attachments (
   id CHAR(36) NOT NULL,
   occurrence_id CHAR(36) NOT NULL,
-  storage_path VARCHAR(1024) NOT NULL,
+  -- Caminho interno é sempre gerado pela API com segmentos ASCII
+  -- (occurrence-evidence/<uuid>/<uuid>.<ext>). Manter charset ASCII permite
+  -- preservar unicidade sobre os 1024 caracteres sem ultrapassar o limite
+  -- de 3072 bytes por chave do InnoDB com utf8mb4.
+  storage_path VARCHAR(1024) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   original_name VARCHAR(255) NOT NULL,
   mime_type VARCHAR(80) NOT NULL,
   size_bytes INT UNSIGNED NOT NULL,

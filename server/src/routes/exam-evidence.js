@@ -91,7 +91,8 @@ examEvidenceRouter.get(
   requireAdmin,
   asyncHandler(async (req, res) => {
     const attempt = await queryOne(
-      `SELECT a.*, e.title AS exam_title, e.questions,
+      `SELECT a.*, e.title AS exam_title, e.description AS exam_description, e.exam_type,
+              e.min_approval_pct, e.questions,
               COALESCE(emp.full_name, a.signature_name, a.matricula, 'Colaborador') AS employee_name,
               COALESCE(emp.sector, '—') AS employee_sector
          FROM exam_attempts a
@@ -109,6 +110,9 @@ examEvidenceRouter.get(
       attempt_id: attempt.id,
       exam_id: attempt.exam_id,
       exam_title: attempt.exam_title,
+      exam_description: attempt.exam_description,
+      exam_type: attempt.exam_type,
+      min_approval_pct: Number(attempt.min_approval_pct ?? 70),
       employee_name: attempt.employee_name,
       matricula: attempt.matricula,
       sector: attempt.employee_sector,

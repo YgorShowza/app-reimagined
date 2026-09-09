@@ -49,18 +49,20 @@ async function main() {
     const tablePlaceholders = tableNames.map(() => "?").join(",");
     const indexPlaceholders = indexNames.map(() => "?").join(",");
 
+    // Alias explícito evita depender da caixa usada pelo INFORMATION_SCHEMA /
+    // driver em versões diferentes do MySQL 8.
     const rows = await query(
-      `SELECT table_name,
-              index_name,
-              non_unique,
-              seq_in_index,
-              column_name,
-              sub_part
+      `SELECT TABLE_NAME AS table_name,
+              INDEX_NAME AS index_name,
+              NON_UNIQUE AS non_unique,
+              SEQ_IN_INDEX AS seq_in_index,
+              COLUMN_NAME AS column_name,
+              SUB_PART AS sub_part
          FROM information_schema.statistics
         WHERE table_schema = DATABASE()
           AND table_name IN (${tablePlaceholders})
           AND index_name IN (${indexPlaceholders})
-        ORDER BY table_name, index_name, seq_in_index`,
+        ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX`,
       [...tableNames, ...indexNames],
     );
 

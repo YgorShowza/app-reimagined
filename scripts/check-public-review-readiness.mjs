@@ -4,6 +4,14 @@ import { execFileSync } from "node:child_process";
 
 const root = process.cwd();
 const failures = [];
+const auditedHistoricalSensitiveBlobs = new Map([
+  // Antigo .env removido em 2026-09-07. O blob contém somente identificadores,
+  // URL e chave Supabase publishable destinados ao cliente; não contém service
+  // role, senha, chave privada ou credencial MySQL. A exceção é pelo SHA exato:
+  // qualquer outro .env histórico continua bloqueando a publicação.
+  ["9a2788223df6456976423af36eae73443345b5aa", ".env"],
+]);
+const auditedHistoricalHits = [];
 
 function fail(message) {
   failures.push(message);
@@ -46,6 +54,7 @@ const secretPatterns = [
   [/\bgithub_pat_[A-Za-z0-9_]{40,}\b/g, "GitHub fine-grained personal access token"],
   [/\bAKIA[0-9A-Z]{16}\b/g, "AWS access key"],
   [/\bAIza[0-9A-Za-z_-]{30,}\b/g, "Google API key"],
+  [/\bsb_secret_[A-Za-z0-9_-]{20,}\b/g, "Supabase secret key"],
 ];
 
 function scanText(text, label) {
@@ -82,26 +91,32 @@ for (const file of trackedFiles) {
   scanText(data.toString("utf8"), `HEAD ${file}`);
 }
 
-// A troca private -> public publica também o histórico Git. Por isso, nomes de
-// arquivos sensíveis que tenham existido em qualquer commit bloqueiam o gate,
-// mesmo que tenham sido apagados posteriormente.
+// A publicação expõe também o histórico Git. Arquivos sensíveis históricos só
+// podem ser aceitos quando o blob E o caminho correspondem exatamente a uma
+// exceção previamente auditada. Não existe liberação genérica para .env.
 try {
   const historyObjects = git(["rev-list", "--objects", "--all"]);
   for (const line of historyObjects.split("\n")) {
     const separator = line.indexOf(" ");
     if (separator < 0) continue;
+    const objectSha = line.slice(0, separator).trim();
     const historicalPath = line.slice(separator + 1).trim();
-    if (historicalPath && isForbiddenSensitivePath(historicalPath)) {
-      fail(`arquivo sensível encontrado no histórico Git: ${historicalPath}`);
+    if (!historicalPath || !isForbiddenSensitivePath(historicalPath)) continue;
+
+    const auditedPath = auditedHistoricalSensitiveBlobs.get(objectSha);
+    if (auditedPath === historicalPath) {
+      auditedHistoricalHits.push(`${historicalPath}@${objectSha.slice(0, 12)}`);
+      continue;
     }
+    fail(`arquivo sensível encontrado no histórico Git: ${historicalPath}`);
   }
 } catch {
   fail("não foi possível examinar os nomes de arquivos do histórico Git");
 }
 
-// Procura padrões de segredo no patch de todo o histórico. Não é substituto para
-// secret scanning corporativo, mas impede que marcadores críticos conhecidos sejam
-// ignorados antes da publicação.
+// Procura padrões de segredo no patch de todo o histórico. A exceção de caminho
+// acima não desliga esta varredura: um segredo conhecido dentro de qualquer patch
+// continua fazendo o gate falhar.
 try {
   const historyPatch = git([
     "log",
@@ -146,4 +161,7 @@ if (failures.length) {
 }
 
 console.log(`SEGEMPAT public review readiness: OK (${trackedFiles.length} arquivos versionados; histórico Git verificado).`);
+if (auditedHistoricalHits.length) {
+  console.log(`Histórico sensível conhecido e auditado por SHA exato: ${auditedHistoricalHits.join(", ")}.`);
+}
 console.log("Observação: este gate complementa, mas não substitui, secret scanning e política de segurança da TI.");

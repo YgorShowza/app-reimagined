@@ -43,7 +43,7 @@ requireText(readme, "010_granular_access_control.sql", "README documenta migrati
 requireText(readme, "Disallow: /", "README documenta bloqueio de indexação");
 
 requireText(security, "último Master realmente utilizável", "auditoria documenta proteção do último Master utilizável");
-requireText(security, "leituras gerenciais", "auditoria documenta redaction/coerência de leitura");
+requireText(security, "Leituras gerenciais", "auditoria documenta redaction/coerência de leitura");
 requireText(security, "recuperação administrativa", "auditoria documenta hierarquia de recuperação de senha");
 requireText(security, "Disallow: /", "auditoria documenta proteção contra indexação");
 

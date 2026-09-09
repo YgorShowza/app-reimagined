@@ -45,7 +45,7 @@ jobs:
           grep -F 'activity selected' "$page" >/dev/null || grep -F 'atividade selecionada no gráfico' "$page" >/dev/null
           grep -F 'getIndividualAttemptEvidence' "$page" >/dev/null
           grep -F 'correct_answer' "$model" >/dev/null
-          grep -F 'getAdminExamAttemptEvidence' "$model" >/dev/null
+          grep -F 'getInsightExamAttemptEvidence' "$model" >/dev/null
           grep -F 'normalizeDemoScore' "$demo" >/dev/null
           grep -F 'demo-attempt-perf-04' "$demo" >/dev/null
           echo "Contrato robusto da Análise Individual v2 validado."
