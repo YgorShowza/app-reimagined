@@ -28,9 +28,10 @@ type RiskFilter = RiskLevel | "Todos";
 
 const RISK_LEVELS: RiskLevel[] = ["Alto", "Médio", "Baixo", "Normal"];
 
-function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+function Card({ children, className = "", role }: { children: React.ReactNode; className?: string; role?: "alert" }) {
   return (
     <section
+      role={role}
       className={`rounded-2xl ${className}`}
       style={{
         background: "var(--bg-surface)",
