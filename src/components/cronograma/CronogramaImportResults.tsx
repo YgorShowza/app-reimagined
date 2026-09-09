@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import * as XLSX from "xlsx";
+import { readSheet } from "read-excel-file/browser";
 import { AlertTriangle, CheckCircle2, FileSpreadsheet, Loader2, Upload, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -66,6 +66,12 @@ function parseScore(value: unknown) {
 }
 
 function parseDate(value: unknown, fallbackMonth: string) {
+  if (value instanceof Date && Number.isFinite(value.getTime())) {
+    const year = value.getUTCFullYear();
+    const month = String(value.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(value.getUTCDate()).padStart(2, "0");
+    return { date: `${year}-${month}-${day}`, month: `${year}-${month}` };
+  }
   const raw = String(value ?? "").trim();
   const iso = raw.match(/(\d{4})-(\d{2})-(\d{2})/);
   if (iso) return { date: `${iso[1]}-${iso[2]}-${iso[3]}`, month: `${iso[1]}-${iso[2]}` };
@@ -93,8 +99,11 @@ function findHeaderRow(rows: unknown[][]) {
 
 function validateSpreadsheetFile(file: File) {
   const extension = file.name.split(".").pop()?.toLowerCase();
-  if (extension !== "xlsx" && extension !== "xls") {
-    throw new Error("Formato inválido. Envie somente arquivo .xlsx ou .xls.");
+  if (extension !== "xlsx") {
+    if (extension === "xls") {
+      throw new Error("O formato .xls legado não é aceito por segurança. Salve o arquivo como .xlsx e tente novamente.");
+    }
+    throw new Error("Formato inválido. Envie somente arquivo .xlsx.");
   }
   if (file.size <= 0) throw new Error("O arquivo selecionado está vazio.");
   if (file.size > MAX_IMPORT_FILE_BYTES) {
@@ -103,27 +112,19 @@ function validateSpreadsheetFile(file: File) {
 }
 
 function validateSpreadsheetSignature(buffer: ArrayBuffer) {
-  const bytes = new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 8));
+  const bytes = new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 4));
   const isZip = bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
-  const isOle = bytes.length >= 8 && bytes[0] === 0xd0 && bytes[1] === 0xcf && bytes[2] === 0x11 && bytes[3] === 0xe0 && bytes[4] === 0xa1 && bytes[5] === 0xb1 && bytes[6] === 0x1a && bytes[7] === 0xe1;
-  if (!isZip && !isOle) {
-    throw new Error("O conteúdo do arquivo não corresponde a uma planilha Excel válida.");
+  if (!isZip) {
+    throw new Error("O conteúdo do arquivo não corresponde a uma planilha .xlsx válida.");
   }
 }
 
-function sheetToObjects(sheet: XLSX.WorkSheet) {
-  const rangeRef = sheet["!ref"];
-  if (rangeRef) {
-    const range = XLSX.utils.decode_range(rangeRef);
-    const rowCount = range.e.r - range.s.r + 1;
-    const columnCount = range.e.c - range.s.c + 1;
-    if (rowCount > MAX_IMPORT_ROWS + 16) throw new Error(`A planilha excede o limite de ${MAX_IMPORT_ROWS} linhas de dados.`);
-    if (columnCount > MAX_IMPORT_COLUMNS) throw new Error(`A planilha excede o limite de ${MAX_IMPORT_COLUMNS} colunas.`);
-  }
-
-  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "", raw: false });
+function sheetRowsToObjects(rows: unknown[][]) {
   if (!rows.length) return [] as Record<string, unknown>[];
   if (rows.length > MAX_IMPORT_ROWS + 16) throw new Error(`A planilha excede o limite de ${MAX_IMPORT_ROWS} linhas de dados.`);
+
+  const columnCount = rows.reduce((largest, row) => Math.max(largest, row?.length ?? 0), 0);
+  if (columnCount > MAX_IMPORT_COLUMNS) throw new Error(`A planilha excede o limite de ${MAX_IMPORT_COLUMNS} colunas.`);
 
   const headerIndex = findHeaderRow(rows);
   const headers = rows[headerIndex] ?? [];
@@ -181,21 +182,8 @@ export function CronogramaImportResults({ open, onOpenChange, onComplete }: { op
       validateSpreadsheetFile(file);
       const buffer = await file.arrayBuffer();
       validateSpreadsheetSignature(buffer);
-      const workbook = XLSX.read(buffer, {
-        type: "array",
-        sheets: 0,
-        sheetRows: MAX_IMPORT_ROWS + 16,
-        cellFormula: false,
-        cellHTML: false,
-        cellNF: false,
-        cellStyles: false,
-        bookVBA: false,
-      });
-      const firstSheet = workbook.SheetNames[0];
-      if (!firstSheet) throw new Error("A planilha não possui abas.");
-      const sheet = workbook.Sheets[firstSheet];
-      if (!sheet) throw new Error("A primeira aba da planilha não pôde ser lida.");
-      const rawRows = sheetToObjects(sheet);
+      const sheetRows = await readSheet(file);
+      const rawRows = sheetRowsToObjects(sheetRows as unknown[][]);
       if (!rawRows.length) throw new Error("Nenhuma linha de dados foi reconhecida.");
 
       const employees = await listEmployees();
@@ -272,11 +260,11 @@ export function CronogramaImportResults({ open, onOpenChange, onComplete }: { op
               <div className="space-y-1.5"><Label>Mês padrão</Label><Input type="month" value={month} onChange={(event) => setMonth(event.target.value)} /></div>
               <p className="text-xs leading-relaxed" style={{ color: "var(--text-4)" }}>Se a planilha tiver uma coluna de data, o mês será obtido dela. Caso contrário, será usado o mês padrão selecionado.</p>
             </div>
-            <input ref={inputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) parseFile(file); event.currentTarget.value = ""; }} />
+            <input ref={inputRef} type="file" accept=".xlsx" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) parseFile(file); event.currentTarget.value = ""; }} />
             <button type="button" disabled={parsing} onClick={() => inputRef.current?.click()} className="w-full rounded-2xl border-2 border-dashed p-10 text-center transition-colors" style={{ borderColor: "var(--border)", background: "var(--bg-surface-2)" }}>
               {parsing ? <Loader2 className="mx-auto h-9 w-9 animate-spin text-[#C8102E]" /> : <Upload className="mx-auto h-9 w-9 text-[#C8102E]" />}
               <p className="mt-3 font-black" style={{ color: "var(--text-1)" }}>{parsing ? "Lendo planilha..." : "Selecionar arquivo Excel"}</p>
-              <p className="mt-1 text-xs" style={{ color: "var(--text-4)" }}>Aceita .xlsx e .xls de até 5 MB. Nenhum dado é gravado antes da revisão.</p>
+              <p className="mt-1 text-xs" style={{ color: "var(--text-4)" }}>Aceita .xlsx de até 5 MB. Arquivos .xls legados devem ser salvos como .xlsx. Nenhum dado é gravado antes da revisão.</p>
             </button>
           </div>
         )}
