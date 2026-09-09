@@ -157,8 +157,11 @@ async function main() {
   });
 
   try {
+    // Alias explícito: INFORMATION_SCHEMA pode preservar nomes de coluna em caixa
+    // alta dependendo do driver/versão. O contrato abaixo usa chaves estáveis.
     const [tableRows] = await connection.execute(
-      `SELECT engine, table_collation
+      `SELECT ENGINE AS engine,
+              TABLE_COLLATION AS table_collation
          FROM information_schema.tables
         WHERE table_schema = DATABASE()
           AND table_name = 'schema_migrations'
@@ -178,28 +181,32 @@ async function main() {
     }
 
     const [columnRows] = await connection.execute(
-      `SELECT column_name,
-              data_type,
-              character_maximum_length,
-              datetime_precision,
-              is_nullable,
-              column_default,
-              character_set_name,
-              collation_name,
-              extra
+      `SELECT COLUMN_NAME AS column_name,
+              DATA_TYPE AS data_type,
+              CHARACTER_MAXIMUM_LENGTH AS character_maximum_length,
+              DATETIME_PRECISION AS datetime_precision,
+              IS_NULLABLE AS is_nullable,
+              COLUMN_DEFAULT AS column_default,
+              CHARACTER_SET_NAME AS character_set_name,
+              COLLATION_NAME AS collation_name,
+              EXTRA AS extra
          FROM information_schema.columns
         WHERE table_schema = DATABASE()
           AND table_name = 'schema_migrations'
-        ORDER BY ordinal_position`,
+        ORDER BY ORDINAL_POSITION`,
     );
     validateColumns(columnRows);
 
     const [indexRows] = await connection.execute(
-      `SELECT index_name, non_unique, seq_in_index, column_name, sub_part
+      `SELECT INDEX_NAME AS index_name,
+              NON_UNIQUE AS non_unique,
+              SEQ_IN_INDEX AS seq_in_index,
+              COLUMN_NAME AS column_name,
+              SUB_PART AS sub_part
          FROM information_schema.statistics
         WHERE table_schema = DATABASE()
           AND table_name = 'schema_migrations'
-        ORDER BY index_name, seq_in_index`,
+        ORDER BY INDEX_NAME, SEQ_IN_INDEX`,
     );
     const indexes = groupIndexes(indexRows);
     validateIndex(indexes, "PRIMARY", ["version"]);
