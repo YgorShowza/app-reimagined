@@ -25,7 +25,7 @@ jobs:
           ROUTE=src/routes/_authenticated/treinamentos.tsx
           grep -F 'Academia SEGEMPAT' "$FILE" >/dev/null
           grep -F 'Prática & desenvolvimento' "$FILE" >/dev/null
-          grep -F 'Continuar capacitação' "$FILE" >/dev/null
+          grep -F 'Começar pela trilha' "$FILE" >/dev/null
           grep -F 'Biblioteca' "$FILE" >/dev/null
           for route in /teste-rapido /simulador /stress-test /desafio-diario /progresso /certificados; do
             grep -F "path=\"$route\"" "$FILE" >/dev/null || { echo "Ferramenta ausente da Academia: $route"; exit 1; }
