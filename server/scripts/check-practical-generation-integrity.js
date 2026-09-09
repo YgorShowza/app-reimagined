@@ -39,6 +39,11 @@ function validateIndex(rows, indexName, expectedColumns, { unique }) {
   }
 }
 
+function normalizeReferentialRule(value) {
+  const normalized = String(value || "").toUpperCase();
+  return normalized === "NO ACTION" ? "RESTRICT" : normalized;
+}
+
 async function assertZero(sql, message) {
   const row = await queryOne(sql);
   const total = Number(row?.total ?? 0);
@@ -114,8 +119,8 @@ async function main() {
       String(foreignKey.column_name) !== "template_id" ||
       String(foreignKey.referenced_table_name) !== "practical_eval_templates" ||
       String(foreignKey.referenced_column_name) !== "id" ||
-      String(foreignKey.delete_rule).toUpperCase() !== "RESTRICT" ||
-      String(foreignKey.update_rule).toUpperCase() !== "RESTRICT"
+      normalizeReferentialRule(foreignKey.delete_rule) !== "RESTRICT" ||
+      normalizeReferentialRule(foreignKey.update_rule) !== "RESTRICT"
     ) {
       throw new Error("practical_evaluations_template_fk: definição ou regras referenciais divergentes da migration 004");
     }
