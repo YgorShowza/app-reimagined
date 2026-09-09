@@ -175,7 +175,7 @@ function AttentionCenterPage() {
         <Metric label="Ações críticas" value={critical.length} icon={ShieldAlert} color="#ef4444" sub="prioridade imediata" />
         <Metric label="Em atenção" value={attention.length} icon={AlertTriangle} color="#f59e0b" sub="requer decisão" />
         <Metric label="Acompanhar" value={monitor.length} icon={Target} color="#3b82f6" sub="monitoramento" />
-        <Metric label="Total sinalizado" value={data.items.length} icon={BellRing} color="var(--accent)" sub="todos os módulos" />
+        <Metric label="Total sinalizado" value={data.items.length} icon={BellRing} color="#C8102E" sub="todos os módulos" />
       </section>
 
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
@@ -184,7 +184,7 @@ function AttentionCenterPage() {
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-2.5 xl:flex-row xl:items-center xl:justify-between xl:gap-3">
                 <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap" aria-label="Filtrar por prioridade">
-                  <FilterButton active={priorityFilter === "all"} label={`Todas · ${data.items.length}`} onClick={() => setPriorityFilter("all")} />
+                  <FilterButton active={priorityFilter === "all"} label={`Todas · ${data.items.length}`} color="#C8102E" onClick={() => setPriorityFilter("all")} />
                   <FilterButton active={priorityFilter === "critical"} label={`Críticas · ${critical.length}`} color="#ef4444" onClick={() => setPriorityFilter("critical")} />
                   <FilterButton active={priorityFilter === "attention"} label={`Atenção · ${attention.length}`} color="#f59e0b" onClick={() => setPriorityFilter("attention")} />
                   <FilterButton active={priorityFilter === "monitor"} label={`Acompanhar · ${monitor.length}`} color="#3b82f6" onClick={() => setPriorityFilter("monitor")} />
@@ -222,7 +222,7 @@ function AttentionCenterPage() {
                 const Icon = CATEGORY_ICON[source.source];
                 const active = categoryFilter === source.source;
                 return (
-                  <button type="button" key={source.source} onClick={() => setCategoryFilter(active ? "all" : source.source)} aria-pressed={active} className="flex w-full items-center gap-3 rounded-xl p-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 md:p-3" style={{ background: active ? "var(--accent-soft)" : undefined, border: active ? "1px solid color-mix(in srgb, var(--accent) 30%, transparent)" : "1px solid transparent" }}>
+                  <button type="button" key={source.source} onClick={() => setCategoryFilter(active ? "all" : source.source)} aria-pressed={active} className="flex w-full items-center gap-3 rounded-xl p-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 md:p-3" style={{ background: active ? "var(--accent-soft)" : undefined, border: active ? "1px solid var(--accent)" : "1px solid transparent" }}>
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: source.ok ? (active ? "var(--bg-surface)" : "var(--accent-soft)") : "rgba(245,158,11,.10)" }}><Icon className="h-4 w-4" style={{ color: source.ok ? "var(--accent)" : "#f59e0b" }} /></div>
                     <div className="min-w-0 flex-1"><p className="truncate text-xs font-black" style={{ color: "var(--text-1)" }}>{source.source}</p><p className="mt-0.5 text-[10px]" style={{ color: source.ok ? "var(--text-4)" : "#f59e0b" }}>{source.ok ? `${count} sinal${count === 1 ? "" : "is"}` : "consulta indisponível"}</p></div>
                     <span className="text-lg font-black" style={{ color: count > 0 ? "var(--text-1)" : "var(--text-4)" }}>{count}</span>
@@ -280,7 +280,7 @@ function Metric({ label, value, icon: Icon, color, sub }: { label: string; value
   );
 }
 
-function FilterButton({ active, label, onClick, color = "var(--accent)" }: { active: boolean; label: string; onClick: () => void; color?: string }) {
+function FilterButton({ active, label, onClick, color = "#C8102E" }: { active: boolean; label: string; onClick: () => void; color?: string }) {
   return <button type="button" aria-pressed={active} onClick={onClick} className="w-full rounded-xl px-2.5 py-2 text-[10px] font-black transition-colors focus-visible:outline-none focus-visible:ring-2 sm:w-auto md:px-3 md:text-xs" style={active ? { background: `${color}14`, border: `1px solid ${color}40`, color } : { background: "var(--bg-surface-2)", border: "1px solid var(--border)", color: "var(--text-4)" }}>{label}</button>;
 }
 
