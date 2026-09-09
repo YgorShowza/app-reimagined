@@ -8,8 +8,10 @@ let changed = 0;
 
 for (const file of files) {
   const original = await readFile(file, "utf8");
+  legacyCachePattern.lastIndex = 0;
   const normalized = original.replace(legacyCachePattern, officialRegistry);
 
+  legacyCachePattern.lastIndex = 0;
   if (legacyCachePattern.test(normalized)) {
     throw new Error(`Cache de pacote externo ainda presente em ${file}`);
   }
