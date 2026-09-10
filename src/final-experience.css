@@ -196,6 +196,7 @@ main .overflow-x-auto,
   nav[aria-label="Navegação rápida"] {
     padding-left: max(.5rem, env(safe-area-inset-left));
     padding-right: max(.5rem, env(safe-area-inset-right));
+    padding-bottom: max(.375rem, env(safe-area-inset-bottom));
   }
 
   nav[aria-label="Navegação rápida"] a > div {
