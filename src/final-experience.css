@@ -1,0 +1,145 @@
+/* SEGEMPAT · Final Experience Polish
+ * Camada de acabamento transversal para desktop, notebook, tablet e mobile.
+ * Mantém o design system existente e corrige detalhes de legibilidade,
+ * foco, overflow, safe-area e interação sem alterar regras de negócio.
+ */
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  min-width: 320px;
+  overflow-x: hidden;
+}
+
+main,
+main > div,
+.segempat-operator-desktop,
+.segempat-inspector-desktop {
+  min-width: 0;
+}
+
+img,
+video,
+canvas {
+  max-width: 100%;
+}
+
+button,
+a,
+input,
+textarea,
+select,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:where(button, a, input, textarea, select, [role="button"], [role="tab"]):focus-visible {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 3px;
+}
+
+main .overflow-x-auto {
+  overscroll-behavior-x: contain;
+  scrollbar-gutter: stable;
+}
+
+.segempat-sidebar-link[data-active="false"]:hover,
+.segempat-sidebar-section:hover {
+  background: var(--bg-surface-2);
+}
+
+.segempat-profile-page {
+  width: 100%;
+  min-width: 0;
+}
+
+.segempat-profile-card,
+.segempat-profile-action,
+.segempat-profile-history-row {
+  min-width: 0;
+}
+
+.segempat-profile-action {
+  text-decoration: none;
+}
+
+.segempat-profile-history-row:last-child {
+  border-bottom: 0 !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .segempat-profile-card,
+  .segempat-profile-action {
+    transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease, background-color 150ms ease;
+  }
+
+  .segempat-profile-action:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--accent) 30%, var(--border)) !important;
+    box-shadow: var(--shadow-md);
+  }
+
+  .segempat-profile-card:hover {
+    border-color: color-mix(in srgb, var(--accent) 18%, var(--border)) !important;
+  }
+}
+
+@media (max-width: 767px) {
+  /* Evita o zoom automático de formulários no Safari/iOS. */
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  [role="dialog"] {
+    max-height: min(88dvh, 760px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .segempat-profile-hero {
+    border-radius: 1.25rem !important;
+  }
+
+  .segempat-profile-action {
+    min-height: 4.25rem;
+  }
+
+  .segempat-profile-history-row {
+    align-items: flex-start !important;
+  }
+
+  .segempat-profile-history-score {
+    min-width: 4.25rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .segempat-profile-page {
+    max-width: 1440px;
+  }
+
+  .segempat-profile-history-grid {
+    align-items: start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
