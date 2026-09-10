@@ -13,6 +13,7 @@ import {
   Search,
   ShieldAlert,
   Target,
+  UserRound,
   UserRoundSearch,
   Users,
   X,
@@ -20,6 +21,7 @@ import {
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { canAccessAdminPath } from "@/lib/access-control";
 import { listEmployees } from "@/lib/employees";
 import { listOccurrences } from "@/lib/occurrences";
 import { listKnowledgeItems } from "@/lib/operations";
@@ -47,6 +49,7 @@ type SearchPath =
   | "/pendencias"
   | "/progresso"
   | "/certificados"
+  | "/meu-perfil"
   | "/pratico"
   | "/minhas-ocorrencias";
 
@@ -90,6 +93,7 @@ const staticResults: StaticResult[] = [
   { id: "operator-pending", title: "Pendências", subtitle: "Atividades e ações pendentes", keywords: "atividade vencimento atenção", path: "/pendencias", icon: BellRing, audience: "operator" },
   { id: "operator-progress", title: "Progresso", subtitle: "Evolução pessoal", keywords: "nota desempenho evolução", path: "/progresso", icon: BarChart3, audience: "operator" },
   { id: "academy", title: "Academia SEGEMPAT", subtitle: "Capacitação, prática e desenvolvimento", keywords: "treinamento simulador desafio teste rápido stress", path: "/treinamentos", icon: GraduationCap, audience: "all" },
+  { id: "my-profile", title: "Meu Perfil", subtitle: "Identidade, nível, ciclo e histórico individual", keywords: "perfil conta matrícula nivel pontos histórico", path: "/meu-perfil", icon: UserRound, audience: "all" },
   { id: "operator-certificates", title: "Certificados", subtitle: "Aprovações e documentos pessoais", keywords: "certificado prova aprovação", path: "/certificados", icon: FileSpreadsheet, audience: "operator" },
   { id: "operator-knowledge", title: "Base de Conhecimento", subtitle: "Procedimentos e referências operacionais", keywords: "conteúdo procedimento documento", path: "/conteudos", icon: BookOpen, audience: "operator" },
   { id: "operator-practical", title: "Avaliação Prática", subtitle: "Minhas avaliações práticas", keywords: "prático checklist", path: "/pratico", icon: Target, audience: "operator" },
@@ -112,6 +116,12 @@ export function GlobalSearch() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
+  const canSearchPeople = Boolean(
+    user && isAdmin && canAccessAdminPath(user, "/equipe") && canAccessAdminPath(user, "/individual"),
+  );
+  const canSearchOccurrences = !isAdmin || Boolean(user && canAccessAdminPath(user, "/ocorrencias"));
+  const canSearchKnowledge = !isAdmin || Boolean(user && canAccessAdminPath(user, "/ia-base"));
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
@@ -131,21 +141,21 @@ export function GlobalSearch() {
   const employees = useQuery({
     queryKey: ["global-search-employees"],
     queryFn: listEmployees,
-    enabled: open && isAdmin,
+    enabled: open && canSearchPeople,
     staleTime: 60_000,
     retry: false,
   });
   const occurrences = useQuery({
     queryKey: ["global-search-occurrences"],
     queryFn: listOccurrences,
-    enabled: open,
+    enabled: open && canSearchOccurrences,
     staleTime: 30_000,
     retry: false,
   });
   const knowledge = useQuery({
     queryKey: ["global-search-knowledge"],
     queryFn: listKnowledgeItems,
-    enabled: open,
+    enabled: open && canSearchKnowledge,
     staleTime: 60_000,
     retry: false,
   });
@@ -156,11 +166,12 @@ export function GlobalSearch() {
     const audience = isAdmin ? "admin" : "operator";
     const navigation = staticResults
       .filter((item) => item.audience === "all" || item.audience === audience)
+      .filter((item) => !isAdmin || !user || canAccessAdminPath(user, item.path))
       .filter((item) => matches(term, item.title, item.subtitle, item.keywords))
       .slice(0, term ? 8 : 6)
       .map((item) => ({ id: `nav-${item.id}`, group: "Navegação" as const, title: item.title, subtitle: item.subtitle, path: item.path, icon: item.icon }));
 
-    const people = isAdmin && term
+    const people = canSearchPeople && term
       ? (employees.data ?? []).filter((employee) => matches(term, employee.full_name, employee.matricula, employee.sector)).slice(0, 6).map((employee) => ({
           id: `employee-${employee.id}`,
           group: "Colaboradores" as const,
@@ -171,7 +182,7 @@ export function GlobalSearch() {
         }))
       : [];
 
-    const occurrenceRows = term
+    const occurrenceRows = canSearchOccurrences && term
       ? (occurrences.data ?? []).filter((occurrence) => matches(term, occurrence.title, occurrence.category, occurrence.location, occurrence.status, occurrence.severity, occurrence.description)).slice(0, 6).map((occurrence) => ({
           id: `occurrence-${occurrence.id}`,
           group: "Ocorrências" as const,
@@ -183,7 +194,7 @@ export function GlobalSearch() {
         }))
       : [];
 
-    const knowledgeRows = term
+    const knowledgeRows = canSearchKnowledge && term
       ? (knowledge.data ?? [])
           .filter((item) => item.active || isAdmin)
           .filter((item) => isAdmin || item.target_sector === "Todos" || normalize(item.target_sector) === sector)
@@ -200,10 +211,10 @@ export function GlobalSearch() {
       : [];
 
     return [...navigation, ...people, ...occurrenceRows, ...knowledgeRows];
-  }, [employees.data, isAdmin, knowledge.data, occurrences.data, sector, term]);
+  }, [canSearchKnowledge, canSearchOccurrences, canSearchPeople, employees.data, isAdmin, knowledge.data, occurrences.data, sector, term, user]);
 
   const groups = ["Navegação", "Colaboradores", "Ocorrências", "Conhecimento"] as const;
-  const partialFailure = (isAdmin && employees.isError) || occurrences.isError || knowledge.isError;
+  const partialFailure = (canSearchPeople && employees.isError) || (canSearchOccurrences && occurrences.isError) || (canSearchKnowledge && knowledge.isError);
 
   const openResult = (path: SearchPath) => {
     setOpen(false);
