@@ -24,8 +24,16 @@ jobs:
           set -euo pipefail
           test -f src/components/tv/TvOperationalDashboard.tsx
           test -f src/components/tv/TvOperationalDashboardDistance.tsx
+          test -f src/components/tv/tv-operational-final.css
           test -f src/lib/tv-dashboard.ts
-          grep -F 'TvOperationalDashboardDistance as TvOperationalDashboard' src/components/tv/TvOperationalDashboard.tsx >/dev/null
+          grep -F 'TvOperationalDashboardDistance' src/components/tv/TvOperationalDashboard.tsx >/dev/null
+          grep -F 'tv-operational-final' src/components/tv/TvOperationalDashboard.tsx >/dev/null
+          grep -F 'grid-template-rows: 7.8vh 18.5vh 38vh 30vh' src/components/tv/tv-operational-final.css >/dev/null
+          grep -F 'const key = month.month;' src/lib/tv-dashboard.ts >/dev/null
+          if grep -F 'const key = `${year}-${String(month.month).padStart(2, "0")}`;' src/lib/tv-dashboard.ts; then
+            echo 'Painel TV não pode reconstruir uma chave mensal que já vem normalizada.' >&2
+            exit 1
+          fi
           grep -F 'Sala Operacional' src/routes/_authenticated/tv.tsx >/dev/null
           grep -F 'canonicalPath === "/tv"' src/routes/_authenticated/route.tsx >/dev/null
           grep -F 'to="/tv"' src/routes/_authenticated/analytics.tsx >/dev/null
