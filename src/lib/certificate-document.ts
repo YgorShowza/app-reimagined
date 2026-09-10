@@ -238,7 +238,7 @@ ${preview ? ".document-stage{padding-top:0}.page{box-shadow:0 10px 28px rgba(0,0
   }
   if(document.readyState==="complete")prepare();else window.addEventListener("load",prepare,{once:true});
 })();
-<\/script>
+</script>
 </body></html>`;
 }
 
