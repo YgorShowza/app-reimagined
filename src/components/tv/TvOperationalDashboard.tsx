@@ -9,7 +9,6 @@ import {
   CircleGauge,
   Clock3,
   Expand,
-  ExternalLink,
   RefreshCcw,
   ShieldCheck,
   Target,
@@ -23,13 +22,16 @@ import { operationalYear } from "@/lib/operational-time";
 const RED = "#e31837";
 const GREEN = "#22c98b";
 const AMBER = "#f4aa35";
-const BLUE = "#4f8df7";
+const BLUE = "#5b96ff";
 const PURPLE = "#9b7cf6";
-const BG = "#080a0f";
-const PANEL = "rgba(20,23,31,.92)";
-const BORDER = "rgba(255,255,255,.085)";
-const TEXT = "#f5f7fb";
-const MUTED = "#8d94a4";
+const BG = "#07090d";
+const PANEL = "rgba(18,21,29,.94)";
+const PANEL_SOFT = "rgba(255,255,255,.028)";
+const BORDER = "rgba(255,255,255,.09)";
+const BORDER_STRONG = "rgba(255,255,255,.14)";
+const TEXT = "#f7f8fb";
+const MUTED = "#929aaa";
+const MUTED_2 = "#6f7787";
 
 function formatTime(date: Date) {
   return new Intl.DateTimeFormat("pt-BR", {
@@ -57,126 +59,330 @@ function timeOnly(value: string) {
   return Number.isNaN(date.getTime()) ? "—" : formatTime(date);
 }
 
-function Panel({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+function Panel({
+  children,
+  className = "",
+  accent,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  accent?: string;
+}) {
   return (
     <section
-      className={`relative overflow-hidden rounded-[1.15rem] ${className}`}
-      style={{ background: PANEL, border: `1px solid ${BORDER}`, boxShadow: "0 18px 45px rgba(0,0,0,.22)" }}
+      className={`relative min-w-0 overflow-hidden rounded-[1.15rem] ${className}`}
+      style={{
+        background: PANEL,
+        border: `1px solid ${BORDER}`,
+        boxShadow: "0 18px 46px rgba(0,0,0,.24)",
+      }}
     >
+      {accent && (
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-px"
+          style={{ background: `linear-gradient(90deg,${accent}b8,${accent}15 52%,transparent)` }}
+        />
+      )}
       {children}
     </section>
   );
 }
 
-function PanelTitle({ icon: Icon, title, subtitle, accent = RED }: { icon: typeof Activity; title: string; subtitle?: string; accent?: string }) {
+function PanelTitle({
+  icon: Icon,
+  title,
+  subtitle,
+  accent = RED,
+  aside,
+}: {
+  icon: typeof Activity;
+  title: string;
+  subtitle?: string;
+  accent?: string;
+  aside?: React.ReactNode;
+}) {
   return (
-    <div className="flex items-start justify-between gap-3">
-      <div className="flex min-w-0 items-start gap-2.5">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl" style={{ background: `${accent}16`, border: `1px solid ${accent}34` }}>
-          <Icon className="h-4 w-4" style={{ color: accent }} />
+    <div className="flex min-w-0 items-start justify-between gap-4">
+      <div className="flex min-w-0 items-start gap-[clamp(.55rem,.75vw,.85rem)]">
+        <div
+          className="flex h-[clamp(2rem,2.25vw,2.55rem)] w-[clamp(2rem,2.25vw,2.55rem)] shrink-0 items-center justify-center rounded-xl"
+          style={{ background: `${accent}13`, border: `1px solid ${accent}32` }}
+        >
+          <Icon className="h-[clamp(.9rem,1vw,1.08rem)] w-[clamp(.9rem,1vw,1.08rem)]" style={{ color: accent }} />
         </div>
         <div className="min-w-0">
-          <h2 className="truncate text-[clamp(.82rem,1vw,1.05rem)] font-black tracking-tight" style={{ color: TEXT }}>{title}</h2>
-          {subtitle && <p className="mt-0.5 truncate text-[clamp(.55rem,.62vw,.7rem)] font-medium" style={{ color: MUTED }}>{subtitle}</p>}
+          <h2
+            className="truncate text-[clamp(.9rem,1.08vw,1.22rem)] font-black tracking-[-.025em]"
+            style={{ color: TEXT }}
+          >
+            {title}
+          </h2>
+          {subtitle && (
+            <p
+              className="mt-0.5 truncate text-[clamp(.58rem,.64vw,.76rem)] font-semibold"
+              style={{ color: MUTED }}
+            >
+              {subtitle}
+            </p>
+          )}
         </div>
       </div>
+      {aside}
     </div>
   );
 }
 
-function KpiCard({ label, value, detail, icon: Icon, accent, alert = false }: { label: string; value: string | number; detail: string; icon: typeof Users; accent: string; alert?: boolean }) {
+function StatusHero({ data, accent }: { data: TvDashboardData; accent: string }) {
+  const headline =
+    data.level === "Normal"
+      ? "Operação estável"
+      : data.level === "Atenção"
+        ? "Acompanhamento necessário"
+        : "Prioridade operacional";
+
+  const criticalCount = data.attention.filter((item) => item.level === "critical").length;
+  const warningCount = data.attention.filter((item) => item.level === "warning").length;
+
+  return (
+    <Panel
+      accent={accent}
+      className="min-h-[170px] p-[clamp(.9rem,1.2vw,1.35rem)]"
+    >
+      <div
+        className="pointer-events-none absolute -right-10 -top-16 h-52 w-52 rounded-full blur-3xl"
+        style={{ background: `${accent}12` }}
+      />
+      <div className="relative flex h-full min-h-0 flex-col justify-between">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: accent, boxShadow: `0 0 16px ${accent}80` }} />
+              <span
+                className="text-[clamp(.55rem,.62vw,.72rem)] font-black uppercase tracking-[.18em]"
+                style={{ color: MUTED }}
+              >
+                Situação operacional
+              </span>
+            </div>
+            <p
+              className="mt-[clamp(.3rem,.55vh,.55rem)] text-[clamp(1.75rem,2.6vw,3.25rem)] font-black leading-[.92] tracking-[-.055em]"
+              style={{ color: accent }}
+            >
+              {data.level}
+            </p>
+            <p className="mt-2 text-[clamp(.72rem,.82vw,.95rem)] font-extrabold" style={{ color: TEXT }}>
+              {headline}
+            </p>
+          </div>
+
+          <div
+            className="flex h-[clamp(2.7rem,3.8vw,4.2rem)] w-[clamp(2.7rem,3.8vw,4.2rem)] shrink-0 items-center justify-center rounded-2xl"
+            style={{ background: `${accent}12`, border: `1px solid ${accent}35` }}
+          >
+            <ShieldCheck className="h-[48%] w-[48%]" style={{ color: accent }} />
+          </div>
+        </div>
+
+        <div>
+          <p
+            className="line-clamp-2 max-w-[44rem] text-[clamp(.62rem,.72vw,.84rem)] font-semibold leading-relaxed"
+            style={{ color: MUTED }}
+          >
+            {data.levelReason}
+          </p>
+          <div className="mt-[clamp(.45rem,.7vh,.7rem)] flex flex-wrap gap-2">
+            <span
+              className="rounded-lg px-2.5 py-1 text-[clamp(.5rem,.56vw,.66rem)] font-black uppercase tracking-[.08em]"
+              style={{ color: criticalCount ? RED : GREEN, background: criticalCount ? `${RED}12` : `${GREEN}10`, border: `1px solid ${criticalCount ? RED : GREEN}28` }}
+            >
+              {criticalCount ? `${criticalCount} crítico${criticalCount > 1 ? "s" : ""}` : "Sem crítico"}
+            </span>
+            <span
+              className="rounded-lg px-2.5 py-1 text-[clamp(.5rem,.56vw,.66rem)] font-black uppercase tracking-[.08em]"
+              style={{ color: warningCount ? AMBER : GREEN, background: warningCount ? `${AMBER}12` : `${GREEN}10`, border: `1px solid ${warningCount ? AMBER : GREEN}28` }}
+            >
+              {warningCount ? `${warningCount} ponto${warningCount > 1 ? "s" : ""} de atenção` : "Sem pendência relevante"}
+            </span>
+          </div>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+function KpiCard({
+  label,
+  value,
+  detail,
+  icon: Icon,
+  accent,
+  alert = false,
+}: {
+  label: string;
+  value: string | number;
+  detail: string;
+  icon: typeof Users;
+  accent: string;
+  alert?: boolean;
+}) {
   return (
     <div
-      className="relative min-w-0 overflow-hidden rounded-[1rem] px-[clamp(.7rem,.85vw,1rem)] py-[clamp(.55rem,.72vh,.8rem)]"
-      style={{ background: "linear-gradient(145deg,rgba(27,31,42,.98),rgba(15,18,25,.98))", border: `1px solid ${alert ? `${accent}50` : BORDER}` }}
+      className="relative min-w-0 overflow-hidden rounded-[1rem] px-[clamp(.75rem,.9vw,1rem)] py-[clamp(.62rem,.8vh,.85rem)]"
+      style={{
+        background: "linear-gradient(145deg,rgba(27,31,42,.98),rgba(14,17,24,.98))",
+        border: `1px solid ${alert ? `${accent}52` : BORDER}`,
+      }}
     >
-      <div className="absolute inset-x-0 top-0 h-[2px]" style={{ background: alert ? accent : `${accent}9a` }} />
-      <div className="flex items-start justify-between gap-2">
+      <div
+        className="absolute inset-y-0 left-0 w-[3px]"
+        style={{ background: alert ? accent : `${accent}98` }}
+      />
+      <div className="flex items-start justify-between gap-2 pl-1">
         <div className="min-w-0">
-          <p className="truncate text-[clamp(.48rem,.55vw,.64rem)] font-black uppercase tracking-[.14em]" style={{ color: MUTED }}>{label}</p>
-          <p className="mt-[clamp(.16rem,.3vh,.3rem)] truncate text-[clamp(1.25rem,2vw,2.15rem)] font-black leading-none tracking-tight" style={{ color: alert ? accent : TEXT }}>{value}</p>
+          <p
+            className="truncate text-[clamp(.5rem,.58vw,.69rem)] font-black uppercase tracking-[.14em]"
+            style={{ color: MUTED }}
+          >
+            {label}
+          </p>
+          <p
+            className="mt-[clamp(.18rem,.32vh,.32rem)] truncate text-[clamp(1.35rem,2vw,2.35rem)] font-black leading-none tracking-[-.04em]"
+            style={{ color: alert ? accent : TEXT }}
+          >
+            {value}
+          </p>
         </div>
-        <div className="flex h-[clamp(1.7rem,2.4vw,2.35rem)] w-[clamp(1.7rem,2.4vw,2.35rem)] shrink-0 items-center justify-center rounded-xl" style={{ background: `${accent}13`, border: `1px solid ${accent}25` }}>
-          <Icon className="h-[clamp(.75rem,1vw,1rem)] w-[clamp(.75rem,1vw,1rem)]" style={{ color: accent }} />
+        <div
+          className="flex h-[clamp(1.9rem,2.35vw,2.5rem)] w-[clamp(1.9rem,2.35vw,2.5rem)] shrink-0 items-center justify-center rounded-xl"
+          style={{ background: `${accent}11`, border: `1px solid ${accent}28` }}
+        >
+          <Icon className="h-[44%] w-[44%]" style={{ color: accent }} />
         </div>
       </div>
-      <p className="mt-[clamp(.18rem,.3vh,.35rem)] truncate text-[clamp(.47rem,.53vw,.61rem)] font-semibold" style={{ color: alert ? `${accent}d9` : MUTED }}>{detail}</p>
+      <p
+        className="mt-[clamp(.25rem,.4vh,.42rem)] truncate pl-1 text-[clamp(.5rem,.57vw,.66rem)] font-semibold"
+        style={{ color: MUTED }}
+      >
+        {detail}
+      </p>
     </div>
   );
 }
 
-function MiniLegend({ color, label, value }: { color: string; label: string; value: string }) {
-  return <div className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: color }} /><span className="text-[clamp(.5rem,.58vw,.66rem)] font-bold" style={{ color: MUTED }}>{label}</span><span className="text-[clamp(.5rem,.58vw,.66rem)] font-black" style={{ color: TEXT }}>{value}</span></div>;
+function currentMonthIndex(months: TvMonthPoint[]) {
+  const key = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Maceio",
+    year: "numeric",
+    month: "2-digit",
+  })
+    .format(new Date())
+    .replace("/", "-");
+  return months.findIndex((row) => row.month === key);
 }
 
-function linePath(values: number[], width: number, height: number, max = 100) {
-  if (!values.length) return "";
-  return values.map((raw, index) => {
-    const value = Math.max(0, Math.min(max, raw));
-    const x = values.length === 1 ? width / 2 : (index / (values.length - 1)) * width;
-    const y = height - (value / max) * height;
-    return `${index === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(" ");
+function visibleMonths(months: TvMonthPoint[]) {
+  const current = currentMonthIndex(months);
+  const lastActive = months.findLastIndex((row) => row.executionRate > 0 || row.attempts > 0);
+  const last = current >= 0 ? current : Math.max(lastActive, 0);
+  const start = Math.max(0, last - 5);
+  return months.slice(start, last + 1);
 }
 
-function TrendChart({ months }: { months: TvMonthPoint[] }) {
-  const currentMonth = months.findIndex((row) => row.month === new Intl.DateTimeFormat("en-CA", { timeZone: "America/Maceio", year: "numeric", month: "2-digit" }).format(new Date()).replace("/", "-"));
-  const lastIndex = currentMonth >= 0 ? currentMonth : Math.max(0, months.findLastIndex((row) => row.executionRate || row.attempts));
-  const start = Math.max(0, lastIndex - 5);
-  const visible = months.slice(start, lastIndex + 1);
-  const points = visible.length ? visible : months.slice(0, 6);
-  const width = 600;
-  const height = 180;
-  const execution = points.map((row) => row.executionRate);
-  const approval = points.map((row) => row.approvalRate);
+function MetricBar({
+  value,
+  max = 100,
+  color,
+  muted = false,
+}: {
+  value: number;
+  max?: number;
+  color: string;
+  muted?: boolean;
+}) {
+  const width = Math.max(0, Math.min(100, (value / max) * 100));
   return (
-    <div className="mt-[clamp(.45rem,.8vh,.75rem)] flex h-[calc(100%-2.5rem)] min-h-0 flex-col">
-      <div className="mb-1.5 flex flex-wrap gap-x-4 gap-y-1"><MiniLegend color={RED} label="Execução" value={`${execution.at(-1) ?? 0}%`} /><MiniLegend color={GREEN} label="Aprovação" value={`${approval.at(-1) ?? 0}%`} /></div>
-      <div className="min-h-0 flex-1">
-        <svg viewBox={`-28 -10 ${width + 44} ${height + 42}`} className="h-full w-full" preserveAspectRatio="none" aria-label="Evolução mensal de execução e aprovação">
-          {[0, 25, 50, 75, 100].map((tick) => {
-            const y = height - (tick / 100) * height;
-            return <g key={tick}><line x1="0" x2={width} y1={y} y2={y} stroke="rgba(255,255,255,.07)" strokeDasharray={tick === 0 ? undefined : "4 6"} /><text x="-8" y={y + 4} textAnchor="end" fill="#6f7686" fontSize="11">{tick}</text></g>;
-          })}
-          <path d={linePath(execution, width, height)} fill="none" stroke={RED} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-          <path d={linePath(approval, width, height)} fill="none" stroke={GREEN} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-          {points.map((point, index) => {
-            const x = points.length === 1 ? width / 2 : (index / (points.length - 1)) * width;
-            const executionY = height - (point.executionRate / 100) * height;
-            const approvalY = height - (point.approvalRate / 100) * height;
-            return <g key={point.month}><circle cx={x} cy={executionY} r="5" fill={BG} stroke={RED} strokeWidth="3" vectorEffect="non-scaling-stroke" /><circle cx={x} cy={approvalY} r="4" fill={BG} stroke={GREEN} strokeWidth="3" vectorEffect="non-scaling-stroke" /><text x={x} y={height + 24} textAnchor="middle" fill="#8d94a4" fontSize="12" fontWeight="700">{point.label}</text></g>;
-          })}
-        </svg>
-      </div>
+    <div className="h-[clamp(.36rem,.55vh,.58rem)] overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,.065)" }}>
+      <div
+        className="h-full rounded-full transition-[width]"
+        style={{ width: `${width}%`, background: muted ? `${color}55` : color }}
+      />
     </div>
   );
 }
 
-function PerformanceChart({ months, average }: { months: TvMonthPoint[]; average: number }) {
-  const active = months.filter((row) => row.attempts > 0 || row.averageScore > 0).slice(-6);
-  const visible = active.length ? active : months.slice(-6);
-  const width = 520;
-  const height = 160;
-  const values = visible.map((row) => row.averageScore);
-  return (
-    <div className="mt-[clamp(.45rem,.7vh,.7rem)] flex h-[calc(100%-2.2rem)] min-h-0 flex-col">
-      <div className="flex items-end justify-between gap-3">
-        <div><span className="text-[clamp(1.25rem,2vw,2.2rem)] font-black leading-none" style={{ color: TEXT }}>{average.toFixed(1)}</span><span className="ml-1 text-[clamp(.55rem,.65vw,.75rem)] font-bold" style={{ color: MUTED }}>/ 10 média geral</span></div>
-        <div className="rounded-lg px-2 py-1 text-[clamp(.48rem,.55vw,.62rem)] font-black" style={{ color: average >= 7 ? GREEN : AMBER, background: average >= 7 ? `${GREEN}12` : `${AMBER}12`, border: `1px solid ${average >= 7 ? GREEN : AMBER}24` }}>{average >= 7 ? "ACIMA DA META" : "ABAIXO DA META"}</div>
+function RhythmPanel({ months }: { months: TvMonthPoint[] }) {
+  const points = visibleMonths(months);
+  const latest = points.at(-1);
+  const hasAnyData = points.some((row) => row.executionRate > 0 || row.attempts > 0);
+
+  if (!hasAnyData) {
+    return (
+      <div className="flex h-[calc(100%-3rem)] min-h-[150px] items-center justify-center text-center">
+        <div>
+          <BarChart3 className="mx-auto h-7 w-7" style={{ color: MUTED_2 }} />
+          <p className="mt-3 text-[clamp(.68rem,.78vw,.9rem)] font-black" style={{ color: TEXT }}>
+            Histórico ainda insuficiente
+          </p>
+          <p className="mt-1 text-[clamp(.52rem,.6vw,.7rem)] font-semibold" style={{ color: MUTED }}>
+            O painel ganhará tendência conforme cronograma e avaliações forem executados.
+          </p>
+        </div>
       </div>
-      <div className="mt-1 min-h-0 flex-1">
-        <svg viewBox={`-24 -8 ${width + 38} ${height + 38}`} className="h-full w-full" preserveAspectRatio="none" aria-label="Evolução da média de desempenho">
-          {[0, 5, 7, 10].map((tick) => {
-            const y = height - (tick / 10) * height;
-            return <g key={tick}><line x1="0" x2={width} y1={y} y2={y} stroke={tick === 7 ? `${AMBER}80` : "rgba(255,255,255,.065)"} strokeDasharray={tick === 7 ? "7 6" : "4 6"} /><text x="-7" y={y + 4} textAnchor="end" fill={tick === 7 ? AMBER : "#6f7686"} fontSize="11">{tick}</text></g>;
-          })}
-          <path d={linePath(values, width, height, 10)} fill="none" stroke={BLUE} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-          {visible.map((point, index) => {
-            const x = visible.length === 1 ? width / 2 : (index / (visible.length - 1)) * width;
-            const y = height - (point.averageScore / 10) * height;
-            return <g key={point.month}><circle cx={x} cy={y} r="5" fill={BG} stroke={BLUE} strokeWidth="3" vectorEffect="non-scaling-stroke" /><text x={x} y={height + 23} textAnchor="middle" fill="#8d94a4" fontSize="12" fontWeight="700">{point.label}</text></g>;
-          })}
-        </svg>
+    );
+  }
+
+  return (
+    <div className="mt-[clamp(.55rem,.8vh,.8rem)] flex h-[calc(100%-3rem)] min-h-0 flex-col">
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-xl px-3 py-2" style={{ background: PANEL_SOFT, border: `1px solid ${BORDER}` }}>
+          <p className="text-[clamp(.48rem,.55vw,.64rem)] font-black uppercase tracking-[.12em]" style={{ color: MUTED }}>
+            Execução do mês
+          </p>
+          <p className="mt-1 text-[clamp(1.05rem,1.6vw,1.85rem)] font-black leading-none" style={{ color: (latest?.executionRate ?? 0) >= 80 ? GREEN : AMBER }}>
+            {latest?.executionRate ?? 0}%
+          </p>
+        </div>
+        <div className="rounded-xl px-3 py-2" style={{ background: PANEL_SOFT, border: `1px solid ${BORDER}` }}>
+          <p className="text-[clamp(.48rem,.55vw,.64rem)] font-black uppercase tracking-[.12em]" style={{ color: MUTED }}>
+            Aprovação no mês
+          </p>
+          <p className="mt-1 text-[clamp(1.05rem,1.6vw,1.85rem)] font-black leading-none" style={{ color: latest?.attempts ? (latest.approvalRate >= 75 ? GREEN : AMBER) : MUTED }}>
+            {latest?.attempts ? `${latest.approvalRate}%` : "—"}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-[clamp(.5rem,.8vh,.8rem)] grid min-h-0 flex-1 grid-cols-3 gap-2 2xl:grid-cols-6">
+        {points.map((point) => (
+          <div
+            key={point.month}
+            className="min-w-0 rounded-xl px-[clamp(.45rem,.6vw,.7rem)] py-[clamp(.4rem,.6vh,.62rem)]"
+            style={{ background: "rgba(255,255,255,.018)", border: `1px solid ${BORDER}` }}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[clamp(.5rem,.58vw,.68rem)] font-black" style={{ color: TEXT }}>{point.label}</span>
+              <span className="text-[clamp(.42rem,.5vw,.58rem)] font-bold" style={{ color: MUTED_2 }}>
+                {point.attempts ? `${point.attempts} prova${point.attempts > 1 ? "s" : ""}` : "sem prova"}
+              </span>
+            </div>
+            <div className="mt-[clamp(.35rem,.55vh,.55rem)]">
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <span className="text-[clamp(.42rem,.48vw,.56rem)] font-bold" style={{ color: MUTED }}>Exec.</span>
+                <span className="text-[clamp(.46rem,.54vw,.63rem)] font-black" style={{ color: point.executionRate >= 80 ? GREEN : point.executionRate >= 55 ? AMBER : RED }}>{point.executionRate}%</span>
+              </div>
+              <MetricBar value={point.executionRate} color={point.executionRate >= 80 ? GREEN : point.executionRate >= 55 ? AMBER : RED} />
+            </div>
+            <div className="mt-[clamp(.32rem,.5vh,.5rem)]">
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <span className="text-[clamp(.42rem,.48vw,.56rem)] font-bold" style={{ color: MUTED }}>Aprov.</span>
+                <span className="text-[clamp(.46rem,.54vw,.63rem)] font-black" style={{ color: point.attempts ? (point.approvalRate >= 75 ? GREEN : AMBER) : MUTED }}>
+                  {point.attempts ? `${point.approvalRate}%` : "—"}
+                </span>
+              </div>
+              <MetricBar value={point.approvalRate} color={point.approvalRate >= 75 ? GREEN : AMBER} muted={!point.attempts} />
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -188,61 +394,273 @@ function RiskDonut({ data }: { data: TvDashboardData["risk"] }) {
   const total = values.reduce((sum, value) => sum + value, 0);
   let offset = 0;
   const circumference = 2 * Math.PI * 46;
+
   return (
-    <div className="mt-[clamp(.35rem,.7vh,.65rem)] grid h-[calc(100%-2rem)] min-h-0 grid-cols-[1fr_.95fr] items-center gap-2">
-      <div className="relative mx-auto aspect-square h-[min(16vh,9vw)] min-h-[88px] max-h-[150px]">
-        <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
-          <circle cx="60" cy="60" r="46" fill="none" stroke="rgba(255,255,255,.06)" strokeWidth="14" />
+    <div className="mt-[clamp(.45rem,.7vh,.7rem)] grid h-[calc(100%-2.7rem)] min-h-0 grid-cols-[.9fr_1.1fr] items-center gap-3">
+      <div className="relative mx-auto aspect-square h-[min(17vh,9vw)] min-h-[92px] max-h-[160px]">
+        <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90" aria-label="Distribuição agregada do risco da equipe">
+          <circle cx="60" cy="60" r="46" fill="none" stroke="rgba(255,255,255,.055)" strokeWidth="13" />
           {values.map((value, index) => {
             const length = total ? (value / total) * circumference : 0;
-            const item = <circle key={index} cx="60" cy="60" r="46" fill="none" stroke={colors[index]} strokeWidth="14" strokeLinecap="butt" strokeDasharray={`${length} ${circumference - length}`} strokeDashoffset={-offset} />;
+            const item = (
+              <circle
+                key={index}
+                cx="60"
+                cy="60"
+                r="46"
+                fill="none"
+                stroke={colors[index]}
+                strokeWidth="13"
+                strokeDasharray={`${length} ${circumference - length}`}
+                strokeDashoffset={-offset}
+              />
+            );
             offset += length;
             return item;
           })}
         </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center"><span className="text-[clamp(1.2rem,1.9vw,2rem)] font-black leading-none" style={{ color: TEXT }}>{total}</span><span className="mt-1 text-[clamp(.45rem,.5vw,.58rem)] font-black uppercase tracking-[.14em]" style={{ color: MUTED }}>equipe</span></div>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-[clamp(1.35rem,2vw,2.25rem)] font-black leading-none" style={{ color: TEXT }}>{total}</span>
+          <span className="mt-1 text-[clamp(.45rem,.52vw,.6rem)] font-black uppercase tracking-[.16em]" style={{ color: MUTED }}>equipe</span>
+        </div>
       </div>
-      <div className="space-y-[clamp(.28rem,.55vh,.5rem)]">
-        {[['Normal', data.normal, GREEN], ['Baixo', data.low, BLUE], ['Médio', data.medium, AMBER], ['Alto', data.high, RED]].map(([label, value, color]) => <div key={String(label)} className="flex items-center justify-between gap-2"><div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ background: String(color) }} /><span className="text-[clamp(.52rem,.62vw,.72rem)] font-bold" style={{ color: MUTED }}>{label}</span></div><span className="text-[clamp(.65rem,.75vw,.9rem)] font-black" style={{ color: TEXT }}>{value}</span></div>)}
+
+      <div className="space-y-[clamp(.34rem,.58vh,.6rem)]">
+        {[
+          ["Normal", data.normal, GREEN],
+          ["Baixo", data.low, BLUE],
+          ["Médio", data.medium, AMBER],
+          ["Alto", data.high, RED],
+        ].map(([label, value, color]) => (
+          <div
+            key={String(label)}
+            className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-[clamp(.28rem,.45vh,.45rem)]"
+            style={{ background: "rgba(255,255,255,.02)" }}
+          >
+            <div className="flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: String(color) }} />
+              <span className="text-[clamp(.55rem,.64vw,.75rem)] font-bold" style={{ color: MUTED }}>{label}</span>
+            </div>
+            <span className="text-[clamp(.72rem,.82vw,.98rem)] font-black" style={{ color: String(value) === "0" ? MUTED_2 : TEXT }}>{value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PerformancePanel({ months, average, approvalRate }: { months: TvMonthPoint[]; average: number; approvalRate: number }) {
+  const active = months.filter((row) => row.attempts > 0).slice(-5);
+  const scoreColor = average >= 7 ? GREEN : average > 0 ? AMBER : MUTED;
+  const approvalColor = approvalRate >= 75 ? GREEN : approvalRate > 0 ? AMBER : MUTED;
+
+  return (
+    <div className="mt-[clamp(.5rem,.75vh,.75rem)] flex h-[calc(100%-2.8rem)] min-h-0 flex-col">
+      <div className="grid grid-cols-[1fr_.85fr] gap-3">
+        <div>
+          <div className="flex items-end gap-2">
+            <span className="text-[clamp(2rem,3vw,3.5rem)] font-black leading-none tracking-[-.055em]" style={{ color: scoreColor }}>
+              {average.toFixed(1)}
+            </span>
+            <span className="pb-1 text-[clamp(.58rem,.65vw,.76rem)] font-bold" style={{ color: MUTED }}>/ 10</span>
+          </div>
+          <p className="mt-1 text-[clamp(.5rem,.58vw,.68rem)] font-bold" style={{ color: MUTED }}>média geral consolidada</p>
+        </div>
+        <div className="flex flex-col justify-end">
+          <div className="flex items-end justify-between gap-2">
+            <span className="text-[clamp(.5rem,.58vw,.68rem)] font-bold" style={{ color: MUTED }}>Aprovação geral</span>
+            <span className="text-[clamp(.8rem,.95vw,1.12rem)] font-black" style={{ color: approvalColor }}>{approvalRate}%</span>
+          </div>
+          <div className="mt-1.5"><MetricBar value={approvalRate} color={approvalColor} /></div>
+        </div>
+      </div>
+
+      <div className="mt-[clamp(.55rem,.9vh,.9rem)]">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[clamp(.48rem,.54vw,.63rem)] font-black uppercase tracking-[.11em]" style={{ color: MUTED }}>
+            Faixa de desempenho
+          </span>
+          <span className="text-[clamp(.46rem,.52vw,.6rem)] font-bold" style={{ color: average >= 7 ? GREEN : AMBER }}>
+            Meta 7,0
+          </span>
+        </div>
+        <div className="relative mt-2">
+          <MetricBar value={average} max={10} color={scoreColor} />
+          <span
+            className="absolute top-[-3px] h-[calc(100%+6px)] w-px"
+            style={{ left: "70%", background: AMBER, boxShadow: `0 0 8px ${AMBER}60` }}
+          />
+        </div>
+      </div>
+
+      <div className="mt-[clamp(.65rem,1vh,1rem)] min-h-0 flex-1">
+        <p className="mb-2 text-[clamp(.46rem,.53vw,.62rem)] font-black uppercase tracking-[.11em]" style={{ color: MUTED }}>
+          Últimos meses com avaliações
+        </p>
+        {active.length ? (
+          <div className="grid h-[calc(100%-1.3rem)] grid-cols-5 gap-1.5">
+            {active.map((point) => (
+              <div key={point.month} className="flex min-w-0 flex-col justify-center rounded-lg px-2 py-1.5 text-center" style={{ background: PANEL_SOFT, border: `1px solid ${BORDER}` }}>
+                <span className="text-[clamp(.44rem,.5vw,.58rem)] font-black" style={{ color: MUTED }}>{point.label}</span>
+                <span className="mt-1 text-[clamp(.7rem,.85vw,1rem)] font-black" style={{ color: point.averageScore >= 7 ? GREEN : AMBER }}>
+                  {point.averageScore.toFixed(1)}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex h-[calc(100%-1.3rem)] items-center justify-center rounded-xl text-center" style={{ background: PANEL_SOFT, border: `1px solid ${BORDER}` }}>
+            <p className="px-4 text-[clamp(.52rem,.6vw,.7rem)] font-semibold" style={{ color: MUTED }}>
+              Sem histórico de avaliações suficiente para exibir tendência.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 function SectorBars({ sectors }: { sectors: TvDashboardData["sectors"] }) {
-  const rows = sectors.slice(0, 6);
-  return <div className="mt-[clamp(.35rem,.55vh,.55rem)] grid h-[calc(100%-2.2rem)] min-h-0 content-center gap-[clamp(.26rem,.48vh,.48rem)]">{rows.length ? rows.map((sector) => <div key={sector.sector} className="grid grid-cols-[minmax(68px,1.15fr)_2.4fr_42px] items-center gap-2"><span className="truncate text-[clamp(.48rem,.56vw,.66rem)] font-bold" style={{ color: MUTED }}>{sector.sector}</span><div className="h-[clamp(.35rem,.55vh,.55rem)] overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,.065)" }}><div className="h-full rounded-full" style={{ width: `${sector.executionRate}%`, background: sector.executionRate >= 80 ? GREEN : sector.executionRate >= 55 ? AMBER : RED }} /></div><span className="text-right text-[clamp(.52rem,.62vw,.72rem)] font-black" style={{ color: sector.executionRate >= 80 ? GREEN : sector.executionRate >= 55 ? AMBER : RED }}>{sector.executionRate}%</span></div>) : <p className="text-center text-xs" style={{ color: MUTED }}>Sem dados setoriais.</p>}</div>;
+  const rows = [...sectors]
+    .sort((a, b) => a.executionRate - b.executionRate || b.planned - a.planned)
+    .slice(0, 5);
+
+  return (
+    <div className="mt-[clamp(.45rem,.7vh,.7rem)] grid h-[calc(100%-2.8rem)] min-h-0 content-center gap-[clamp(.35rem,.6vh,.62rem)]">
+      {rows.length ? rows.map((sector, index) => {
+        const color = sector.executionRate >= 80 ? GREEN : sector.executionRate >= 55 ? AMBER : RED;
+        return (
+          <div key={sector.sector} className="grid grid-cols-[minmax(86px,1.05fr)_2.3fr_62px] items-center gap-2.5">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                {index === 0 && sector.executionRate < 80 && <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: color }} />}
+                <span className="truncate text-[clamp(.54rem,.62vw,.73rem)] font-bold" style={{ color: index === 0 && sector.executionRate < 80 ? TEXT : MUTED }}>
+                  {sector.sector}
+                </span>
+              </div>
+              <p className="mt-0.5 text-[clamp(.4rem,.46vw,.53rem)] font-semibold" style={{ color: MUTED_2 }}>
+                {sector.realized}/{sector.planned} realizados
+              </p>
+            </div>
+            <MetricBar value={sector.executionRate} color={color} />
+            <span className="text-right text-[clamp(.66rem,.76vw,.9rem)] font-black" style={{ color }}>{sector.executionRate}%</span>
+          </div>
+        );
+      }) : (
+        <p className="text-center text-xs" style={{ color: MUTED }}>Sem dados setoriais.</p>
+      )}
+    </div>
+  );
 }
 
-function OccurrenceBars({ occurrence }: { occurrence: TvDashboardData["occurrence"] }) {
+function OccurrencePanel({ occurrence }: { occurrence: TvDashboardData["occurrence"] }) {
   const total = occurrence.open + occurrence.analysis + occurrence.concluded;
   const active = occurrence.open + occurrence.analysis;
-  const rows = [
-    { label: "Abertas", value: occurrence.open, color: RED },
-    { label: "Em análise", value: occurrence.analysis, color: AMBER },
-    { label: "Concluídas", value: occurrence.concluded, color: GREEN },
-  ];
-  return <div className="mt-[clamp(.35rem,.6vh,.6rem)] flex h-[calc(100%-2.1rem)] min-h-0 flex-col justify-between"><div className="flex items-end justify-between"><div><span className="text-[clamp(1.2rem,1.8vw,2rem)] font-black" style={{ color: active ? AMBER : GREEN }}>{active}</span><span className="ml-1 text-[clamp(.48rem,.55vw,.62rem)] font-bold" style={{ color: MUTED }}>ativas</span></div><span className="text-[clamp(.48rem,.55vw,.62rem)] font-bold" style={{ color: MUTED }}>{total} registros</span></div><div className="space-y-[clamp(.28rem,.5vh,.5rem)]">{rows.map((row) => <div key={row.label}><div className="mb-1 flex justify-between"><span className="text-[clamp(.48rem,.56vw,.66rem)] font-bold" style={{ color: MUTED }}>{row.label}</span><span className="text-[clamp(.5rem,.6vw,.7rem)] font-black" style={{ color: row.color }}>{row.value}</span></div><div className="h-[clamp(.3rem,.45vh,.45rem)] rounded-full" style={{ background: "rgba(255,255,255,.06)" }}><div className="h-full rounded-full" style={{ width: `${total ? Math.max(4, (row.value / total) * 100) : 0}%`, background: row.color }} /></div></div>)}</div></div>;
+  const priority = occurrence.critical + occurrence.high;
+
+  return (
+    <div className="mt-[clamp(.45rem,.7vh,.7rem)] flex h-[calc(100%-2.8rem)] min-h-0 flex-col">
+      <div className="grid grid-cols-[1fr_.9fr] gap-2">
+        <div className="rounded-xl px-3 py-2" style={{ background: PANEL_SOFT, border: `1px solid ${BORDER}` }}>
+          <p className="text-[clamp(.46rem,.53vw,.62rem)] font-black uppercase tracking-[.11em]" style={{ color: MUTED }}>Em tratamento</p>
+          <div className="mt-1 flex items-end gap-1.5">
+            <span className="text-[clamp(1.6rem,2.35vw,2.75rem)] font-black leading-none" style={{ color: active ? AMBER : GREEN }}>{active}</span>
+            <span className="pb-0.5 text-[clamp(.47rem,.54vw,.63rem)] font-bold" style={{ color: MUTED }}>ativas</span>
+          </div>
+        </div>
+        <div className="rounded-xl px-3 py-2" style={{ background: priority ? `${RED}0d` : PANEL_SOFT, border: `1px solid ${priority ? `${RED}30` : BORDER}` }}>
+          <p className="text-[clamp(.46rem,.53vw,.62rem)] font-black uppercase tracking-[.11em]" style={{ color: MUTED }}>Alta / crítica</p>
+          <p className="mt-1 text-[clamp(1.4rem,2vw,2.35rem)] font-black leading-none" style={{ color: priority ? RED : GREEN }}>{priority}</p>
+        </div>
+      </div>
+
+      <div className="mt-[clamp(.55rem,.85vh,.85rem)] grid min-h-0 flex-1 content-center gap-[clamp(.34rem,.56vh,.58rem)]">
+        {[
+          { label: "Abertas", value: occurrence.open, color: RED },
+          { label: "Em análise", value: occurrence.analysis, color: AMBER },
+          { label: "Concluídas", value: occurrence.concluded, color: GREEN },
+        ].map((row) => (
+          <div key={row.label}>
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <span className="text-[clamp(.5rem,.58vw,.68rem)] font-bold" style={{ color: MUTED }}>{row.label}</span>
+              <span className="text-[clamp(.58rem,.68vw,.8rem)] font-black" style={{ color: row.color }}>{row.value}</span>
+            </div>
+            <MetricBar value={total ? (row.value / total) * 100 : 0} color={row.color} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function AttentionRadar({ items }: { items: TvDashboardData["attention"] }) {
   const colors = { info: GREEN, warning: AMBER, critical: RED };
-  return <div className="mt-[clamp(.3rem,.5vh,.5rem)] grid h-[calc(100%-2rem)] min-h-0 content-center gap-[clamp(.25rem,.45vh,.45rem)]">{items.map((item) => <div key={item.id} className="grid grid-cols-[4px_1fr] gap-2.5 rounded-xl px-2.5 py-[clamp(.3rem,.48vh,.5rem)]" style={{ background: "rgba(255,255,255,.025)", border: `1px solid ${BORDER}` }}><span className="h-full rounded-full" style={{ background: colors[item.level] }} /><div className="min-w-0"><p className="truncate text-[clamp(.5rem,.58vw,.68rem)] font-black" style={{ color: TEXT }}>{item.title}</p><p className="mt-0.5 truncate text-[clamp(.43rem,.5vw,.58rem)] font-semibold" style={{ color: MUTED }}>{item.detail}</p></div></div>)}</div>;
+  const labels = { info: "ESTÁVEL", warning: "ATENÇÃO", critical: "PRIORIDADE" };
+
+  return (
+    <div className="mt-[clamp(.45rem,.7vh,.7rem)] grid h-[calc(100%-2.8rem)] min-h-0 content-center gap-[clamp(.3rem,.55vh,.58rem)]">
+      {items.map((item, index) => {
+        const color = colors[item.level];
+        return (
+          <div
+            key={item.id}
+            className="grid grid-cols-[5px_1fr_auto] items-center gap-3 rounded-xl px-[clamp(.65rem,.8vw,.9rem)] py-[clamp(.45rem,.72vh,.72rem)]"
+            style={{
+              background: item.level === "critical" ? `${RED}09` : "rgba(255,255,255,.024)",
+              border: `1px solid ${item.level === "critical" ? `${RED}2e` : BORDER}`,
+            }}
+          >
+            <span className="h-full min-h-8 rounded-full" style={{ background: color }} />
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-[clamp(.42rem,.48vw,.56rem)] font-black uppercase tracking-[.1em]" style={{ color }}>
+                  {labels[item.level]}
+                </span>
+                {index === 0 && item.level !== "info" && (
+                  <span className="text-[clamp(.38rem,.44vw,.5rem)] font-black uppercase tracking-[.08em]" style={{ color: MUTED_2 }}>
+                    foco agora
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 truncate text-[clamp(.62rem,.72vw,.84rem)] font-black" style={{ color: TEXT }}>{item.title}</p>
+              <p className="mt-0.5 truncate text-[clamp(.48rem,.56vw,.65rem)] font-semibold" style={{ color: MUTED }}>{item.detail}</p>
+            </div>
+            <div
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-[clamp(.5rem,.56vw,.64rem)] font-black"
+              style={{ color, background: `${color}10`, border: `1px solid ${color}25` }}
+            >
+              {String(index + 1).padStart(2, "0")}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function LoadingScreen() {
-  return <div className="flex h-screen items-center justify-center" style={{ background: BG }}><div className="text-center"><div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-white/10 border-t-[#e31837]" /><p className="mt-4 text-xs font-black uppercase tracking-[.22em] text-white/45">Montando sala operacional</p></div></div>;
+  return (
+    <div className="flex h-screen items-center justify-center" style={{ background: BG }}>
+      <div className="text-center">
+        <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-white/10 border-t-[#e31837]" />
+        <p className="mt-4 text-xs font-black uppercase tracking-[.22em] text-white/45">Montando sala operacional</p>
+      </div>
+    </div>
+  );
 }
 
 export function TvOperationalDashboard() {
   const navigate = useNavigate();
   const year = operationalYear();
   const [clock, setClock] = useState(() => new Date());
+
   const query = useQuery({
     queryKey: ["tv-operational-dashboard", year],
     queryFn: () => getTvDashboardData(year),
     refetchInterval: 60_000,
+    refetchIntervalInBackground: true,
     staleTime: 45_000,
+    retry: 2,
     refetchOnWindowFocus: true,
   });
 
@@ -253,6 +671,7 @@ export function TvOperationalDashboard() {
 
   const levelColor = query.data?.level === "Crítica" ? RED : query.data?.level === "Atenção" ? AMBER : GREEN;
   const scoreAccent = (query.data?.metrics.averageScore ?? 0) >= 7 ? GREEN : AMBER;
+
   const fullScreen = async () => {
     try {
       if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
@@ -270,53 +689,199 @@ export function TvOperationalDashboard() {
     return "Prioridade operacional";
   }, [query.data]);
 
-  if (query.isLoading) return <LoadingScreen />;
-  if (query.isError || !query.data) return <div className="flex h-screen items-center justify-center px-8 text-center" style={{ background: BG, color: TEXT }}><div><AlertTriangle className="mx-auto h-10 w-10" style={{ color: AMBER }} /><h1 className="mt-4 text-xl font-black">Painel TV indisponível</h1><p className="mt-2 text-sm" style={{ color: MUTED }}>Não foi possível consolidar os indicadores operacionais.</p><button onClick={() => query.refetch()} className="mt-5 rounded-xl px-4 py-2 text-sm font-black" style={{ background: RED, color: "white" }}>Tentar novamente</button></div></div>;
+  if (query.isLoading && !query.data) return <LoadingScreen />;
+
+  if (!query.data && query.isError) {
+    return (
+      <div className="flex h-screen items-center justify-center px-8 text-center" style={{ background: BG, color: TEXT }}>
+        <div>
+          <AlertTriangle className="mx-auto h-10 w-10" style={{ color: AMBER }} />
+          <h1 className="mt-4 text-xl font-black">Painel TV indisponível</h1>
+          <p className="mt-2 text-sm" style={{ color: MUTED }}>Não foi possível consolidar os indicadores operacionais.</p>
+          <button onClick={() => query.refetch()} className="mt-5 rounded-xl px-4 py-2 text-sm font-black" style={{ background: RED, color: "white" }}>
+            Tentar novamente
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!query.data) return <LoadingScreen />;
 
   const data = query.data;
+  const refreshHasError = query.isError;
+  const pendingAttention = data.metrics.overdue + data.metrics.practicalPending;
+
   return (
-    <div className="min-h-screen overflow-auto xl:h-screen xl:min-h-0 xl:overflow-hidden" style={{ background: `radial-gradient(circle at 78% 0%,rgba(227,24,55,.09),transparent 28%),radial-gradient(circle at 10% 100%,rgba(79,141,247,.055),transparent 30%),${BG}`, color: TEXT, fontFamily: "Inter, sans-serif" }}>
-      <div className="mx-auto grid min-h-[900px] w-full min-w-[320px] max-w-[2200px] grid-rows-[auto_auto_auto_auto] gap-3 p-3 sm:p-4 xl:h-screen xl:min-h-0 xl:grid-rows-[8.5vh_14vh_40vh_31vh] xl:gap-[1.1vh] xl:p-[1.35vh_1.15vw]">
-        <header className="flex min-h-[72px] items-center justify-between gap-4 rounded-[1.15rem] px-[clamp(.85rem,1.15vw,1.35rem)] py-2" style={{ background: "linear-gradient(90deg,rgba(18,20,28,.96),rgba(13,15,21,.94))", border: `1px solid ${BORDER}` }}>
-          <div className="flex min-w-0 items-center gap-[clamp(.65rem,1vw,1.1rem)]">
-            <div className="flex h-[clamp(2.5rem,3.6vw,3.5rem)] w-[clamp(2.5rem,3.6vw,3.5rem)] shrink-0 items-center justify-center rounded-[1rem]" style={{ background: "linear-gradient(145deg,#ef2847,#a90925)", boxShadow: "0 10px 28px rgba(227,24,55,.18)" }}><span className="text-[clamp(1rem,1.35vw,1.35rem)] font-black text-white">S</span></div>
-            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h1 className="truncate text-[clamp(1rem,1.55vw,1.6rem)] font-black tracking-[-.04em]">SEGEMPAT <span style={{ color: "#687080" }}>·</span> SALA OPERACIONAL</h1>{data.isDemo && <span className="rounded-md px-2 py-1 text-[clamp(.42rem,.48vw,.56rem)] font-black uppercase tracking-[.12em]" style={{ color: AMBER, background: `${AMBER}12`, border: `1px solid ${AMBER}30` }}>DADOS FICTÍCIOS</span>}</div><p className="mt-0.5 truncate text-[clamp(.48rem,.58vw,.68rem)] font-semibold" style={{ color: MUTED }}>Visão situacional agregada · Sem exposição de dados individuais · Porto de Maceió</p></div>
+    <div
+      className="min-h-screen overflow-auto xl:h-screen xl:min-h-0 xl:overflow-hidden"
+      style={{
+        background: `radial-gradient(circle at 72% -15%,rgba(227,24,55,.105),transparent 31%),radial-gradient(circle at -8% 90%,rgba(79,141,247,.07),transparent 30%),linear-gradient(180deg,#080a0f 0%,#07090d 100%)`,
+        color: TEXT,
+        fontFamily: "Inter, sans-serif",
+      }}
+    >
+      <div className="pointer-events-none fixed inset-0 opacity-[.16]" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px)", backgroundSize: "42px 42px" }} />
+
+      <main className="relative mx-auto grid min-h-[980px] w-full min-w-[320px] max-w-[2400px] grid-rows-[auto_auto_auto_auto] gap-3 p-3 sm:p-4 xl:h-screen xl:min-h-0 xl:grid-rows-[8.5vh_17.5vh_37.5vh_31.5vh] xl:gap-[1.05vh] xl:p-[1.25vh_1.05vw]">
+        <header
+          className="flex min-h-[76px] items-center justify-between gap-4 rounded-[1.15rem] px-[clamp(.9rem,1.15vw,1.4rem)] py-2"
+          style={{
+            background: "linear-gradient(90deg,rgba(18,21,29,.98),rgba(11,14,20,.96))",
+            border: `1px solid ${BORDER_STRONG}`,
+            boxShadow: "0 14px 40px rgba(0,0,0,.24)",
+          }}
+        >
+          <div className="flex min-w-0 items-center gap-[clamp(.7rem,1vw,1.1rem)]">
+            <div
+              className="flex h-[clamp(2.7rem,3.5vw,3.7rem)] w-[clamp(2.7rem,3.5vw,3.7rem)] shrink-0 items-center justify-center rounded-[1rem]"
+              style={{ background: "linear-gradient(145deg,#ef2847,#ad0d2a)", boxShadow: "0 10px 28px rgba(227,24,55,.22)" }}
+            >
+              <span className="text-[clamp(1.05rem,1.4vw,1.5rem)] font-black text-white">S</span>
+            </div>
+            <div className="min-w-0">
+              <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+                <h1 className="truncate text-[clamp(1.05rem,1.5vw,1.65rem)] font-black tracking-[-.045em]">
+                  SEGEMPAT <span style={{ color: "#667080" }}>·</span> PAINEL SITUACIONAL
+                </h1>
+                {data.isDemo && (
+                  <span
+                    className="rounded-md px-2 py-1 text-[clamp(.42rem,.48vw,.56rem)] font-black uppercase tracking-[.12em]"
+                    style={{ color: AMBER, background: `${AMBER}12`, border: `1px solid ${AMBER}30` }}
+                  >
+                    Dados fictícios
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 truncate text-[clamp(.52rem,.6vw,.7rem)] font-semibold" style={{ color: MUTED }}>
+                Sala Operacional · Visão situacional agregada · Sem exposição de dados individuais · Porto de Maceió
+              </p>
+            </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-[clamp(.45rem,.75vw,.85rem)]">
-            <div className="hidden min-w-[150px] lg:block"><div className="flex items-center gap-2"><span className="relative flex h-2.5 w-2.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-30" style={{ background: levelColor }} /><span className="relative inline-flex h-2.5 w-2.5 rounded-full" style={{ background: levelColor }} /></span><span className="text-[clamp(.5rem,.58vw,.68rem)] font-black uppercase tracking-[.12em]" style={{ color: levelColor }}>{data.level}</span></div><p className="mt-1 text-[clamp(.42rem,.48vw,.56rem)] font-semibold" style={{ color: MUTED }}>{operationDetail}</p></div>
-            <div className="hidden border-l pl-[clamp(.55rem,.8vw,.9rem)] sm:block" style={{ borderColor: BORDER }}><p className="text-right text-[clamp(.95rem,1.35vw,1.4rem)] font-black tabular-nums tracking-tight">{formatTime(clock)}</p><p className="text-right text-[clamp(.42rem,.5vw,.58rem)] font-bold" style={{ color: MUTED }}>{formatDate(clock)}</p></div>
-            <button onClick={() => query.refetch()} title="Atualizar agora" className="flex h-[clamp(2rem,2.6vw,2.6rem)] w-[clamp(2rem,2.6vw,2.6rem)] items-center justify-center rounded-xl transition hover:bg-white/10" style={{ border: `1px solid ${BORDER}`, color: MUTED }}><RefreshCcw className={`h-4 w-4 ${query.isFetching ? "animate-spin" : ""}`} /></button>
-            <button onClick={fullScreen} title="Tela cheia" className="flex h-[clamp(2rem,2.6vw,2.6rem)] w-[clamp(2rem,2.6vw,2.6rem)] items-center justify-center rounded-xl transition hover:bg-white/10" style={{ border: `1px solid ${BORDER}`, color: MUTED }}><Expand className="h-4 w-4" /></button>
-            <button onClick={() => navigate({ to: "/admin" })} title="Sair do Painel TV" className="flex h-[clamp(2rem,2.6vw,2.6rem)] w-[clamp(2rem,2.6vw,2.6rem)] items-center justify-center rounded-xl transition hover:bg-white/10" style={{ border: `1px solid ${BORDER}`, color: MUTED }}><X className="h-4 w-4" /></button>
+          <div className="flex shrink-0 items-center gap-[clamp(.45rem,.7vw,.8rem)]">
+            <div className="hidden min-w-[158px] lg:block">
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ background: refreshHasError ? RED : levelColor, boxShadow: `0 0 12px ${refreshHasError ? RED : levelColor}65` }} />
+                <span
+                  className="text-[clamp(.52rem,.6vw,.7rem)] font-black uppercase tracking-[.12em]"
+                  style={{ color: refreshHasError ? RED : levelColor }}
+                >
+                  {refreshHasError ? "Atualização pendente" : data.level}
+                </span>
+              </div>
+              <p className="mt-1 text-[clamp(.43rem,.5vw,.58rem)] font-semibold" style={{ color: MUTED }}>
+                {refreshHasError ? "Exibindo último consolidado válido" : operationDetail}
+              </p>
+            </div>
+
+            <div className="hidden border-l pl-[clamp(.65rem,.85vw,.95rem)] sm:block" style={{ borderColor: BORDER }}>
+              <p className="text-right text-[clamp(1.12rem,1.55vw,1.65rem)] font-black tabular-nums tracking-[-.025em]">{formatTime(clock)}</p>
+              <p className="text-right text-[clamp(.43rem,.5vw,.58rem)] font-bold" style={{ color: MUTED }}>{formatDate(clock)}</p>
+            </div>
+
+            <div className="hidden border-l pl-[clamp(.55rem,.75vw,.85rem)] 2xl:block" style={{ borderColor: BORDER }}>
+              <p className="text-[clamp(.4rem,.46vw,.53rem)] font-black uppercase tracking-[.11em]" style={{ color: MUTED_2 }}>Último consolidado</p>
+              <p className="mt-1 text-[clamp(.5rem,.58vw,.68rem)] font-black tabular-nums" style={{ color: TEXT }}>{timeOnly(data.generatedAt)}</p>
+            </div>
+
+            <button
+              onClick={() => query.refetch()}
+              title="Atualizar agora"
+              aria-label="Atualizar painel agora"
+              className="flex h-[clamp(2.15rem,2.6vw,2.75rem)] w-[clamp(2.15rem,2.6vw,2.75rem)] items-center justify-center rounded-xl transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+              style={{ border: `1px solid ${BORDER}`, color: query.isFetching ? TEXT : MUTED }}
+            >
+              <RefreshCcw className={`h-4 w-4 ${query.isFetching ? "animate-spin" : ""}`} />
+            </button>
+            <button
+              onClick={fullScreen}
+              title="Tela cheia"
+              aria-label="Alternar tela cheia"
+              className="flex h-[clamp(2.15rem,2.6vw,2.75rem)] w-[clamp(2.15rem,2.6vw,2.75rem)] items-center justify-center rounded-xl transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+              style={{ border: `1px solid ${BORDER}`, color: MUTED }}
+            >
+              <Expand className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => navigate({ to: "/admin" })}
+              title="Sair do Painel TV"
+              aria-label="Sair do Painel TV"
+              className="flex h-[clamp(2.15rem,2.6vw,2.75rem)] w-[clamp(2.15rem,2.6vw,2.75rem)] items-center justify-center rounded-xl transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+              style={{ border: `1px solid ${BORDER}`, color: MUTED }}
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
         </header>
 
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 xl:grid-cols-8">
-          <KpiCard label="Situação" value={data.level} detail={data.levelReason} icon={ShieldCheck} accent={levelColor} alert={data.level !== "Normal"} />
-          <KpiCard label="Equipe ativa" value={data.metrics.activeEmployees} detail="profissionais operacionais" icon={Users} accent={BLUE} />
-          <KpiCard label="Execução mês" value={`${data.metrics.monthExecutionRate}%`} detail={`${data.metrics.annualExecutionRate}% no ano`} icon={Target} accent={data.metrics.monthExecutionRate >= 80 ? GREEN : AMBER} />
-          <KpiCard label="Vencidas" value={data.metrics.overdue} detail={`${data.metrics.pending} pendência(s) total`} icon={Clock3} accent={data.metrics.overdue ? RED : GREEN} alert={data.metrics.overdue > 0} />
-          <KpiCard label="Aprovação" value={`${data.metrics.approvalRate}%`} detail="provas concluídas" icon={CheckCircle2} accent={data.metrics.approvalRate >= 75 ? GREEN : AMBER} />
-          <KpiCard label="Média" value={data.metrics.averageScore.toFixed(1)} detail="desempenho de 0 a 10" icon={TrendingUp} accent={scoreAccent} />
-          <KpiCard label="Ocorrências" value={data.metrics.activeOccurrences} detail={data.metrics.criticalOccurrences ? `${data.metrics.criticalOccurrences} crítica(s)` : "ativas em tratamento"} icon={AlertTriangle} accent={data.metrics.criticalOccurrences ? RED : AMBER} alert={data.metrics.criticalOccurrences > 0} />
-          <KpiCard label="Práticas" value={data.metrics.practicalPending} detail={`${data.metrics.practicalApprovalRate}% aprovação`} icon={CircleGauge} accent={PURPLE} />
-        </div>
+        <section className="grid min-h-0 gap-2.5 xl:grid-cols-[1.12fr_2.1fr]">
+          <StatusHero data={data} accent={levelColor} />
 
-        <div className="grid min-h-0 gap-2.5 xl:grid-cols-[1.35fr_.72fr_1fr]">
-          <Panel className="min-h-[300px] p-[clamp(.75rem,1vw,1.1rem)]"><PanelTitle icon={BarChart3} title="Ritmo Operacional" subtitle="Execução do Cronograma × aprovação nas avaliações" /><TrendChart months={data.months} /></Panel>
-          <Panel className="min-h-[260px] p-[clamp(.75rem,1vw,1.1rem)]"><PanelTitle icon={ShieldCheck} title="Saúde da Equipe" subtitle="Distribuição agregada do risco de desempenho" accent={GREEN} /><RiskDonut data={data.risk} /></Panel>
-          <Panel className="min-h-[300px] p-[clamp(.75rem,1vw,1.1rem)]"><PanelTitle icon={TrendingUp} title="Desempenho" subtitle="Evolução da média mensal · meta 7,0" accent={BLUE} /><PerformanceChart months={data.months} average={data.metrics.averageScore} /></Panel>
-        </div>
+          <div className="grid min-h-0 grid-cols-2 gap-2.5 sm:grid-cols-3">
+            <KpiCard label="Equipe ativa" value={data.metrics.activeEmployees} detail="profissionais operacionais" icon={Users} accent={BLUE} />
+            <KpiCard label="Execução do mês" value={`${data.metrics.monthExecutionRate}%`} detail={`${data.metrics.annualExecutionRate}% no acumulado anual`} icon={Target} accent={data.metrics.monthExecutionRate >= 80 ? GREEN : AMBER} />
+            <KpiCard label="Pendências" value={pendingAttention} detail={`${data.metrics.overdue} vencida(s) · ${data.metrics.practicalPending} prática(s)`} icon={Clock3} accent={pendingAttention ? AMBER : GREEN} alert={data.metrics.overdue > 0} />
+            <KpiCard label="Aprovação geral" value={`${data.metrics.approvalRate}%`} detail="resultado consolidado das provas" icon={CheckCircle2} accent={data.metrics.approvalRate >= 75 ? GREEN : AMBER} />
+            <KpiCard label="Média geral" value={data.metrics.averageScore.toFixed(1)} detail="escala de desempenho de 0 a 10" icon={TrendingUp} accent={scoreAccent} />
+            <KpiCard label="Ocorrências ativas" value={data.metrics.activeOccurrences} detail={data.metrics.criticalOccurrences ? `${data.metrics.criticalOccurrences} crítica(s) ativa(s)` : "abertas ou em análise"} icon={AlertTriangle} accent={data.metrics.criticalOccurrences ? RED : data.metrics.activeOccurrences ? AMBER : GREEN} alert={data.metrics.criticalOccurrences > 0} />
+          </div>
+        </section>
 
-        <div className="grid min-h-0 gap-2.5 pb-1 md:grid-cols-2 xl:grid-cols-[1.18fr_.72fr_1.12fr]">
-          <Panel className="min-h-[220px] p-[clamp(.7rem,.92vw,1rem)]"><PanelTitle icon={Target} title="Execução por Setor" subtitle="Percentual realizado sobre o planejado" accent={PURPLE} /><SectorBars sectors={data.sectors} /></Panel>
-          <Panel className="min-h-[220px] p-[clamp(.7rem,.92vw,1rem)]"><PanelTitle icon={AlertTriangle} title="Ocorrências" subtitle="Situação consolidada dos registros" accent={AMBER} /><OccurrenceBars occurrence={data.occurrence} /></Panel>
-          <Panel className="min-h-[220px] p-[clamp(.7rem,.92vw,1rem)]"><div className="flex items-center justify-between gap-3"><PanelTitle icon={Activity} title="Radar Operacional" subtitle="O que merece sua atenção agora" accent={RED} /><div className="hidden items-center gap-1.5 2xl:flex"><span className="h-1.5 w-1.5 rounded-full" style={{ background: GREEN }} /><span className="text-[.55rem] font-bold" style={{ color: MUTED }}>Atualizado {timeOnly(data.generatedAt)}</span></div></div><AttentionRadar items={data.attention} /></Panel>
-        </div>
+        <section className="grid min-h-0 gap-2.5 xl:grid-cols-[1.18fr_1.12fr_.78fr]">
+          <Panel accent={levelColor} className="min-h-[320px] p-[clamp(.8rem,1vw,1.15rem)]">
+            <PanelTitle
+              icon={Activity}
+              title="Radar Operacional"
+              subtitle="Prioridades agregadas ordenadas para leitura imediata"
+              accent={levelColor}
+              aside={
+                <div className="hidden rounded-lg px-2.5 py-1 text-[clamp(.42rem,.48vw,.56rem)] font-black uppercase tracking-[.08em] 2xl:block" style={{ color: levelColor, background: `${levelColor}10`, border: `1px solid ${levelColor}25` }}>
+                  {data.attention.length} sinal{data.attention.length !== 1 ? "s" : ""}
+                </div>
+              }
+            />
+            <AttentionRadar items={data.attention} />
+          </Panel>
+
+          <Panel accent={RED} className="min-h-[320px] p-[clamp(.8rem,1vw,1.15rem)]">
+            <PanelTitle icon={BarChart3} title="Ritmo Operacional" subtitle="Execução mensal e aprovação com base identificada" accent={RED} />
+            <RhythmPanel months={data.months} />
+          </Panel>
+
+          <Panel accent={GREEN} className="min-h-[300px] p-[clamp(.8rem,1vw,1.15rem)]">
+            <PanelTitle icon={ShieldCheck} title="Saúde da Equipe" subtitle="Distribuição agregada do risco de desempenho" accent={GREEN} />
+            <RiskDonut data={data.risk} />
+          </Panel>
+        </section>
+
+        <section className="grid min-h-0 gap-2.5 pb-1 md:grid-cols-2 xl:grid-cols-[1.08fr_.84fr_1fr]">
+          <Panel accent={PURPLE} className="min-h-[245px] p-[clamp(.78rem,.95vw,1.08rem)]">
+            <PanelTitle icon={Target} title="Execução por Setor" subtitle="Menores execuções aparecem primeiro" accent={PURPLE} />
+            <SectorBars sectors={data.sectors} />
+          </Panel>
+
+          <Panel accent={AMBER} className="min-h-[245px] p-[clamp(.78rem,.95vw,1.08rem)]">
+            <PanelTitle icon={AlertTriangle} title="Ocorrências" subtitle="Tratamento, conclusão e severidade agregada" accent={AMBER} />
+            <OccurrencePanel occurrence={data.occurrence} />
+          </Panel>
+
+          <Panel accent={BLUE} className="min-h-[245px] p-[clamp(.78rem,.95vw,1.08rem)]">
+            <PanelTitle
+              icon={CircleGauge}
+              title="Desempenho"
+              subtitle="Média, aprovação e referência da meta 7,0"
+              accent={BLUE}
+            />
+            <PerformancePanel months={data.months} average={data.metrics.averageScore} approvalRate={data.metrics.approvalRate} />
+          </Panel>
+        </section>
+      </main>
+
+      <div className="pointer-events-none fixed bottom-1.5 right-3 hidden items-center gap-2 text-[9px] font-semibold text-white/25 xl:flex">
+        <span className="h-1.5 w-1.5 rounded-full" style={{ background: refreshHasError ? RED : GREEN }} />
+        Atualização automática a cada 60 s · painel agregado para exposição contínua
       </div>
-
-      <div className="pointer-events-none fixed bottom-1.5 right-3 hidden items-center gap-1 text-[9px] font-semibold text-white/20 xl:flex"><ExternalLink className="h-2.5 w-2.5" /> Atualização automática a cada 60 s</div>
     </div>
   );
 }
