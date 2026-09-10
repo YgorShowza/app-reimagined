@@ -26,7 +26,8 @@ jobs:
           test -f src/lib/tv-dashboard.ts
           grep -F 'Sala Operacional' src/routes/_authenticated/tv.tsx >/dev/null
           grep -F 'canonicalPath === "/tv"' src/routes/_authenticated/route.tsx >/dev/null
-          grep -F 'Abrir Painel TV' src/routes/_authenticated/analytics.tsx >/dev/null
+          grep -F 'to="/tv"' src/routes/_authenticated/analytics.tsx >/dev/null
+          grep -F 'Painel TV' src/routes/_authenticated/analytics.tsx >/dev/null
           grep -F 'Sem exposição de dados individuais' src/components/tv/TvOperationalDashboard.tsx >/dev/null
           grep -F 'refetchInterval: 60_000' src/components/tv/TvOperationalDashboard.tsx >/dev/null
           grep -F 'requestFullscreen' src/components/tv/TvOperationalDashboard.tsx >/dev/null
