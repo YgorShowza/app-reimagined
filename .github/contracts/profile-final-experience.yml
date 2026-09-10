@@ -19,6 +19,8 @@ jobs:
           const root = fs.readFileSync('src/routes/__root.tsx', 'utf8');
           const css = fs.readFileSync('src/final-experience.css', 'utf8');
           const route = fs.readFileSync('src/routes/_authenticated/meu-perfil.tsx', 'utf8');
+          const shell = fs.readFileSync('src/components/AppLayoutV2.tsx', 'utf8');
+          const search = fs.readFileSync('src/components/GlobalSearch.tsx', 'utf8');
 
           function requireText(source, needle, label) {
             if (!source.includes(needle)) {
@@ -38,6 +40,12 @@ jobs:
           requireText(profile, 'aria-busy="true"', 'carregamento acessível do perfil');
           requireText(profile, 'segempat-profile-history-grid', 'históricos responsivos preservados');
           requireText(profile, 'Dados de identificação protegidos', 'origem do cadastro comunicada ao usuário');
+
+          requireText(shell, 'to="/meu-perfil"', 'shell oferece acesso direto ao Meu Perfil');
+          requireText(shell, 'section: "Conta", label: "Meu Perfil"', 'cabeçalho identifica corretamente Meu Perfil também para contas administrativas');
+          requireText(search, 'path: "/meu-perfil"', 'Busca Global encontra Meu Perfil');
+          requireText(search, 'canAccessAdminPath(user, item.path)', 'Busca Global filtra navegação administrativa pela permissão efetiva');
+          requireText(search, 'canSearchPeople', 'Busca Global evita consultas dinâmicas sem autorização coerente');
 
           requireText(root, 'finalExperienceCss', 'camada global de experiência importada');
           requireText(root, '{ rel: "stylesheet", href: finalExperienceCss }', 'camada global de experiência carregada');
