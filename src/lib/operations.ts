@@ -4,7 +4,8 @@ import { getCurrentSessionUser } from "@/lib/backend/current-user-gateway";
 export interface KnowledgeItem { id: string; title: string; category: string; content: string; target_sector: string; active: boolean; created_by: string | null; created_at: string; updated_at: string; }
 export interface Occurrence { id: string; employee_id: string | null; employee_name: string | null; employee_matricula: string | null; title: string; category: string; severity: "Baixa"|"Média"|"Alta"|"Crítica"; description: string; location: string | null; status: "Aberta"|"Em análise"|"Concluída"; occurred_at: string; resolution_notes: string | null; resolved_at: string | null; created_by: string | null; created_by_name: string | null; created_at: string; updated_at: string; }
 export interface PracticalEvaluation { id: string; employee_id: string; employee_name: string; employee_matricula: string; employee_sector: string; title: string; evaluator_id: string | null; evaluator_name: string | null; status: "Planejada"|"Em andamento"|"Concluída"; score: number; max_score: number; min_approval_score: number; checklist: Array<{ id: string; label: string; done: boolean }>; notes: string | null; evaluation_date: string | null; completed_at: string | null; created_at: string; updated_at: string; }
-export interface AuditLog { id: string; actor_id: string | null; action: string; entity: string; entity_id: string | null; details: Record<string, unknown>; created_at: string; }
+export interface AuditLog { id: string; actor_id: string | null; actor_name: string | null; action: string; entity: string; entity_id: string | null; created_at: string; }
+export interface AuditLogPage { items: AuditLog[]; nextOffset: number | null; }
 
 function normalizePracticalEvaluation(row: any): PracticalEvaluation {
   return {
@@ -100,6 +101,6 @@ export async function deletePracticalEvaluation(id: string) {
   await apiRequest(`/api/operations/practical-evaluations/${encodeURIComponent(id)}`, { method:"DELETE" });
 }
 
-export function listAuditLogs(limit = 200): Promise<AuditLog[]> {
-  return apiRequest<AuditLog[]>(`/api/operations/audit?limit=${limit}`);
+export async function listAuditLogs(limit = 200, offset = 0): Promise<AuditLogPage> {
+  return apiRequest<AuditLogPage>(`/api/access/audit?limit=${limit}&offset=${offset}`);
 }
