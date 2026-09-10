@@ -25,6 +25,7 @@ import {
   UserRound,
   Users,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -50,14 +51,16 @@ import {
   type OccurrencePerson,
 } from "@/lib/occurrences";
 
-function Surface({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+function Surface({ children, className = "", ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
+      {...props}
       className={`rounded-2xl ${className}`}
       style={{
         background: "var(--bg-surface)",
         border: "1px solid var(--border)",
         boxShadow: "var(--shadow-card, var(--shadow-md))",
+        ...props.style,
       }}
     >
       {children}
@@ -244,7 +247,7 @@ async function prepareEvidenceFiles(files: FileList | null, available: number) {
   return accepted;
 }
 
-function SectionHeading({ number, title, description, icon: Icon }: { number: string; title: string; description: string; icon?: typeof ShieldAlert }) {
+function SectionHeading({ number, title, description, icon: Icon }: { number: string; title: string; description: string; icon?: LucideIcon }) {
   return (
     <div className="flex items-start gap-3">
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#C8102E]/10 text-xs font-black text-[#C8102E]">
@@ -355,6 +358,14 @@ export function OccurrencesWorkspace({ operatorTitle = false }: { operatorTitle?
     priority: rows.filter(isOperationalPriority).length,
     done: rows.filter((row) => row.status === "Concluída").length,
   }), [rows]);
+
+  const summaryCards: Array<{ label: string; value: number; icon: LucideIcon; color: string; hint: string }> = [
+    { label: "Total", value: counts.total, icon: CircleDot, color: "var(--text-3)", hint: "Registros disponíveis" },
+    { label: "Ativas", value: counts.active, icon: AlertTriangle, color: "#ef4444", hint: "Abertas + em análise" },
+    { label: "Prioritárias", value: counts.priority, icon: ShieldAlert, color: "#f97316", hint: "Alta/Crítica ativas" },
+    { label: "Em análise", value: counts.analysis, icon: Clock3, color: "#f59e0b", hint: "Em tratamento" },
+    { label: "Concluídas", value: counts.done, icon: CheckCircle2, color: "#10b981", hint: "Histórico protegido" },
+  ];
 
   const hasFilters = Boolean(
     search.trim() || status !== "Todos" || severity !== "Todas" || category !== "Todas" || period !== "Todos" || priorityOnly,
@@ -661,20 +672,14 @@ export function OccurrencesWorkspace({ operatorTitle = false }: { operatorTitle?
       )}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        {[
-          ["Total", counts.total, CircleDot, "var(--text-3)", "Registros disponíveis"],
-          ["Ativas", counts.active, AlertTriangle, "#ef4444", "Abertas + em análise"],
-          ["Prioritárias", counts.priority, ShieldAlert, "#f97316", "Alta/Crítica ativas"],
-          ["Em análise", counts.analysis, Clock3, "#f59e0b", "Em tratamento"],
-          ["Concluídas", counts.done, CheckCircle2, "#10b981", "Histórico protegido"],
-        ].map(([label, value, Icon, color, hint]) => (
-          <Surface key={String(label)} className="p-4">
+        {summaryCards.map(({ label, value, icon: Icon, color, hint }) => (
+          <Surface key={label} className="p-4">
             <div className="flex items-start justify-between gap-2">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[.08em]" style={{ color: "var(--text-4)" }}>{label}</p>
                 <p className="mt-2 text-2xl font-black" style={{ color: "var(--text-1)" }}>{occurrences.isLoading ? "—" : value}</p>
               </div>
-              <Icon className="h-4 w-4" style={{ color: String(color) }} />
+              <Icon className="h-4 w-4" style={{ color }} />
             </div>
             <p className="mt-2 text-[10px]" style={{ color: "var(--text-4)" }}>{hint}</p>
           </Surface>
