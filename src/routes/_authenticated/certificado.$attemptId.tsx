@@ -71,7 +71,7 @@ function CertificateAdminPage() {
   }
 
   if (!canManageCertificates) {
-    return <StateCard icon={ShieldCheck} title="Acesso restrito" text="Seu nível de acesso não possui a permissão necessária para visualizar ou emitir certificados." />;
+    return <StateCard icon={ShieldCheck} title="Acesso restrito" text="A emissão do certificado é exclusiva da Inspetoria e exige a permissão administrativa de certificados no SEGEMPAT." />;
   }
 
   if (evidence.isError || certificateRecords.isError || !evidence.data) {
@@ -86,7 +86,7 @@ function CertificateAdminPage() {
   const ev = evidence.data;
   const certificateRecord = (certificateRecords.data ?? []).find((row) => row.id === attemptId);
   const revoked = Boolean(certificateRecord?.certificate_revoked);
-  const signed = Boolean(ev.signed_at && ev.signature_name);
+  const signed = Boolean(ev.signed_at);
   const certificateBlocked = !ev.passed || !signed || !certificateRecord?.formally_issued || revoked;
 
   if (certificateBlocked) {
