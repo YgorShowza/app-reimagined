@@ -150,7 +150,7 @@ function buildMonths(snapshot: OperationalSnapshot, year: number) {
   const execution = monthlyExecution(snapshot, year);
   const performance = performanceByMonth(snapshot, year);
   let months: TvMonthPoint[] = execution.map((month) => {
-    const key = `${year}-${String(month.month).padStart(2, "0")}`;
+    const key = month.month;
     const perf = performance.get(key);
     const averageScore = perf?.scores.length
       ? Math.round((perf.scores.reduce((sum, score) => sum + score, 0) / perf.scores.length) * 10) / 10
