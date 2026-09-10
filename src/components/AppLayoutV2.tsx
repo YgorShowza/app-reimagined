@@ -35,6 +35,7 @@ import {
   Sun,
   Target,
   TrendingUp,
+  UserRound,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -96,7 +97,7 @@ const operatorMenu: MenuItem[] = [
   { path: "/certificados", label: "Certificados", icon: Award },
   { path: "/treinamentos", label: "Academia SEGEMPAT", icon: GraduationCap },
   { path: "/conteudos", label: "Base de Conhecimento", icon: BookOpen },
-  { path: "/meu-perfil", label: "Meu Perfil", icon: Users },
+  { path: "/meu-perfil", label: "Meu Perfil", icon: UserRound },
   { path: "/pratico", label: "Avaliação Prática", icon: ClipboardCheck },
   { path: "/minhas-ocorrencias", label: "Ocorrências", icon: AlertTriangle },
 ];
@@ -107,6 +108,7 @@ function routeMatches(pathname: string, itemPath: string) {
 }
 
 function currentLocation(pathname: string, isAdmin: boolean) {
+  if (routeMatches(pathname, "/meu-perfil")) return { section: "Conta", label: "Meu Perfil", icon: UserRound };
   if (isAdmin) {
     for (const section of adminSections) {
       const item = section.items.find((candidate) => routeMatches(pathname, candidate.path));
@@ -168,7 +170,7 @@ function HeaderClock() {
 function SidebarIdentity({ user, isAdmin }: { user: ReturnType<typeof useCurrentUser>["data"]; isAdmin: boolean }) {
   const initial = user?.nome?.trim()?.charAt(0)?.toUpperCase() || "S";
   const accessLabel = user?.accessLevelLabel || (isAdmin ? "Inspetor" : "Operador");
-  return <div className="px-4 py-4" style={{ borderBottom: "1px solid var(--border)" }}><div className="flex items-center gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-black text-white" style={{ background: "linear-gradient(135deg,#e0142f,#C8102E)", boxShadow: "0 8px 18px rgba(200,16,46,.20)" }}>{initial}</div><div className="min-w-0"><p className="truncate text-[13px] font-black" style={{ color: "var(--text-1)" }}>{user?.nome ?? "SEGEMPAT"}</p><p className="mt-0.5 text-[10px] font-mono" style={{ color: "var(--text-4)" }}>Mat. {user?.matricula ?? "—"}</p></div></div><div className="mt-3 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-black" style={{ background: "var(--accent-soft)", border: "1px solid rgba(200,16,46,.28)", color: "var(--accent)" }}><span className="h-1.5 w-1.5 rounded-full bg-[#C8102E]" />{accessLabel}{user?.setor ? ` · ${user.setor}` : ""}</div></div>;
+  return <div className="px-4 py-4" style={{ borderBottom: "1px solid var(--border)" }}><Link to="/meu-perfil" aria-label="Abrir Meu Perfil" className="group -m-1 flex items-center gap-3 rounded-xl p-1 transition-colors hover:bg-black/[.03] dark:hover:bg-white/[.035]"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-black text-white" style={{ background: "linear-gradient(135deg,#e0142f,#C8102E)", boxShadow: "0 8px 18px rgba(200,16,46,.20)" }}>{initial}</div><div className="min-w-0 flex-1"><p className="truncate text-[13px] font-black" style={{ color: "var(--text-1)" }}>{user?.nome ?? "SEGEMPAT"}</p><p className="mt-0.5 text-[10px] font-mono" style={{ color: "var(--text-4)" }}>Mat. {user?.matricula ?? "—"}</p></div><ChevronRight className="h-4 w-4 shrink-0 opacity-45 transition-transform group-hover:translate-x-0.5" style={{ color: "var(--text-4)" }} /></Link><div className="mt-3 inline-flex max-w-full items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-black" style={{ background: "var(--accent-soft)", border: "1px solid rgba(200,16,46,.28)", color: "var(--accent)" }}><span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#C8102E]" /><span className="truncate">{accessLabel}{user?.setor ? ` · ${user.setor}` : ""}</span></div></div>;
 }
 
 function SidebarFooter({ loggingOut, onLogout }: { loggingOut: boolean; onLogout: () => void }) {
@@ -226,7 +228,7 @@ export function AppLayoutV2({ children }: { children: ReactNode }) {
               <SheetContent side="left" className="segempat-sidebar-sheet w-[86vw] max-w-[340px] border-0 p-0 sm:max-w-[340px]" style={{ background: "var(--header-bg)", color: "var(--text-1)" }}><SheetTitle className="sr-only">Menu</SheetTitle><div className="flex h-full flex-col" style={{ background: "var(--header-bg)" }}><div className="px-4 pb-4 pt-5" style={{ borderBottom: "1px solid var(--border)" }}><div className="flex items-center justify-center"><div className="overflow-hidden rounded-xl bg-white p-1.5" style={{ border: "1px solid var(--border)", boxShadow: "var(--shadow-card)" }}><img src={LOGO_URL} alt="EMPAT" className="h-10 w-auto object-contain" /></div></div></div><SidebarIdentity user={user} isAdmin={isAdmin} /><nav aria-label="Módulos do SEGEMPAT" className="flex-1 overflow-y-auto px-3 py-3"><NavItems isAdmin={isAdmin} pathname={pathname} user={user} /></nav><SidebarFooter loggingOut={loggingOut} onLogout={handleLogout} /></div></SheetContent>
             </Sheet>
             <div className="shrink-0 overflow-hidden rounded-lg bg-white p-1 lg:hidden" style={{ border: "1px solid var(--border)" }}><img src={LOGO_URL} alt="EMPAT" className="h-8 w-auto object-contain" /></div>
-            <div className="min-w-0 max-w-[9rem] sm:max-w-none lg:hidden"><p className="truncate text-sm font-bold" style={{ color: "var(--text-1)" }}>{user?.nome ?? "…"}</p><p className="truncate text-[11px] font-mono" style={{ color: "var(--text-4)" }}>Mat. {user?.matricula ?? "—"}</p></div>
+            <Link to="/meu-perfil" aria-label="Abrir Meu Perfil" className="min-w-0 max-w-[9rem] rounded-lg sm:max-w-none lg:hidden"><p className="truncate text-sm font-bold" style={{ color: "var(--text-1)" }}>{user?.nome ?? "…"}</p><p className="truncate text-[11px] font-mono" style={{ color: "var(--text-4)" }}>Mat. {user?.matricula ?? "—"}</p></Link>
             <div className="hidden min-w-0 items-center gap-3 lg:flex"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: "var(--accent-soft)", border: "1px solid rgba(200,16,46,.18)" }}><LocationIcon className="h-4 w-4" style={{ color: "var(--accent)" }} /></div><div className="min-w-0"><p className="truncate text-[10px] font-black uppercase tracking-[.13em]" style={{ color: "var(--text-4)" }}>{location.section}</p><p className="truncate text-sm font-black" style={{ color: "var(--text-1)" }}>{location.label}</p></div></div>
           </div>
 
