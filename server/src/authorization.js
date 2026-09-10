@@ -165,7 +165,7 @@ export function enforceGranularApiPermissions(req, _res, next) {
   if (path.startsWith("/api/authorization")) {
     return requireForRequest(req, next, "access.permissions.manage");
   }
-  if (path.startsWith("/api/access/audit")) {
+  if (path.startsWith("/api/access/audit") || path.startsWith("/api/operations/audit")) {
     return requireForRequest(req, next, "audit.view");
   }
   if (path.startsWith("/api/access/password-resets")) {
