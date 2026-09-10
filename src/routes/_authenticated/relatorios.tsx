@@ -1,11 +1,31 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, BarChart3, CalendarDays, CheckCircle2, Download, FileSpreadsheet, RefreshCw, Target, Users, Layers3 } from "lucide-react";
+import {
+  AlertTriangle,
+  BarChart3,
+  CalendarDays,
+  CheckCircle2,
+  Download,
+  FileSpreadsheet,
+  Layers3,
+  Printer,
+  RefreshCw,
+  ShieldCheck,
+  Target,
+  Users,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MonthlyReportWorkspace } from "@/components/reports/MonthlyReportWorkspace";
-import { getOperationalSnapshot, sectorMetrics, snapshotMetrics } from "@/lib/insights";
+import { getOperationalSnapshot } from "@/lib/insights";
 import { operationalYear } from "@/lib/operational-time";
+import {
+  availableReportingSectors,
+  examReporting,
+  monthlyReporting,
+  reportingSummary,
+  sectorReporting,
+} from "@/lib/reporting-insights";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/relatorios")({
@@ -16,7 +36,7 @@ export const Route = createFileRoute("/_authenticated/relatorios")({
 type ReportTab = "executivo" | "mensal";
 
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <div className={`rounded-2xl ${className}`} style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", boxShadow: "var(--shadow-card, var(--shadow-md))" }}>{children}</div>;
+  return <section className={`rounded-2xl ${className}`} style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", boxShadow: "var(--shadow-card, var(--shadow-md))" }}>{children}</section>;
 }
 
 function ReportsCenterPage() {
@@ -24,22 +44,34 @@ function ReportsCenterPage() {
 
   return (
     <div className="segempat-analytical-reports mx-auto max-w-7xl space-y-5 pb-10">
-      <section className="relative overflow-hidden rounded-[1.75rem] p-5 md:p-6 lg:p-7" style={{ background: "linear-gradient(135deg,#171117 0%,#310912 55%,#160f14 100%)", border: "1px solid rgba(200,16,46,.28)", boxShadow: "0 12px 38px rgba(80,0,18,.16)" }}>
+      <section className="reports-no-print relative overflow-hidden rounded-[1.75rem] p-5 md:p-6 lg:p-7" style={{ background: "linear-gradient(135deg,#171117 0%,#310912 55%,#160f14 100%)", border: "1px solid rgba(200,16,46,.28)", boxShadow: "0 12px 38px rgba(80,0,18,.16)" }}>
         <div className="absolute -right-20 -top-24 h-72 w-72 rounded-full" style={{ background: "radial-gradient(circle,rgba(200,16,46,.25),transparent 68%)" }} />
         <div className="relative flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[.22em]" style={{ color: "rgba(255,255,255,.44)" }}><FileSpreadsheet className="h-4 w-4" /> Inteligência documental</div>
+            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[.22em] text-white/45"><FileSpreadsheet className="h-4 w-4" /> Inteligência documental</div>
             <h1 className="mt-2 text-2xl font-black tracking-tight text-white md:text-3xl">Central de Relatórios</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed" style={{ color: "rgba(255,255,255,.54)" }}>Consolidação executiva e fechamento mensal no mesmo ambiente, usando a mesma base operacional do SEGEMPAT.</p>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-white/55">Relatórios para decisão, conferência e evidência: o mesmo dado que aparece no resumo permanece rastreável nos volumes mensais, setores e avaliações.</p>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2 xl:w-[440px]">
-            <ReportModeButton active={tab === "executivo"} icon={BarChart3} title="Visão Executiva" subtitle="Anual · setores · indicadores" onClick={() => setTab("executivo")} />
-            <ReportModeButton active={tab === "mensal"} icon={CalendarDays} title="Fechamento Mensal" subtitle="Individual · cronograma · provas" onClick={() => setTab("mensal")} />
+          <div className="grid gap-2 sm:grid-cols-2 xl:w-[470px]" role="tablist" aria-label="Modo de relatório">
+            <ReportModeButton active={tab === "executivo"} icon={BarChart3} title="Visão Executiva" subtitle="Ano · setores · avaliações" onClick={() => setTab("executivo")} />
+            <ReportModeButton active={tab === "mensal"} icon={CalendarDays} title="Fechamento Mensal" subtitle="Colaborador · cronograma · provas" onClick={() => setTab("mensal")} />
           </div>
         </div>
       </section>
 
       {tab === "executivo" ? <ExecutiveReport /> : <MonthlyReportWorkspace embedded />}
+
+      <style>{`
+        @media print {
+          body aside[aria-label="Navegação principal"], body header.sticky, .reports-no-print, .report-screen-only { display:none !important; }
+          body aside[aria-label="Navegação principal"] + div { margin-left:0 !important; min-height:0 !important; }
+          body main { padding:0 !important; }
+          .segempat-analytical-reports { max-width:none !important; width:100% !important; padding:0 !important; }
+          .segempat-report-print { box-shadow:none !important; border-color:#d7d9de !important; break-inside:avoid; }
+          .segempat-report-page-break { break-before:page; }
+          @page { size:A4 portrait; margin:12mm; }
+        }
+      `}</style>
     </div>
   );
 }
@@ -48,78 +80,141 @@ function ReportModeButton({ active, icon: Icon, title, subtitle, onClick }: { ac
   return (
     <button
       type="button"
+      role="tab"
+      aria-selected={active}
       onClick={onClick}
-      className="flex items-center gap-3 rounded-2xl p-3 text-left transition-all"
+      className="flex items-center gap-3 rounded-2xl p-3 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
       style={active
         ? { background: "rgba(255,255,255,.14)", border: "1px solid rgba(255,255,255,.26)", boxShadow: "0 10px 24px rgba(0,0,0,.16)" }
         : { background: "rgba(255,255,255,.055)", border: "1px solid rgba(255,255,255,.09)" }}
-      aria-pressed={active}
     >
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: active ? "#C8102E" : "rgba(255,255,255,.07)" }}><Icon className="h-4 w-4 text-white" /></div>
-      <div className="min-w-0"><p className="text-sm font-black text-white">{title}</p><p className="mt-0.5 text-[10px]" style={{ color: "rgba(255,255,255,.43)" }}>{subtitle}</p></div>
+      <div className="min-w-0"><p className="text-sm font-black text-white">{title}</p><p className="mt-0.5 text-[10px] text-white/45">{subtitle}</p></div>
     </button>
   );
 }
 
 function ExecutiveReport() {
-  const year = operationalYear();
+  const currentYear = operationalYear();
+  const [year, setYear] = useState(currentYear);
+  const [sector, setSector] = useState("Todos");
   const query = useQuery({ queryKey: ["reports-snapshot", year], queryFn: () => getOperationalSnapshot(year), staleTime: 60_000 });
-  if (query.isLoading) return <Loading />;
-  if (query.isError || !query.data) return <Card className="mx-auto max-w-xl p-8 text-center"><AlertTriangle className="mx-auto h-8 w-8 text-amber-500" /><p className="mt-3 font-bold" style={{ color: "var(--text-1)" }}>Não foi possível carregar o relatório.</p><Button variant="outline" className="mt-4" onClick={() => query.refetch()}><RefreshCw className="mr-2 h-4 w-4" /> Tentar novamente</Button></Card>;
+  const sectors = useMemo(() => (query.data ? availableReportingSectors(query.data) : []), [query.data]);
+
+  useEffect(() => {
+    if (sector !== "Todos" && !sectors.includes(sector)) setSector("Todos");
+  }, [sector, sectors]);
+
+  if (query.isLoading && !query.data) return <Loading />;
+  if (query.isError || !query.data) {
+    return <Card className="mx-auto max-w-xl p-8 text-center"><AlertTriangle className="mx-auto h-8 w-8 text-amber-500" /><p className="mt-3 font-black" style={{ color: "var(--text-1)" }}>Não foi possível carregar o relatório executivo.</p><p className="mt-1 text-sm" style={{ color: "var(--text-4)" }}>O SEGEMPAT não substitui dados indisponíveis por zeros.</p><Button variant="outline" className="mt-4" onClick={() => query.refetch()}><RefreshCw className="mr-2 h-4 w-4" /> Tentar novamente</Button></Card>;
+  }
 
   const data = query.data;
-  const metrics = snapshotMetrics(data);
-  const sectors = sectorMetrics(data);
-  const hasOperationalData = metrics.activeEmployees > 0 || metrics.planned > 0 || metrics.attempts > 0;
+  const summary = reportingSummary(data, sector);
+  const allSectorRows = sectorReporting(data);
+  const sectorRows = sector === "Todos" ? allSectorRows : allSectorRows.filter((row) => row.sector === sector);
+  const months = monthlyReporting(data, year, sector);
+  const exams = examReporting(data, sector);
+  const yearOptions = Array.from({ length: 5 }, (_, index) => currentYear - 3 + index);
+  const hasOperationalData = summary.activeEmployees > 0 || summary.planned > 0 || summary.attempts > 0;
+  const generatedAt = new Date().toLocaleString("pt-BR", { timeZone: "America/Maceio", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
   const exportCsv = () => {
-    if (!sectors.length) {
-      toast.info("Não há indicadores por setor para exportar neste momento.");
-      return;
-    }
-    const lines = [
-      ["Setor", "Colaboradores", "Planejados", "Realizados", "Execução %", "Tentativas", "Aprovação %"],
-      ...sectors.map((sector) => [sector.sector, sector.employees, sector.planned, sector.realized, sector.executionRate, sector.attempts, sector.approvalRate]),
-    ].map((row) => row.map(csvCell).join(";"));
-    const blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `SEGEMPAT_Relatorio_${year}.csv`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 0);
-    toast.success("Relatório CSV gerado");
+    const rows: unknown[][] = [
+      ["SEGEMPAT", "RELATÓRIO EXECUTIVO"],
+      ["Ano operacional", year],
+      ["Setor", sector],
+      ["Gerado em", generatedAt],
+      [],
+      ["RESUMO"],
+      ["Equipe ativa", summary.activeEmployees],
+      ["Cronograma planejado", summary.planned],
+      ["Realizados", summary.realized],
+      ["Pendentes", summary.pending],
+      ["Justificados", summary.justified],
+      ["Execução %", csvMetric(summary.executionRate)],
+      ["Tentativas", summary.attempts],
+      ["Aprovadas", summary.passed],
+      ["Aprovação %", csvMetric(summary.approvalRate)],
+      ["Média", summary.averageScore ?? "SEM BASE"],
+      [],
+      ["SETOR", "EQUIPE", "PLANEJADOS", "REALIZADOS", "PENDENTES", "JUSTIFICADOS", "EXECUÇÃO %", "TENTATIVAS", "APROVADAS", "APROVAÇÃO %", "MÉDIA"],
+      ...sectorRows.map((row) => [row.sector, row.activeEmployees, row.planned, row.realized, row.pending, row.justified, csvMetric(row.executionRate), row.attempts, row.passed, csvMetric(row.approvalRate), row.averageScore ?? "SEM BASE"]),
+      [],
+      ["MÊS", "PLANEJADOS", "REALIZADOS", "PENDENTES", "JUSTIFICADOS", "EXECUÇÃO %", "TENTATIVAS", "APROVADAS", "APROVAÇÃO %", "MÉDIA"],
+      ...months.map((row) => [row.month, row.planned, row.realized, row.pending, row.justified, csvMetric(row.executionRate), row.attempts, row.passed, csvMetric(row.approvalRate), row.averageScore ?? "SEM BASE"]),
+      [],
+      ["AVALIAÇÃO", "MODALIDADE", "PÚBLICO", "MÍNIMO INDIVIDUAL %", "TENTATIVAS", "APROVADAS", "APROVAÇÃO %", "MÉDIA"],
+      ...exams.map((exam) => [exam.title, exam.type, exam.targetSector, exam.minApprovalPct, exam.attempts, exam.passed, csvMetric(exam.approvalRate), exam.averageScore ?? "SEM BASE"]),
+    ];
+    downloadCsv(`SEGEMPAT_Relatorio_Executivo_${year}_${safeFileName(sector)}.csv`, rows);
+    toast.success("Relatório executivo exportado");
   };
 
   return (
     <div className="space-y-5">
-      <Card className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
-        <div><p className="text-[10px] font-black uppercase tracking-[.16em]" style={{ color: "var(--accent)" }}>Visão executiva · {year}</p><p className="mt-1 text-sm font-bold" style={{ color: "var(--text-1)" }}>Equipe, execução do cronograma, provas e comparação por setor.</p></div>
-        <Button onClick={exportCsv} disabled={!sectors.length} className="bg-[#e0142f] font-bold text-white hover:bg-[#C8102E]"><Download className="mr-2 h-4 w-4" /> Exportar CSV setorial</Button>
+      <Card className="reports-no-print p-4">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div><p className="text-[10px] font-black uppercase tracking-[.16em]" style={{ color: "var(--accent)" }}>Configuração do relatório</p><p className="mt-1 text-sm font-bold" style={{ color: "var(--text-1)" }}>Ano e setor recalculam resumo, meses, tabela setorial, avaliações e o arquivo exportado.</p></div>
+          <div className="grid gap-2 sm:grid-cols-[130px_minmax(190px,250px)_auto_auto]">
+            <label className="text-[10px] font-black uppercase tracking-[.12em]" style={{ color: "var(--text-4)" }}>Ano<select value={year} onChange={(event) => setYear(Number(event.target.value))} className="mt-1 h-10 w-full rounded-xl px-3 text-sm font-bold outline-none" style={{ background: "var(--bg-surface-2)", border: "1px solid var(--border)", color: "var(--text-1)" }}>{yearOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+            <label className="text-[10px] font-black uppercase tracking-[.12em]" style={{ color: "var(--text-4)" }}>Setor<select value={sector} onChange={(event) => setSector(event.target.value)} className="mt-1 h-10 w-full rounded-xl px-3 text-sm font-bold outline-none" style={{ background: "var(--bg-surface-2)", border: "1px solid var(--border)", color: "var(--text-1)" }}><option value="Todos">Todos os setores</option>{sectors.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+            <Button variant="outline" className="h-10 self-end gap-2" onClick={() => query.refetch()} disabled={query.isFetching}><RefreshCw className={`h-4 w-4 ${query.isFetching ? "animate-spin" : ""}`} /> Atualizar</Button>
+            <Button className="h-10 self-end gap-2 bg-[#e0142f] font-bold text-white hover:bg-[#C8102E]" onClick={exportCsv}><Download className="h-4 w-4" /> Exportar CSV</Button>
+          </div>
+        </div>
       </Card>
 
-      {!hasOperationalData && <Card className="p-4"><div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" /><div><p className="font-bold" style={{ color: "var(--text-1)" }}>Base ainda sem volume operacional</p><p className="mt-1 text-sm" style={{ color: "var(--text-4)" }}>Os indicadores serão preenchidos automaticamente conforme equipe, cronograma e provas forem utilizados.</p></div></div></Card>}
+      <section className="segempat-report-print rounded-2xl p-5" style={{ background: "#fff", color: "#171A1F", border: "1px solid #d7d9de" }}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div><p className="text-[10px] font-black uppercase tracking-[.18em] text-[#C8102E]">EMPRESA ALAGOANA DE TERMINAIS · UNIDADE DE SEGURANÇA PORTUÁRIA</p><h2 className="mt-2 text-xl font-black">Relatório Executivo SEGEMPAT · {year}</h2><p className="mt-1 text-xs text-[#616772]">Escopo: {sector === "Todos" ? "todos os setores operacionais" : sector} · Gerado em {generatedAt}</p></div>
+          <Button variant="outline" className="report-screen-only gap-2" onClick={() => window.print()}><Printer className="h-4 w-4" /> Imprimir / salvar PDF</Button>
+        </div>
+      </section>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Metric label="Equipe ativa" value={metrics.activeEmployees} icon={Users} accent="#3b82f6" sub="colaboradores ativos" />
-        <Metric label="Execução" value={`${metrics.executionRate}%`} icon={Target} accent="#10b981" sub={`${metrics.realized}/${metrics.planned || 0} realizados`} />
-        <Metric label="Aprovação" value={`${metrics.approvalRate}%`} icon={CheckCircle2} accent="#e11d48" sub={`${metrics.passed} aprovações`} />
-        <Metric label="Média provas" value={metrics.averageScore} icon={BarChart3} accent="#f59e0b" sub={`${metrics.attempts} tentativas`} />
+      {!hasOperationalData && <Card className="segempat-report-print p-4"><div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" /><div><p className="font-black" style={{ color: "var(--text-1)" }}>Base sem volume operacional no recorte</p><p className="mt-1 text-sm" style={{ color: "var(--text-4)" }}>O relatório foi carregado, mas ainda não há registros suficientes para alguns indicadores. Campos percentuais sem denominador aparecem como “—”.</p></div></div></Card>}
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <Metric label="Equipe ativa" value={summary.activeEmployees} icon={Users} sub="colaboradores no escopo" />
+        <Metric label="Execução" value={formatPercent(summary.executionRate)} icon={Target} sub={`${summary.realized}/${summary.planned} realizados`} />
+        <Metric label="Pendências" value={summary.pending} icon={AlertTriangle} sub={`${summary.justified} justificados`} />
+        <Metric label="Aprovação" value={formatPercent(summary.approvalRate)} icon={CheckCircle2} sub={`${summary.passed}/${summary.attempts} aprovadas`} />
+        <Metric label="Média" value={formatScore(summary.averageScore)} icon={BarChart3} sub={`${summary.attempts} tentativas`} />
       </div>
 
-      <Card className="overflow-hidden">
-        <div className="flex items-center gap-2 p-4" style={{ borderBottom: "1px solid var(--border)" }}><Layers3 className="h-4 w-4" style={{ color: "var(--accent)" }} /><div><h2 className="text-sm font-black" style={{ color: "var(--text-1)" }}>Indicadores por setor</h2><p className="mt-0.5 text-[11px]" style={{ color: "var(--text-4)" }}>Execução e aprovação consolidadas por área operacional</p></div></div>
-        {sectors.length === 0 ? <div className="p-8 text-center text-sm" style={{ color: "var(--text-4)" }}>Nenhum setor com dados disponíveis.</div> : <div className="overflow-x-auto"><table className="w-full min-w-[680px] text-sm"><thead style={{ background: "var(--bg-surface-2)" }}><tr style={{ color: "var(--text-4)" }}><th className="p-3 text-left text-[10px] font-black uppercase tracking-[.12em]">Setor</th><th className="p-3 text-right text-[10px] font-black uppercase tracking-[.12em]">Equipe</th><th className="p-3 text-right text-[10px] font-black uppercase tracking-[.12em]">Planejados</th><th className="p-3 text-right text-[10px] font-black uppercase tracking-[.12em]">Realizados</th><th className="p-3 text-right text-[10px] font-black uppercase tracking-[.12em]">Execução</th><th className="p-3 text-right text-[10px] font-black uppercase tracking-[.12em]">Aprovação</th></tr></thead><tbody>{sectors.map((sector) => <tr key={sector.sector} style={{ borderTop: "1px solid var(--border)" }}><td className="p-3 font-black" style={{ color: "var(--text-1)" }}>{sector.sector}</td><td className="p-3 text-right" style={{ color: "var(--text-3)" }}>{sector.employees}</td><td className="p-3 text-right" style={{ color: "var(--text-3)" }}>{sector.planned}</td><td className="p-3 text-right" style={{ color: "var(--text-3)" }}>{sector.realized}</td><td className="p-3 text-right"><span className="rounded-lg px-2 py-1 text-xs font-black" style={{ background: sector.executionRate >= 80 ? "rgba(16,185,129,.10)" : sector.executionRate >= 50 ? "rgba(245,158,11,.10)" : "rgba(225,29,72,.10)", color: sector.executionRate >= 80 ? "#10b981" : sector.executionRate >= 50 ? "#f59e0b" : "#e11d48" }}>{sector.executionRate}%</span></td><td className="p-3 text-right"><span className="rounded-lg px-2 py-1 text-xs font-black" style={{ background: sector.approvalRate >= 80 ? "rgba(16,185,129,.10)" : "rgba(225,29,72,.10)", color: sector.approvalRate >= 80 ? "#10b981" : "#e11d48" }}>{sector.approvalRate}%</span></td></tr>)}</tbody></table></div>}
+      <Card className="segempat-report-print overflow-hidden">
+        <ReportHeading icon={Layers3} title="Indicadores por setor" subtitle="A execução e a aprovação sempre aparecem junto aos respectivos volumes de referência." />
+        {sectorRows.length === 0 ? <Empty text="Nenhum setor com dados disponíveis." /> : <div className="overflow-x-auto"><table className="w-full min-w-[820px] text-sm"><thead style={{ background: "var(--bg-surface-2)" }}><tr>{["Setor", "Equipe", "Planejados", "Realizados", "Pendentes", "Execução", "Tentativas", "Aprovação", "Média"].map((label) => <th key={label} className={`p-3 text-[9px] font-black uppercase tracking-[.1em] ${label === "Setor" ? "text-left" : "text-right"}`} style={{ color: "var(--text-4)" }}>{label}</th>)}</tr></thead><tbody>{sectorRows.map((row) => <tr key={row.sector} style={{ borderTop: "1px solid var(--border-subtle)" }}><td className="p-3 font-black" style={{ color: "var(--text-1)" }}>{row.sector}</td><td className="p-3 text-right">{row.activeEmployees}</td><td className="p-3 text-right">{row.planned}</td><td className="p-3 text-right">{row.realized}</td><td className="p-3 text-right">{row.pending}</td><td className="p-3 text-right font-black">{formatPercent(row.executionRate)}</td><td className="p-3 text-right">{row.attempts}</td><td className="p-3 text-right font-black">{formatPercent(row.approvalRate)}</td><td className="p-3 text-right font-black">{formatScore(row.averageScore)}</td></tr>)}</tbody></table></div>}
       </Card>
 
-      <Card className="p-4">
-        <div className="flex items-center gap-2"><BarChart3 className="h-4 w-4" style={{ color: "var(--accent)" }} /><h2 className="text-sm font-black" style={{ color: "var(--text-1)" }}>Volume consolidado</h2></div>
-        <div className="mt-4 grid grid-cols-2 gap-3 text-center sm:grid-cols-3 md:grid-cols-5">{[["Planejados", metrics.planned, "#3b82f6"], ["Realizados", metrics.realized, "#10b981"], ["Pendentes", metrics.pending, "#f59e0b"], ["Justificados", metrics.justified, "#60a5fa"], ["Tentativas", metrics.attempts, "#e11d48"]].map(([label, value, color]) => <div key={String(label)} className="rounded-xl p-3" style={{ background: "var(--bg-surface-2)", border: "1px solid var(--border-subtle)" }}><p className="text-2xl font-black" style={{ color: String(color) }}>{String(value)}</p><p className="mt-1 text-[10px] font-black uppercase tracking-[.1em]" style={{ color: "var(--text-4)" }}>{String(label)}</p></div>)}</div>
+      <Card className="segempat-report-print overflow-hidden">
+        <ReportHeading icon={CalendarDays} title="Fechamento mês a mês" subtitle="Doze meses permanecem visíveis, inclusive os meses sem planejamento ou sem avaliações, para preservar a leitura do período inteiro." />
+        <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-sm"><thead style={{ background: "var(--bg-surface-2)" }}><tr>{["Mês", "Planejados", "Realizados", "Pendentes", "Justificados", "Execução", "Tentativas", "Aprovadas", "Aprovação", "Média"].map((label) => <th key={label} className={`p-3 text-[9px] font-black uppercase tracking-[.1em] ${label === "Mês" ? "text-left" : "text-right"}`} style={{ color: "var(--text-4)" }}>{label}</th>)}</tr></thead><tbody>{months.map((row) => <tr key={row.month} style={{ borderTop: "1px solid var(--border-subtle)" }}><td className="p-3 font-black uppercase" style={{ color: "var(--text-1)" }}>{row.label}</td><td className="p-3 text-right">{row.planned}</td><td className="p-3 text-right">{row.realized}</td><td className="p-3 text-right">{row.pending}</td><td className="p-3 text-right">{row.justified}</td><td className="p-3 text-right font-black">{formatPercent(row.executionRate)}</td><td className="p-3 text-right">{row.attempts}</td><td className="p-3 text-right">{row.passed}</td><td className="p-3 text-right font-black">{formatPercent(row.approvalRate)}</td><td className="p-3 text-right font-black">{formatScore(row.averageScore)}</td></tr>)}</tbody></table></div>
+      </Card>
+
+      <Card className="segempat-report-print segempat-report-page-break overflow-hidden">
+        <ReportHeading icon={BarChart3} title="Desempenho das avaliações" subtitle="O mínimo é o critério individual configurado na prova; a taxa de aprovação é a proporção de tentativas aprovadas no recorte." />
+        {exams.length === 0 ? <Empty text="Nenhuma avaliação concluída neste escopo." /> : <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-sm"><thead style={{ background: "var(--bg-surface-2)" }}><tr>{["Avaliação", "Modalidade", "Mínimo", "Tentativas", "Aprovadas", "Aprovação", "Média"].map((label) => <th key={label} className={`p-3 text-[9px] font-black uppercase tracking-[.1em] ${label === "Avaliação" || label === "Modalidade" ? "text-left" : "text-right"}`} style={{ color: "var(--text-4)" }}>{label}</th>)}</tr></thead><tbody>{exams.map((exam) => <tr key={exam.examId} style={{ borderTop: "1px solid var(--border-subtle)" }}><td className="p-3 font-black" style={{ color: "var(--text-1)" }}>{exam.title}</td><td className="p-3" style={{ color: "var(--text-3)" }}>{exam.type}</td><td className="p-3 text-right">{exam.minApprovalPct}%</td><td className="p-3 text-right">{exam.attempts}</td><td className="p-3 text-right">{exam.passed}</td><td className="p-3 text-right font-black">{formatPercent(exam.approvalRate)}</td><td className="p-3 text-right font-black">{formatScore(exam.averageScore)}</td></tr>)}</tbody></table></div>}
+      </Card>
+
+      <Card className="segempat-report-print p-4">
+        <div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" style={{ color: "var(--accent)" }} /><div><p className="text-sm font-black" style={{ color: "var(--text-1)" }}>Rastreabilidade do relatório</p><p className="mt-1 text-xs leading-relaxed" style={{ color: "var(--text-4)" }}>Fonte: snapshot operacional do SEGEMPAT para o ano selecionado. Escopo funcional: colaboradores ativos fora do perfil Inspetor, cronograma associado por ID ou matrícula e avaliações associadas pela matrícula. Ausência de denominador é representada por “—”; nenhum valor é estimado por IA.</p></div></div>
       </Card>
     </div>
   );
+}
+
+function ReportHeading({ icon: Icon, title, subtitle }: { icon: typeof Layers3; title: string; subtitle: string }) {
+  return <div className="flex items-start gap-2 border-b p-4" style={{ borderColor: "var(--border-subtle)" }}><Icon className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--accent)" }} /><div><h2 className="text-sm font-black" style={{ color: "var(--text-1)" }}>{title}</h2><p className="mt-0.5 text-[11px]" style={{ color: "var(--text-4)" }}>{subtitle}</p></div></div>;
+}
+
+function Metric({ label, value, icon: Icon, sub }: { label: string; value: string | number; icon: typeof Users; sub: string }) {
+  return <Card className="segempat-report-print p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-[9px] font-black uppercase tracking-[.14em]" style={{ color: "var(--text-4)" }}>{label}</p><p className="mt-2 text-2xl font-black md:text-3xl" style={{ color: "var(--text-1)" }}>{value}</p><p className="mt-1 text-[10px]" style={{ color: "var(--text-4)" }}>{sub}</p></div><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: "var(--accent-soft)" }}><Icon className="h-4 w-4" style={{ color: "var(--accent)" }} /></div></div></Card>;
+}
+
+function Empty({ text }: { text: string }) {
+  return <div className="p-8 text-center text-sm" style={{ color: "var(--text-4)" }}>{text}</div>;
 }
 
 function csvCell(value: unknown) {
@@ -127,8 +222,33 @@ function csvCell(value: unknown) {
   return `"${text.replaceAll('"', '""')}"`;
 }
 
-function Metric({ label, value, icon: Icon, accent, sub }: { label: string; value: string | number; icon: typeof Users; accent: string; sub: string }) {
-  return <Card className="relative overflow-hidden p-4"><div className="absolute left-0 top-0 h-[3px] w-full" style={{ background: accent }} /><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.14em]" style={{ color: "var(--text-4)" }}>{label}</p><p className="mt-2 text-3xl font-black" style={{ color: "var(--text-1)" }}>{value}</p><p className="mt-1 text-[11px] font-semibold" style={{ color: accent }}>{sub}</p></div><div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: `${accent}12`, border: `1px solid ${accent}30` }}><Icon className="h-4 w-4" style={{ color: accent }} /></div></div></Card>;
+function csvMetric(value: number | null) {
+  return value == null ? "SEM BASE" : value;
+}
+
+function downloadCsv(filename: string, rows: unknown[][]) {
+  const content = rows.map((row) => row.map(csvCell).join(";")).join("\n");
+  const blob = new Blob(["\ufeff" + content], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function safeFileName(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9_-]+/g, "_");
+}
+
+function formatPercent(value: number | null) {
+  return value == null ? "—" : `${value}%`;
+}
+
+function formatScore(value: number | null) {
+  return value == null ? "—" : value.toFixed(1);
 }
 
 function Loading() {

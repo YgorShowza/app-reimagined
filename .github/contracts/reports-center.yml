@@ -17,18 +17,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Validate unified reports center
-        shell: bash
-        run: |
-          set -euo pipefail
-          FILE=src/routes/_authenticated/relatorios.tsx
-          MONTHLY=src/components/reports/MonthlyReportWorkspace.tsx
-          grep -F 'Central de Relatórios' "$FILE" >/dev/null
-          grep -F 'Visão Executiva' "$FILE" >/dev/null
-          grep -F 'Fechamento Mensal' "$FILE" >/dev/null
-          grep -F '<MonthlyReportWorkspace embedded />' "$FILE" >/dev/null
-          grep -F 'exportCsv' "$FILE" >/dev/null
-          grep -F 'embedded = false' "$MONTHLY" >/dev/null
-          grep -F 'Imprimir visão atual' "$MONTHLY" >/dev/null
-          test -f src/routes/_authenticated/relatorio-mensal.tsx
-          echo "Central de Relatórios validada."
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Validate analytics and reports coherence
+        run: node scripts/check-analytics-reports.mjs
