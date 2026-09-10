@@ -35,7 +35,7 @@ jobs:
           grep -F '<table' src/components/team/TeamManagementWorkspace.tsx >/dev/null
           grep -F 'lg:hidden' src/components/team/TeamManagementWorkspace.tsx >/dev/null
           grep -F 'sm:max-w-2xl' src/components/team/TeamManagementWorkspace.tsx >/dev/null
-          grep -F 'max-h-[92vh]' src/components/ui/dialog.tsx >/dev/null
+          grep -F 'max-h-[92dvh]' src/components/ui/dialog.tsx >/dev/null
           grep -F 'focus-visible:ring-2' src/components/ui/button.tsx >/dev/null
           grep -F 'focus-visible:ring-2' src/components/ui/input.tsx >/dev/null
-          echo "Experiência desktop-first do SEGEMPAT validada."
+          echo "Experiência desktop-first do SEGEMPAT validada com viewport dinâmica."
