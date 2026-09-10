@@ -10,6 +10,6 @@ function ExamSignaturesPage() {
 }
 
 export const Route = createFileRoute("/_authenticated/assinaturas-provas")({
-  head: () => ({ meta: [{ title: "Assinaturas de Provas · SEGEMPAT" }] }),
+  head: () => ({ meta: [{ title: "Certificados e Assinaturas · SEGEMPAT" }] }),
   component: ExamSignaturesPage,
 });
