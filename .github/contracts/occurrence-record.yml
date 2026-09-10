@@ -38,7 +38,15 @@ jobs:
           grep -F 'Pessoas envolvidas' src/components/occurrences/OccurrencesWorkspace.tsx >/dev/null
           grep -F 'Registro fotográfico' src/components/occurrences/OccurrencesWorkspace.tsx >/dev/null
           grep -F 'Evolução da ocorrência' src/components/occurrences/OccurrencesWorkspace.tsx >/dev/null
+          grep -F 'hasPermission(user, "occurrences.manage")' src/components/occurrences/OccurrencesWorkspace.tsx >/dev/null
+          grep -F 'Prioridade operacional' src/components/occurrences/OccurrencesWorkspace.tsx >/dev/null
+          grep -F 'Adicionar evidências' src/components/occurrences/OccurrencesWorkspace.tsx >/dev/null
+          grep -F 'Limpar filtros' src/components/occurrences/OccurrencesWorkspace.tsx >/dev/null
+          if grep -F 'window.confirm' src/components/occurrences/OccurrencesWorkspace.tsx >/dev/null; then
+            echo 'Confirmação nativa de exclusão não é permitida no fluxo refinado de ocorrências.' >&2
+            exit 1
+          fi
           grep -F 'check-occurrence-record-integrity.js' server/package.json >/dev/null
           node --check server/src/routes/occurrence-integrity.js
           node --check server/scripts/check-occurrence-record-integrity.js
-          echo "Registro operacional completo de ocorrências validado."
+          echo "Registro operacional completo e experiência refinada de ocorrências validados."
